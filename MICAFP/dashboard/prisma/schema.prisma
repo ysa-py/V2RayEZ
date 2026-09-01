@@ -18,8 +18,10 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  sessions  Session[]
-  auditLogs AuditLog[]
+  sessions          Session[]
+  auditLogs         AuditLog[]
+  licenses          License[]
+  deviceActivations DeviceActivation[]
 
   @@map("users")
 }
@@ -28,6 +30,104 @@ enum Role {
   ADMIN
   OPERATOR
   USER
+}
+
+enum LicenseStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+  SUSPENDED
+}
+
+enum LicenseValidationResult {
+  ALLOWED
+  DENIED
+}
+
+/// Signed per-user license/serial issued by the V2RayEZ license server.
+model License {
+  id                String        @id @default(cuid())
+  userId            String
+  accountId         String
+  keyId             String
+  licenseKeyHash    String        @unique
+  signedPayload     String
+  status            LicenseStatus @default(ACTIVE)
+  issuedAt          DateTime      @default(now())
+  expiresAt         DateTime
+  revokedAt         DateTime?
+  renewedAt         DateTime?
+  lastValidatedAt   DateTime?
+  offlineGraceUntil DateTime?
+  maxDevices        Int           @default(1)
+  offlineGraceHours Int           @default(72)
+  features          String[]      @default([])
+  metadata          Json?
+  revokeReason      String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceActivations DeviceActivation[]
+  validations       LicenseValidation[]
+
+  @@index([userId])
+  @@index([accountId])
+  @@index([status, expiresAt])
+  @@map("licenses")
+}
+
+/// Device/account binding for one activated install.
+model DeviceActivation {
+  id           String    @id @default(cuid())
+  licenseId    String
+  userId       String
+  accountId    String
+  deviceIdHash String
+  platform     String
+  appVersion   String?
+  deviceLabel  String?
+  firstSeenAt  DateTime  @default(now())
+  lastSeenAt   DateTime  @default(now())
+  revokedAt    DateTime?
+  metadata     Json?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  license License @relation(fields: [licenseId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([licenseId, deviceIdHash])
+  @@index([userId])
+  @@index([accountId])
+  @@index([platform])
+  @@map("device_activations")
+}
+
+/// Online license validation audit trail. License id is nullable so forged/unknown
+/// serials can still be logged without creating a fake License row.
+model LicenseValidation {
+  id           String                  @id @default(cuid())
+  licenseId    String?
+  accountId    String
+  deviceIdHash String
+  platform     String
+  appVersion   String?
+  result       LicenseValidationResult
+  reason       String
+  serverTime   DateTime
+  ipAddress    String?
+  userAgent    String?
+  metadata     Json?
+  createdAt    DateTime                @default(now())
+
+  license License? @relation(fields: [licenseId], references: [id], onDelete: SetNull)
+
+  @@index([licenseId])
+  @@index([accountId])
+  @@index([deviceIdHash])
+  @@index([createdAt])
+  @@map("license_validations")
 }
 
 /// User sessions

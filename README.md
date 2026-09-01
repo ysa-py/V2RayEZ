@@ -10,7 +10,7 @@ stop and explicitly flag it instead of omitting it quietly.
 
 ## 0. Source projects being merged (do not lose any feature from any of these)
 1. **V2RayEZ** (base app — Android, Kotlin/Compose, Xray core)
-2. **AetherGUI / Aethon** (Windows + Android, Aether/sing-box core, signed auto-update)
+2. **V2RayEZ-GUI / Aether adapter donor** (Windows + Android behavior around the Aether/sing-box core, signed auto-update; not the shipped product identity)
 3. **EasySNI** (Go, single-binary local web panel: SNI tunnel, domain fronting, scanners)
 4. **MICAFP-UnifiedShield vip-ultra-Quantum-ultra** (Rust daemon + Flutter UI — the
    largest source: 22 transports, 9 obfuscation engines, 9 VPN cores, 7 AI/ML engines,
@@ -38,12 +38,11 @@ Linux/OpenWrt. Platform layers (Kotlin, Swift, C++/Win32, LuCI Lua/JS) are thin
 UI/lifecycle shells around this one core — never re-implement transport or crypto
 logic per platform.
 
-**Architectural note confirmed during source review**: AetherGUI and MSN-GUARD are
+**Architectural note confirmed during source review**: the legacy Aether GUI donor and MSN-GUARD are
 not two independent engines — MSN-GUARD's Rust core (`libaether.so` + JNI bridge
-`libaether_jni.so`) *is* the `CluvexStudio/Aether` engine, the same engine AetherGUI
-wraps (Aethon integrates Aether v1.7.0). Do not merge these as two separate cores;
+`libaether_jni.so`) *is* the `CluvexStudio/Aether` engine, the same engine wrapped by the V2RayEZ-GUI Aether adapter donor (Aether v1.7.0). Do not merge these as two separate cores;
 merge Aether once and layer both feature sets (MSN-GUARD's 5-transport device-wide
-tunnel behavior + AetherGUI's Scan Mode/routing/signed-update behavior) on that one
+tunnel behavior + the legacy Aether GUI donor's Scan Mode/routing/signed-update behavior) on that one
 engine. MICAFP's Rust daemon is a distinct, separate core (its own 22-transport
 stack) — that one genuinely does need a real merge with Aether, not just a rename.
 
@@ -417,8 +416,8 @@ surface does not silently ship incomplete translations.
 - اعلان Foreground، کاشی Quick Settings، اتصال خودکار هنگام بوت
 - سه زبان: انگلیسی، فارسی، روسی
 
-## نکته معماری مهم (پیدا شده در بررسی دقیق‌تر): AetherGUI و MSN-GUARD یک موتور مشترک دارند
-هستهٔ Rust که MSN-GUARD به‌کار می‌برد (`libaether.so` + پل JNI `libaether_jni.so`) دقیقاً همان پروژهٔ **Aether از CluvexStudio** است که AetherGUI/Aethon هم روی آن ساخته شده (نسخهٔ هسته در Aethon: v1.7.0). یعنی این دو پروژه از یک موتور VPN مشترک استفاده می‌کنند، فقط با دو پوستهٔ متفاوت (MSN-GUARD = پوستهٔ اندروید فقط-VPN با ۵ ترابری؛ AetherGUI = پوستهٔ ویندوز/اندروید با UI متفاوت و مسیریابی/Scan Mode متفاوت). **در ادغام نهایی نباید این دو را به‌عنوان دو هستهٔ جدا پیاده‌سازی کرد** — باید یک بار هستهٔ Aether را ادغام کرد و هر دو مجموعه قابلیت (ترابری‌های MSN-GUARD + قابلیت‌های UI/Scan Mode/آپدیت امن AetherGUI) را روی همان یک هسته سوار کرد.
+## نکته معماری مهم (پیدا شده در بررسی دقیق‌تر): V2RayEZ-GUI Aether adapter و MSN-GUARD یک موتور مشترک دارند
+هستهٔ Rust که MSN-GUARD به‌کار می‌برد (`libaether.so` + پل JNI `libaether_jni.so`) دقیقاً همان پروژهٔ **Aether از CluvexStudio** است که legacy Aether GUI donor هم روی آن ساخته شده (نسخهٔ هسته در آداپتر: v1.7.0). یعنی این دو پروژه از یک موتور VPN مشترک استفاده می‌کنند، فقط با دو پوستهٔ متفاوت (MSN-GUARD = پوستهٔ اندروید فقط-VPN با ۵ ترابری؛ آداپتر Aether = رفتار ویندوز/اندروید، مسیریابی و Scan Mode که پشت رابط V2RayEZ منتقل می‌شود). **در ادغام نهایی نباید این دو را به‌عنوان دو هستهٔ جدا پیاده‌سازی کرد** — باید یک بار هستهٔ Aether را ادغام کرد و هر دو مجموعه قابلیت (ترابری‌های MSN-GUARD + قابلیت‌های Scan Mode/مسیریابی/آپدیت امن آداپتر) را روی همان یک هسته سوار کرد.
 
 نکات دقیق‌تر MSN-GUARD:
 - حالت اجرا **فقط VPN** است (حالت پروکسی محلی به‌عمد حذف شده تا هدف تونل‌کردن کل دستگاه گم نشود) — پورت SOCKS داخلی ثابت `127.0.0.1:1819` فقط داخلی است
@@ -482,7 +481,7 @@ Xray-core v26.7.28 (MPL-2.0)، فونت فارسی Vazirmatn (SIL OFL 1.1) بر�
 ### ابزار QA زبان در V2RayEZ پایه (قبلاً دیده نشده بود)
 پوشهٔ `scripts/gates/` شامل اسکریپت `string-key-parity.sh` است که بررسی می‌کند همهٔ کلیدهای رشته‌ای ترجمه (EN/FA/RU) در هر سه زبان کامل و هم‌تراز باشند، به‌همراه `conflict-neighbors.txt` و `task-exit.sh` برای کنترل کیفیت CI. این ابزار باید در فرایند build برنامهٔ یکپارچه هم نگه داشته شود تا اضافه‌کردن قابلیت‌های جدید باعث ترجمهٔ ناقص نشود.
 
-## ۲) AetherGUI (→ Aethon)
+## ۲) V2RayEZ-GUI / Aether adapter donor
 - کلاینت ویندوز و اندروید مستقل روی هسته Aether + موتور مسیریابی sing-box
 - روتینگ سیستمی (system-wide) یا SOCKS5 محلی
 - Recovery خودکار برای آداپتور TUN باقی‌مانده و نشست‌های خراب
@@ -635,7 +634,7 @@ Xray-core v26.7.28 (MPL-2.0)، فونت فارسی Vazirmatn (SIL OFL 1.1) بر�
 
 اگر جایی از این فهرست چیزی جا افتاده یا برداشت من اشتباه است، بگو تا اصلاح کنم. در غیر این صورت، پرامت مهندسی کامل انگلیسی آماده است.
  اگر هر چیزی  جا افتاده بود اضافه کن بهش بصورت کامل متوجه شدم بیشتر توضیح بدم بهت همه. تمامی قابلیت های ویژگی ها که دارم با دقت ذره بین بررسی کن ببین دقیق بعدش لیست کن یک پرامت مهندسی بنویس به خارجی بنویس که خطا نداشته باشه حتماً بصورت کامل متوجه شدی بیشتر توضیح بدم بهت که پیاده سازی کنه هوش مصنوعی Gemini  بصورت کامل متوجه شدم یا بیشتر توضیح بدم بهت هیچ چیزی قابلیتی از دست نره بصورت کامل متوجه شدم بیشتر توضیح بدم بهت 
-ادادمه بده AetherGUI- Make sure to fully add all features to the V2RayEZ app
+ادادمه بده V2RayEZ-GUI
 EasySNI- Make sure to fully add all features to the V2RayEZ app
 MICAFP- Make sure to fully add all features to the V2RayEZ app
 MSN-GUARD- Make sure to fully add all features to the V2RayEZ app
@@ -649,7 +648,7 @@ V2RayEZ – The core application supports Android, iOS, Windows, Linux, and Open
 هست باید باشه حتماً بصورت آخر سره تست واقعی کن بصورت کامل متوجه شدی بیشتر توضیح بدم بهت  و قابلیت های پیشرفته اضافه کن با
 دت ذره بین بررسی کن ببین دقیق  وصل هم نمیشه خطا ها رو رفع کن بصورت کامل خودکار باید باشه حتماً بصورت کامل هوشمند ترین کن با ببین دقیق بعدش بررسی کن ببین دقیق بعدش انجامش بده بصورت کامل خودکار باید باشه حتماً بصورت کامل متوجه شدی بیشتر توضیح بدم بهت انجامش بده بصورت کامل متوجه شدی بیشتر توضیح بدم بهت و  خودت هم  درستش کن   /android-dev /ios-dev /plan @general-purpose @Explore / [$android-dev](C:\\Users\\mehdi ll\\.zcode\\cli\\plugins\\cache\\zcode-plugins-official\\android-emulator\\0.1.0\\skills\\android-dev\\SKILL.md) [$ios-dev](C:\\Users\\mehdi ll\\.zcode\\cli\\plugins\\cache\\zcode-plugins-official\\ios-simulator\\0.1.0\\skills\\ios-dev\\SKILL.md) [$diagnosing-mcp](C:\\Users\\mehdi ll\\.zcode\\cli\\plugins\\cache\\zcode-plugins-official\\zcode-guide\\0.1.0\\skills\\diagnosing-mcp\\SKILL.md) [@android-emulator](plugin://android-emulator@zcode-plugins-official) [@ios-simulator](plugin://ios-simulator@zcode-plugins-official) [@browser-use](plugin://browser-use@zcode-plugins-official) [@computer-use](plugin://computer-use@zcode-plugins-official) [@zcode-guide](plugin://zcode-guide@zcode-plugins-official) [@document-skills](plugin://document-skills@zcode-plugins-official) [@skill-creator](plugin://skill-creator@zcode-plugins-official)
 و
-ادادمه بده AetherGUI- همه تمامی قابیت ها رو در برنامه V2RayEZ اضافه کنی بصورت کامل
+ادادمه بده V2RayEZ-GUI- همه تمامی قابیت ها رو در برنامه V2RayEZ اضافه کنی بصورت کامل
 EasySNI- همه تمامی قابیت ها رو در برنامه V2RayEZ اضافه کنی بصورت کامل
 MICAFP- همه تمامی قابیت ها رو در برنامه V2RayEZ اضافه کنی بصورت کامل
 MSN-GUARD- همه تمامی قابیت ها رو در برنامه V2RayEZ اضافه کنی بصورت کامل

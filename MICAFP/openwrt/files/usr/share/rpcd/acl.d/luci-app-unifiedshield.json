@@ -1,0 +1,19 @@
+{
+  "luci-app-unifiedshield": {
+    "description": "Grant LuCI access to the V2RayEZ Universal / UnifiedShield OpenWrt service",
+    "read": {
+      "uci": ["unifiedshield"],
+      "ubus": {
+        "service": ["list"],
+        "network.interface": ["status"],
+        "file": ["read"]
+      }
+    },
+    "write": {
+      "uci": ["unifiedshield"],
+      "ubus": {
+        "service": ["set", "delete", "signal"]
+      }
+    }
+  }
+}

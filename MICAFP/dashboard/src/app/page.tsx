@@ -9,7 +9,7 @@ import {
   XCircle, Eye, Lock, Settings, BarChart3, Radio,
   Layers, CloudDownload, Cpu, Gauge, ArrowRightLeft, Search,
   MonitorSmartphone, Network, ShieldHalf, Timer, TrendingUp,
-  Signal, Database, GitBranch, FileCheck,
+  Signal, Database, GitBranch, FileCheck, FileKey,
   RotateCcw, TestTube, Bug, Scan,
   Smartphone, Monitor, Terminal, Apple, Router, Laptop,
   MapPin, AlertOctagon, Fingerprint, Power,
@@ -56,6 +56,8 @@ import { SystemHealthMonitor } from '@/components/system-health-monitor';
 import { SecurityCommandCenter } from '@/components/security-command-center';
 import { SessionAnalyticsPanel } from '@/components/session-analytics-panel';
 import { IranScannerPanel } from '@/components/iran-scanner-panel';
+import { LicenseAdminPanel } from '@/components/license-admin-panel';
+import { AIProviderGatewayPanel } from '@/components/ai-provider-gateway-panel';
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '۰ بایت';
@@ -2579,6 +2581,8 @@ export default function UnifiedShieldPage() {
             <TabsTrigger value="emergency" className="data-[state=active]:bg-rose-500/20 data-[state=active]:text-rose-400"><Siren className="w-4 h-4 ml-1" />مرکز اضطراری</TabsTrigger>
             <TabsTrigger value="telemetry" className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-400"><Activity className="w-4 h-4 ml-1" />تلهمتری زنده</TabsTrigger>
             <TabsTrigger value="ai" className="data-[state=active]:bg-violet-500/20 data-[state=active]:text-violet-400"><Sparkles className="w-4 h-4 ml-1" />هوش مصنوعی</TabsTrigger>
+            <TabsTrigger value="license" className="data-[state=active]:bg-emerald-500/20 data-[state=active]:text-emerald-400"><FileKey className="w-4 h-4 ml-1" />لایسنس</TabsTrigger>
+            <TabsTrigger value="ai-gateway" className="data-[state=active]:bg-purple-500/20 data-[state=active]:text-purple-400"><Brain className="w-4 h-4 ml-1" />AI Gateway</TabsTrigger>
             <TabsTrigger value="protocols" className="data-[state=active]:bg-pink-500/20 data-[state=active]:text-pink-400"><Network className="w-4 h-4 ml-1" />پروتکل‌ها</TabsTrigger>
             <TabsTrigger value="routing" className="data-[state=active]:bg-orange-500/20 data-[state=active]:text-orange-400"><GitBranch className="w-4 h-4 ml-1" />مسیریابی</TabsTrigger>
             <TabsTrigger value="network" className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-400"><Gauge className="w-4 h-4 ml-1" />شبکه</TabsTrigger>
@@ -2635,6 +2639,8 @@ export default function UnifiedShieldPage() {
           <TabsContent value="emergency"><SecurityCommandCenter /></TabsContent>
           <TabsContent value="telemetry"><SessionAnalyticsPanel /></TabsContent>
           <TabsContent value="ai"><AIOrchestratorPanel /></TabsContent>
+          <TabsContent value="license"><LicenseAdminPanel /></TabsContent>
+          <TabsContent value="ai-gateway"><AIProviderGatewayPanel /></TabsContent>
           <TabsContent value="protocols"><ProtocolStackPanel /></TabsContent>
           <TabsContent value="routing"><TrafficRoutingPanel /></TabsContent>
           <TabsContent value="network"><NetworkAnalyzerPanel /></TabsContent>

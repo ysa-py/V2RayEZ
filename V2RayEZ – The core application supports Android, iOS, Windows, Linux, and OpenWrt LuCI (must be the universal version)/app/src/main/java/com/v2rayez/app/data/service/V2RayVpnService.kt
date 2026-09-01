@@ -23,6 +23,7 @@ import com.v2rayez.app.data.core.HevTunBridge
 import com.v2rayez.app.data.core.ProcessProxyCore
 import com.v2rayez.app.data.core.SingBoxConfigBuilder
 import com.v2rayez.app.data.core.V2RayCore
+import com.v2rayez.app.data.ai.AndroidAiProviderGateway
 import com.v2rayez.app.data.analytics.FailureCategory
 import com.v2rayez.app.data.analytics.FirebaseTelemetry
 import com.v2rayez.app.data.cert.MitmCaStore
@@ -35,6 +36,8 @@ import com.v2rayez.app.data.tor.TorController
 import com.v2rayez.app.data.tor.TorState
 import com.v2rayez.app.data.local.SessionEntity
 import com.v2rayez.app.data.local.SessionDao
+import com.v2rayez.app.data.license.AndroidLicenseRepository
+import com.v2rayez.app.data.license.LicenseValidationResult
 import com.v2rayez.app.domain.model.AppSettings
 import com.v2rayez.app.domain.model.CORE_VERSION_BUNDLED
 import com.v2rayez.app.domain.model.ConnectionStatus
@@ -232,6 +235,8 @@ class V2RayVpnService : VpnService() {
     @Inject lateinit var stateHolder: VpnStateHolder
     @Inject lateinit var serverRepository: ServerRepository
     @Inject lateinit var settingsRepository: SettingsRepository
+    @Inject lateinit var licenseRepository: AndroidLicenseRepository
+    @Inject lateinit var aiProviderGateway: AndroidAiProviderGateway
     @Inject lateinit var logRepository: LogRepository
     @Inject lateinit var sessionDao: SessionDao
     @Inject lateinit var downloadTransport: DownloadTransport
@@ -246,6 +251,7 @@ class V2RayVpnService : VpnService() {
     private var statsJob: Job? = null
     private var pingJob: Job? = null
     private var watchdogJob: Job? = null
+    private var licenseJob: Job? = null
     private var activeServer: Server? = null
     private var sessionStartMs: Long = 0L
     /**
@@ -404,6 +410,13 @@ class V2RayVpnService : VpnService() {
             }
             val settings = settingsRepository.current().tunDnsEffectiveSettings()
             phase("settings")
+            val licenseDecision = licenseRepository.enforce(settings.license)
+            persistLicenseDecision(licenseDecision)
+            if (!licenseDecision.allowed) {
+                failAndStop(getString(R.string.vpn_error_license_required, licenseDecision.reason))
+                return
+            }
+            phase("license")
             runCatching { geoAssets.repairCorruptPackIfNeeded() }
             if (settings.enableLocalDns && !settingsRepository.current().enableLocalDns) {
                 log(LogLevel.INFO, "TUN DNS: forcing LocalDNS+sniff so apps resolve through Xray")
@@ -750,6 +763,7 @@ class V2RayVpnService : VpnService() {
             connectTrace.putAttribute("core", coreType.name)
             startStatsLoop(settings.batterySaver, generation)
             startDeathWatchdog(generation)
+            startLicenseWatchdog(generation)
         } catch (ce: CancellationException) {
             log(LogLevel.INFO, "Connect cancelled")
             connectTrace.putAttribute("result", "cancelled")
@@ -875,6 +889,7 @@ class V2RayVpnService : VpnService() {
         phase("connected")
         startStatsLoop(settings.batterySaver, generation)
         startDeathWatchdog(generation)
+        startLicenseWatchdog(generation)
     }
 
     /**
@@ -1021,6 +1036,7 @@ class V2RayVpnService : VpnService() {
         phase("connected")
         startStatsLoop(settings.batterySaver, generation)
         startDeathWatchdog(generation)
+        startLicenseWatchdog(generation)
     }
 
     /** Synthetic loopback server used for MITM sessions so UI/state/notifications have a subject. */
@@ -1178,6 +1194,7 @@ class V2RayVpnService : VpnService() {
         log(LogLevel.INFO, "Connected via $engineLabel")
         startStatsLoop(settings.batterySaver, generation)
         startDeathWatchdog(generation)
+        startLicenseWatchdog(generation)
     }
 
     private fun stopCoresBlocking() {
@@ -1200,6 +1217,8 @@ class V2RayVpnService : VpnService() {
         pingJob = null
         watchdogJob?.cancel()
         watchdogJob = null
+        licenseJob?.cancel()
+        licenseJob = null
         runCatching { runBlocking { byedpi.stop() } }
         runCatching { domainFrontEngine.stop() }
         torController.vpnSessionActive = false
@@ -1250,6 +1269,8 @@ class V2RayVpnService : VpnService() {
         pingJob = null
         watchdogJob?.cancel()
         watchdogJob = null
+        licenseJob?.cancel()
+        licenseJob = null
         runCatching { runBlocking { byedpi.stop() } }
         runCatching { domainFrontEngine.stop() }
         torController.vpnSessionActive = false
@@ -1390,7 +1411,22 @@ class V2RayVpnService : VpnService() {
         val endpoint = if (useXrayAar) "Xray" else "SOCKS port=$port"
         val level = if (policy.hardFailure) LogLevel.ERROR else LogLevel.WARNING
         log(level, "${policy.label} connectivity probe failed ($endpoint) — keeping live tunnel")
+        scope.launch { runAiAntiDpiAdvisor(policy.label, endpoint) }
         return !policy.hardFailure
+    }
+
+    private suspend fun runAiAntiDpiAdvisor(policyLabel: String, endpoint: String) {
+        val settings = runCatching { settingsRepository.current() }.getOrNull() ?: return
+        if (!settings.aiEngine.enabled) return
+        val result = aiProviderGateway.completeAntiDpiPlan(
+            settings.aiEngine,
+            "Connectivity probe failed for $policyLabel on $endpoint. Suggest the safest V2RayEZ anti-DPI fallback without changing user UI."
+        )
+        if (result.success) {
+            log(LogLevel.INFO, "AI Engine advisor (${result.source}/${result.providerName}): ${result.text.take(300)}")
+        } else {
+            log(LogLevel.WARNING, "AI Engine advisor failed: ${result.error.take(200)}")
+        }
     }
 
     /**
@@ -1544,6 +1580,50 @@ class V2RayVpnService : VpnService() {
         }
     }
 
+    /** Hard-cut active tunnels when the signed serial, revocation check, or grace window fails. */
+    private fun startLicenseWatchdog(generation: Int) {
+        licenseJob?.cancel()
+        licenseJob = scope.launch {
+            while (isActive && generation == connectGeneration.get()) {
+                val decision = licenseRepository.enforce(settingsRepository.current().license)
+                persistLicenseDecision(decision)
+                if (!decision.allowed) {
+                    lifecycleMutex.withLock {
+                        if (generation == connectGeneration.get() &&
+                            stateHolder.connectionState.value.status == ConnectionStatus.CONNECTED
+                        ) {
+                            failAndStop(
+                                message = getString(R.string.vpn_error_license_required, decision.reason),
+                                stopTor = activeServer?.id == "tor-device",
+                                category = FailureCategory.VPN_CONNECT
+                            )
+                        }
+                    }
+                    return@launch
+                }
+                val waitMs = when {
+                    decision.remainingSeconds in 1..60 -> decision.remainingSeconds * 1_000L
+                    else -> 60_000L
+                }
+                delay(waitMs)
+            }
+        }
+    }
+
+    private suspend fun persistLicenseDecision(decision: LicenseValidationResult) {
+        settingsRepository.update {
+            it.copy(
+                license = it.license.copy(
+                    lastResult = decision.result,
+                    lastReason = decision.reason,
+                    lastValidatedAt = decision.checkedAt,
+                    expiresAt = decision.expiresAt,
+                    offlineGraceUntil = decision.offlineGraceUntil
+                )
+            )
+        }
+    }
+
     private fun tunnelDeathReason(): String? {
         val protocol = activeServer?.protocol
         val primaryHealthy = when (protocol) {
@@ -1607,6 +1687,8 @@ class V2RayVpnService : VpnService() {
         pingJob = null
         watchdogJob?.cancel()
         watchdogJob = null
+        licenseJob?.cancel()
+        licenseJob = null
         runCatching { byedpi.stop() }
         runCatching { domainFrontEngine.stop() }
         torController.vpnSessionActive = false
@@ -1693,6 +1775,8 @@ class V2RayVpnService : VpnService() {
         pingJob = null
         watchdogJob?.cancel()
         watchdogJob = null
+        licenseJob?.cancel()
+        licenseJob = null
         downloadTransport.setSocketProtector(null)
         downloadTransport.setProxyEndpointProvider(null)
         // Close TUN immediately on the calling thread (cheap, must not leak).

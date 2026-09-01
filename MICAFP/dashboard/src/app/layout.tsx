@@ -1,19 +1,7 @@
 import type { Metadata, Viewport } from "next";
-import { Vazirmatn, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { AppProviders } from "@/components/app-providers";
-
-const vazirmatn = Vazirmatn({
-  variable: "--font-vazirmatn",
-  subsets: ["latin", "arabic"],
-  display: "swap",
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
   title: "یونیفایدشیلد — کنسول فرماندهی امنیت سایبری",
@@ -63,7 +51,7 @@ export default function RootLayout({
       lang="fa"
       dir="rtl"
       suppressHydrationWarning
-      className={`dark ${vazirmatn.variable} ${geistMono.variable}`}
+      className="dark"
     >
       <body className="bg-background text-foreground">
         {/* Apply persisted theme before first paint to avoid flash-of-wrong-theme */}

@@ -1,7 +1,7 @@
 include $(TOPDIR)/rules.mk
 
 LUCI_TITLE:=LuCI support for UnifiedShield VPN
-LUCI_DEPENDS:=+unifiedshield
+LUCI_DEPENDS:=+unifiedshield +luci-lib-jsonc
 LUCI_PKGARCH:=all
 
 PKG_NAME:=luci-app-unifiedshield

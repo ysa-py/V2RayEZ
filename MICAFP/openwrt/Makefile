@@ -9,7 +9,7 @@
 #   aarch64_cortex-a53 — ARM routers (NanoPi, etc.)
 #
 # Usage:
-#   make package/shield/compile V=s
+#   make package/unifiedshield/compile V=s
 #
 # Prerequisites:
 #   - OpenWrt SDK for the target architecture
@@ -22,7 +22,7 @@ include $(TOPDIR)/rules.mk
 # Package definition
 # ---------------------------------------------------------------------------
 
-PKG_NAME:=shield
+PKG_NAME:=unifiedshield
 PKG_VERSION:=6.0.0
 PKG_RELEASE:=1
 
@@ -42,15 +42,15 @@ include $(INCLUDE_DIR)/package.mk
 # Package metadata
 # ---------------------------------------------------------------------------
 
-define Package/shield
+define Package/unifiedshield
   SECTION:=net
   CATEGORY:=Network
   TITLE:=UnifiedShield Anti-Censorship VPN Daemon
-  DEPENDS:=+libc +libpthread +ca-bundle +libopenssl +kmod-tun
+  DEPENDS:=+libc +libpthread +ca-bundle +libopenssl +kmod-tun +uclient-fetch
   PKGARCH:=all
 endef
 
-define Package/shield/description
+define Package/unifiedshield/description
   UnifiedShield is an anti-censorship VPN designed for Iran.
   It uses WebTransport/HTTPS tunnels through CDN workers with
   traffic obfuscation to bypass DPI and the national firewall.
@@ -65,11 +65,14 @@ define Package/shield/description
   - LuCI web management interface
 endef
 
-define Package/shield/conffiles
-/etc/config/shield
-/etc/shield/cdn-endpoints.json
-/etc/shield/p2p-bootstrap-peers.json
-/etc/shield/isp-profiles.json
+define Package/unifiedshield/conffiles
+/etc/config/unifiedshield
+/etc/unifiedshield/license-public.pem
+/etc/unifiedshield/license.token
+/etc/unifiedshield/license.grace
+/etc/unifiedshield/cdn-endpoints.json
+/etc/unifiedshield/p2p-bootstrap-peers.json
+/etc/unifiedshield/isp-profiles.json
 endef
 
 # ---------------------------------------------------------------------------
@@ -114,63 +117,79 @@ endef
 # Install
 # ---------------------------------------------------------------------------
 
-define Package/shield/install
+define Package/unifiedshield/install
 	# Daemon binary
 	$(INSTALL_DIR) $(1)/usr/bin
 	$(INSTALL_BIN) \
 		$(PKG_BUILD_DIR)/daemon/target/$(RUST_TARGET)/release/shield-daemon \
-		$(1)/usr/bin/shield-daemon
+		$(1)/usr/bin/unifiedshield
 
 	# Configuration files
 	$(INSTALL_DIR) $(1)/etc/config
-	$(INSTALL_CONF) ./files/etc/config/shield $(1)/etc/config/shield
+	$(INSTALL_CONF) ./files/etc/config/unifiedshield $(1)/etc/config/unifiedshield
 
-	$(INSTALL_DIR) $(1)/etc/shield
-	$(INSTALL_CONF) $(PKG_BUILD_DIR)/configs/cdn-endpoints.json $(1)/etc/shield/
-	$(INSTALL_CONF) $(PKG_BUILD_DIR)/configs/p2p-bootstrap-peers.json $(1)/etc/shield/
-	$(INSTALL_CONF) $(PKG_BUILD_DIR)/configs/isp-profiles.json $(1)/etc/shield/
+	$(INSTALL_DIR) $(1)/etc/unifiedshield
+	$(INSTALL_CONF) $(PKG_BUILD_DIR)/configs/cdn-endpoints.json $(1)/etc/unifiedshield/
+	$(INSTALL_CONF) $(PKG_BUILD_DIR)/configs/p2p-bootstrap-peers.json $(1)/etc/unifiedshield/
+	$(INSTALL_CONF) $(PKG_BUILD_DIR)/configs/isp-profiles.json $(1)/etc/unifiedshield/
+	$(INSTALL_CONF) ./files/etc/unifiedshield/iran_ip_ranges.txt $(1)/etc/unifiedshield/
 
 	# Init script
 	$(INSTALL_DIR) $(1)/etc/init.d
-	$(INSTALL_BIN) ./files/etc/init.d/shield $(1)/etc/init.d/shield
+	$(INSTALL_BIN) ./files/etc/init.d/unifiedshield $(1)/etc/init.d/unifiedshield
 
-	# LuCI web interface
+	# License/AI helper scripts
+	$(INSTALL_DIR) $(1)/usr/libexec/unifiedshield
+	$(INSTALL_BIN) ./files/usr/libexec/unifiedshield/license-gate.sh $(1)/usr/libexec/unifiedshield/license-gate.sh
+	$(INSTALL_BIN) ./files/usr/libexec/unifiedshield/ai-provider-test.lua $(1)/usr/libexec/unifiedshield/ai-provider-test.lua
+
+	# LuCI web interface: controller, models, CBI forms, templates, and ACL.
 	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/controller
-	$(INSTALL_DATA) $(PKG_BUILD_DIR)/openwrt/files/usr/lib/lua/luci/controller/shield.lua \
-		$(1)/usr/lib/lua/luci/controller/shield.lua
+	$(INSTALL_DATA) ./src/luci-app-unifiedshield/luasrc/controller/unifiedshield.lua \
+		$(1)/usr/lib/lua/luci/controller/unifiedshield.lua
 
-	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/view/shield
-	$(INSTALL_DATA) ./files/usr/lib/lua/luci/view/shield/status.htm \
-		$(1)/usr/lib/lua/luci/view/shield/status.htm
+	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/model
+	$(INSTALL_DATA) ./src/luci-app-unifiedshield/luasrc/model/unifiedshield.lua \
+		$(1)/usr/lib/lua/luci/model/unifiedshield.lua
 
-	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/model/cbi/shield
-	$(INSTALL_DATA) ./files/usr/lib/lua/luci/model/cbi/shield/config.lua \
-		$(1)/usr/lib/lua/luci/model/cbi/shield/config.lua
+	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/model/cbi
+	$(INSTALL_DATA) ./src/luci-app-unifiedshield/luasrc/model/cbi/unifiedshield.lua \
+		$(1)/usr/lib/lua/luci/model/cbi/unifiedshield.lua
 
-	# Firewall integration
-	$(INSTALL_DIR) $(1)/etc/firewall.d
-	$(INSTALL_BIN) ./files/etc/firewall.d/shield $(1)/etc/firewall.d/shield
+	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/model/cbi/unifiedshield
+	$(INSTALL_DATA) ./src/luci-app-unifiedshield/luasrc/model/cbi/unifiedshield/config.lua \
+		$(1)/usr/lib/lua/luci/model/cbi/unifiedshield/config.lua
+
+	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/view/unifiedshield
+	$(INSTALL_DATA) ./files/usr/lib/lua/luci/view/unifiedshield/status.htm \
+		$(1)/usr/lib/lua/luci/view/unifiedshield/status.htm
+	$(INSTALL_DATA) ./files/usr/lib/lua/luci/view/unifiedshield/advanced.htm \
+		$(1)/usr/lib/lua/luci/view/unifiedshield/advanced.htm
+
+	$(INSTALL_DIR) $(1)/usr/share/rpcd/acl.d
+	$(INSTALL_DATA) ./files/usr/share/rpcd/acl.d/luci-app-unifiedshield.json \
+		$(1)/usr/share/rpcd/acl.d/luci-app-unifiedshield.json
 endef
 
-define Package/shield/postinst
+define Package/unifiedshield/postinst
 #!/bin/sh
 [ -n "$${IPKG_INSTROOT}" ] || {
 	# Enable the service on install
-	/etc/init.d/shield enable
-	# Add shield user (non-privileged)
-	id shield >/dev/null 2>&1 || \
-		echo "Adding shield system user" && \
-		useradd -r -s /bin/false -d /var/run/shield shield 2>/dev/null || true
+	/etc/init.d/unifiedshield enable
+	# Add unifiedshield user (non-privileged) when user management is available
+	id unifiedshield >/dev/null 2>&1 || \
+		(echo "Adding unifiedshield system user" && \
+		(adduser -S -D -H -s /bin/false unifiedshield 2>/dev/null || true))
 }
 endef
 
-define Package/shield/prerm
+define Package/unifiedshield/prerm
 #!/bin/sh
 [ -n "$${IPKG_INSTROOT}" ] || {
 	# Stop and disable the service
-	/etc/init.d/shield stop 2>/dev/null || true
-	/etc/init.d/shield disable 2>/dev/null || true
+	/etc/init.d/unifiedshield stop 2>/dev/null || true
+	/etc/init.d/unifiedshield disable 2>/dev/null || true
 }
 endef
 
-$(eval $(call BuildPackage,shield))
+$(eval $(call BuildPackage,unifiedshield))

@@ -577,6 +577,84 @@ data class WarpConfig(
     val configured: Boolean get() = privateKey.isNotBlank() && addresses.isNotEmpty()
 }
 
+
+/** Persisted license settings. The signed license key itself is stored in Android Keystore-backed
+ * secure preferences by the license repository; this model keeps only non-secret UI/config fields. */
+@Serializable
+data class LicenseConfig(
+    /** Optional dashboard validation base URL. Empty means verify the signed serial locally only. */
+    val validationUrl: String = "",
+    /** Independent per-user/account binding enforced by both server and signed payload. */
+    val accountId: String = "",
+    /** Human-readable device label sent to the license server for activation/audit. */
+    val deviceLabel: String = "",
+    /** Allows signed offline grace tokens after a successful online validation. */
+    val allowOfflineGrace: Boolean = true,
+    val lastResult: String = "not_validated",
+    val lastReason: String = "",
+    val lastValidatedAt: Long = 0L,
+    val expiresAt: String = "",
+    val offlineGraceUntil: String = ""
+)
+
+/** Provider family used by the no-code AI Engine gateway. */
+@Serializable
+enum class AiProviderType(val label: String) {
+    OPENAI("OpenAI-compatible"),
+    ANTHROPIC("Anthropic"),
+    GEMINI("Gemini"),
+    GENERIC("Generic HTTP"),
+    LOCAL("Local fallback")
+}
+
+/**
+ * No-code AI provider definition. Secret values are referenced by [apiKeyAlias] and stored outside
+ * DataStore so exported backups do not leak API keys; headers/templates can use ${'$'}{api_key}.
+ */
+@Serializable
+data class AiProviderConfig(
+    val id: String,
+    val name: String,
+    val type: AiProviderType = AiProviderType.GENERIC,
+    val enabled: Boolean = true,
+    val baseUrl: String = "",
+    val endpoint: String = "",
+    val method: String = "POST",
+    val model: String = "",
+    val apiKeyAlias: String = "",
+    val headersJson: String = "{}",
+    val requestTemplate: String = "",
+    val responsePath: String = "",
+    val timeoutMs: Int = 30_000,
+    val systemPrompt: String = ""
+) {
+    val local: Boolean get() = type == AiProviderType.LOCAL || baseUrl.startsWith("local://")
+}
+
+/**
+ * AI Engine gateway settings. Users can add providers/models from the UI without code changes;
+ * [autoFallbackToLocal] keeps anti-DPI assistance available when external APIs are blocked. */
+@Serializable
+data class AiEngineConfig(
+    val enabled: Boolean = true,
+    val selectedProviderId: String = "local-aether",
+    val autoFallbackToLocal: Boolean = true,
+    val localModel: String = "aether-anti-dpi-local",
+    val providers: List<AiProviderConfig> = listOf(
+        AiProviderConfig(
+            id = "local-aether",
+            name = "V2RayEZ Local AI",
+            type = AiProviderType.LOCAL,
+            enabled = true,
+            baseUrl = "local://aether",
+            model = "aether-anti-dpi-local",
+            responsePath = "text"
+        )
+    ),
+    val lastProviderTestAt: Long = 0L,
+    val lastProviderTestResult: String = "not_tested"
+)
+
 /** Aggregate global app settings that drive config generation and the VPN tunnel. */
 @Serializable
 data class AppSettings(
@@ -662,6 +740,10 @@ data class AppSettings(
     val domainFront: DomainFrontConfig = DomainFrontConfig(),
     val mitm: MitmDomainFrontConfig = MitmDomainFrontConfig(),
     val warp: WarpConfig = WarpConfig(),
+    /** Signed serial/license settings and last validation summary. */
+    val license: LicenseConfig = LicenseConfig(),
+    /** No-code external/local AI provider gateway settings. */
+    val aiEngine: AiEngineConfig = AiEngineConfig(),
     /** Global default proxy core when a server uses [CorePreference.SYSTEM]. */
     val defaultCore: ProxyCoreType = ProxyCoreType.XRAY,
     /**

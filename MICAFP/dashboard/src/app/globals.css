@@ -44,6 +44,9 @@
 }
 
 :root {
+  --font-vazirmatn: "Vazirmatn Fallback", "Noto Naskh Arabic", "Noto Sans Arabic", "Tahoma", ui-sans-serif, system-ui, sans-serif;
+  --font-geist-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-geist-mono: "Geist Mono Fallback", "Cascadia Code", "JetBrains Mono", "SFMono-Regular", Consolas, ui-monospace, monospace;
   --radius: 0.75rem;
   --background: oklch(0.985 0.002 247.839);
   --foreground: oklch(0.21 0.02 260);

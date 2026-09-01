@@ -1,34 +1,66 @@
-<%- include("header") %>
-<h2>UnifiedShield VIP-ULTRA — Advanced Status</h2>
+<%#
+UnifiedShield VIP-ULTRA advanced OpenWrt status panel.
+Preserves the resilience/AI/mesh visibility from the donor LuCI view and uses
+LuCI routes instead of a dashboard-local /api path.
+-%>
+<%+header%>
+
+<h2><%:UnifiedShield VIP-ULTRA — Advanced Status%></h2>
 <div id="advanced-status">
-  <h3>Resilience Chain</h3>
+  <h3><%:Resilience Chain%></h3>
   <table class="table">
-    <tr><th>#</th><th>Strategy</th><th>Status</th></tr>
-    <tr><td>1</td><td>PrimaryTransport</td><td id="s1">Checking...</td></tr>
-    <tr><td>2</td><td>ChineseCdnWorker</td><td id="s2">Standby</td></tr>
-    <tr><td>3</td><td>P2pLibp2pRelay</td><td id="s3">Standby</td></tr>
-    <tr><td>4</td><td>DohTunnel</td><td id="s4">Standby</td></tr>
-    <tr><td>5</td><td>IcmpTunnel</td><td id="s5">Standby</td></tr>
-    <tr><td>6</td><td>MeshNetwork</td><td id="s6">Standby</td></tr>
-    <tr><td>7</td><td>TorBridgeSnowflake</td><td id="s7">Standby</td></tr>
-    <tr><td>8</td><td>TorBridgeMeek</td><td id="s8">Standby</td></tr>
+    <tr><th>#</th><th><%:Strategy%></th><th><%:Status%></th></tr>
+    <tr><td>1</td><td>PrimaryTransport</td><td id="s1"><%:Checking...%></td></tr>
+    <tr><td>2</td><td>ChineseCdnWorker</td><td id="s2"><%:Standby%></td></tr>
+    <tr><td>3</td><td>P2pLibp2pRelay</td><td id="s3"><%:Standby%></td></tr>
+    <tr><td>4</td><td>DohTunnel</td><td id="s4"><%:Standby%></td></tr>
+    <tr><td>5</td><td>IcmpTunnel</td><td id="s5"><%:Standby%></td></tr>
+    <tr><td>6</td><td>MeshNetwork</td><td id="s6"><%:Standby%></td></tr>
+    <tr><td>7</td><td>TorBridgeSnowflake</td><td id="s7"><%:Standby%></td></tr>
+    <tr><td>8</td><td>TorBridgeMeek</td><td id="s8"><%:Standby%></td></tr>
   </table>
-  <h3>AI Engine</h3>
-  <p>DPI Detection Probability: <span id="dpi-prob">—</span></p>
-  <p>UCB1 Exploration Rate: <span id="ucb-rate">—</span></p>
-  <p>Core Switches (24h): <span id="core-switches">—</span></p>
-  <h3>Mesh Network</h3>
-  <p>BLE Mesh Peers: <span id="ble-peers">—</span></p>
-  <p>WiFi Aware Peers: <span id="wifi-peers">—</span></p>
+
+  <h3><%:AI Engine%></h3>
+  <p><%:DPI Detection Probability%>: <span id="dpi-prob">—</span></p>
+  <p><%:UCB1 Exploration Rate%>: <span id="ucb-rate">—</span></p>
+  <p><%:Core Switches (24h)%>: <span id="core-switches">—</span></p>
+
+  <h3><%:Mesh Network%></h3>
+  <p><%:BLE Mesh Peers%>: <span id="ble-peers">—</span></p>
+  <p><%:WiFi Aware Peers%>: <span id="wifi-peers">—</span></p>
 </div>
-<script>
-  function updateStatus() {
-    fetch('/api/resilience').then(r => r.json()).then(d => {
-      document.getElementById('s1').textContent =
-        d.fallbackChain[0].active ? '✔ ACTIVE' : 'Standby';
-    }).catch(() => {});
+
+<script type="text/javascript">
+//<![CDATA[
+  function setStatus(id, active) {
+    var node = document.getElementById(id);
+    if (!node) return;
+    node.textContent = active ? '✔ ACTIVE' : 'Standby';
+    node.className = active ? 'text-success' : '';
   }
+
+  function updateStatus() {
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', '<%=luci.dispatcher.build_url("admin/services/unifiedshield/api/resilience")%>', true);
+    xhr.onreadystatechange = function() {
+      if (xhr.readyState !== 4 || xhr.status !== 200) return;
+      try {
+        var d = JSON.parse(xhr.responseText);
+        var chain = d.fallbackChain || [];
+        for (var i = 0; i < 8; i++) setStatus('s' + (i + 1), chain[i] && chain[i].active);
+        document.getElementById('dpi-prob').textContent = d.dpiProbability != null ? d.dpiProbability : '—';
+        document.getElementById('ucb-rate').textContent = d.ucbExplorationRate != null ? d.ucbExplorationRate : '—';
+        document.getElementById('core-switches').textContent = d.coreSwitches24h != null ? d.coreSwitches24h : '—';
+        document.getElementById('ble-peers').textContent = d.blePeers != null ? d.blePeers : '—';
+        document.getElementById('wifi-peers').textContent = d.wifiPeers != null ? d.wifiPeers : '—';
+      } catch (e) {}
+    };
+    xhr.send(null);
+  }
+
   setInterval(updateStatus, 5000);
   updateStatus();
+//]]>
 </script>
-<%- include("footer") %>
+
+<%+footer%>

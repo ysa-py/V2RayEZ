@@ -1,0 +1,749 @@
+# V2RayEZ Universal — Test Evidence Log
+
+**Date:** 2026-09-01  
+**Milestone:** 0 — baseline inventory and environment validation  
+**Note:** This log records commands actually run in the current sandbox. It does not claim final platform/build/E2E completion.
+
+---
+
+## 1) Environment checks
+
+| Check | Command | Result | Notes |
+|---|---|---|---|
+| Branch | `git branch --show-current` | `arena/01a05e13-v2rayez` | Correct Arena branch. |
+| Python | `python3 --version` | `Python 3.11.2` | Available. |
+| Node | `node --version` | `v22.22.3` | Available. |
+| npm | `npm --version` | `10.9.8` | Available. |
+| Go | `go test ./...` in EasySNI/MasterDnsVPN | failed: `/bin/bash: go: command not found` | Toolchain missing; validation blocked locally. |
+| Rust | `cargo --version`, `rustc --version` | failed: `cargo: command not found`, `rustc: command not found` | Toolchain missing; validation blocked locally. |
+| Java/Gradle | `java -version`, `./gradlew --version` in base V2RayEZ | failed: `java: command not found`; `./gradlew: Permission denied` | Java/Android SDK missing; wrapper chmod needed before Gradle use. |
+
+---
+
+## 2) Commands run
+
+### 2.1 Inventory generation
+
+```bash
+python3 tools/merge_inventory.py
+```
+
+Result:
+
+```text
+Wrote MERGE_INVENTORY.json
+Sources: 8
+Feature probes: 27
+```
+
+Output artifact:
+
+- `MERGE_INVENTORY.json`
+
+### 2.2 V2RayEZ localization parity gate
+
+Command:
+
+```bash
+bash "V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/scripts/gates/string-key-parity.sh"
+```
+
+Result:
+
+```text
+=== I1 string-key-parity ===
+base (values/strings.xml): 967 keys
+
+-- values-fa: 967 keys --
+OK: full parity with base
+
+-- values-ru: 967 keys --
+OK: full parity with base
+
+GATE_STATUS=PASS
+```
+
+### 2.3 UAC-Windows Python syntax check
+
+Command:
+
+```bash
+python3 -m compileall -q uac_desktop
+```
+
+Working directory:
+
+```text
+UAC-SNI-Spoofer-Windows- Make sure to fully add all features to the V2RayEZ app/
+```
+
+Result: exit code `0`, no syntax errors reported.
+
+Cleanup performed afterwards:
+
+```bash
+find . -type d -name __pycache__ -prune -exec rm -rf {} +
+```
+
+### 2.4 Go test attempts
+
+Commands:
+
+```bash
+go test ./...
+```
+
+Working directories:
+
+- `EasySNI- Make sure to fully add all features to the V2RayEZ app/`
+- `MasterDnsVPN-main/`
+
+Result for both:
+
+```text
+/bin/bash: line 1: go: command not found
+```
+
+Status: `blocked` until Go 1.24+ is available.
+
+### 2.5 Rust toolchain check
+
+Command:
+
+```bash
+cargo --version || true; rustc --version || true
+```
+
+Result:
+
+```text
+/bin/bash: line 1: cargo: command not found
+/bin/bash: line 1: rustc: command not found
+```
+
+Status: `blocked` until Rust stable and target toolchains are available.
+
+### 2.6 Android baseline build attempt
+
+Command:
+
+```bash
+java -version 2>&1 | head -20; ./gradlew --version
+```
+
+Working directory:
+
+```text
+V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/
+```
+
+Result:
+
+```text
+/bin/bash: line 1: java: command not found
+/bin/bash: line 1: ./gradlew: Permission denied
+```
+
+Status: `blocked` until Java 17/Android SDK/NDK are installed and Gradle wrapper executable bit is fixed or invoked through `bash gradlew`.
+
+---
+
+## 3) E2E connectivity evidence
+
+No real tunnel E2E traffic test was run in Milestone 0 because:
+
+1. No real test server credentials/configs are available in this sandbox.
+2. Required toolchains for building transport binaries are missing.
+3. Mobile/iOS/OpenWrt/Windows runtime environments are not present in this Linux sandbox.
+
+Required future E2E proof per transport family:
+
+| Family | Required probe | Status |
+|---|---|---|
+| TCP/TLS VLESS/VMess/Trojan/Shadowsocks/REALITY/NaïveProxy/ShadowTLS | HTTP 204 + DNS + throughput through tunnel | pending |
+| QUIC Hysteria2/TUIC/MASQUE/WebTransport | HTTP 204 + DNS + throughput through tunnel | pending |
+| WireGuard/AmneziaWG/WARP | HTTP 204 + DNS + throughput through tunnel | pending |
+| Tor/Psiphon/PT/WebTunnel | HTTP 204 + DNS + throughput through tunnel | pending |
+| MasterDnsVPN DNS tunnel/DoH/DoQ | HTTP 204 + DNS + throughput through DNS tunnel | pending |
+| Domain fronting/CDN workers | fronted request + DoH + logs | pending |
+| Mesh/P2P/National Intranet | lab shutdown simulation + mesh/P2P checks | pending |
+
+---
+
+## 4) Artifact checksum log
+
+Milestone 0 produced documentation/inventory artifacts only. No release binary artifacts were produced.
+
+Future binary artifacts must list:
+
+- filename
+- target platform/ABI
+- build command
+- SHA-256
+- signing identity/status
+- E2E test reference
+
+---
+
+## 5) Current blockers
+
+| Blocker | Impact | Next action |
+|---|---|---|
+| Missing Go | EasySNI and MasterDnsVPN cannot be test-built locally | Install Go 1.24+ in CI/dev image. |
+| Missing Rust | MICAFP/Aether/wasm-obfuscator cannot be test-built locally | Install Rust stable plus Android/iOS/wasm targets. |
+| Missing Java/Android SDK/NDK | APK cannot be built locally | Install Java 17, Android SDK, NDK 27.x; fix wrapper permission. |
+| Missing Xcode/signing | IPA cannot be built in Linux sandbox | Run on macOS runner with Apple signing and Network Extension entitlements. |
+| Missing Windows toolchain | EXE installer/portable cannot be built locally | Run on Windows x64 CI runner with MSVC/WiX/Tauri/PyInstaller/Npcap packaging. |
+| Missing OpenWrt SDK | IPK cannot be built locally | Provide generic OpenWrt SDK/container. |
+| Missing real test endpoints | E2E cannot prove traffic | Provide/create reproducible lab servers for each transport family. |
+
+---
+
+## 6) Milestone 1 evidence — license and AI gateway core APIs
+
+### 6.1 License crypto self-test
+
+Command:
+
+```bash
+node tools/license_crypto_selftest.mjs
+```
+
+Result:
+
+```text
+license_crypto_selftest: PASS
+```
+
+Validated behaviors:
+
+- Generates Ed25519 key pair for test.
+- Signs a V2RayEZ license token.
+- Verifies the compact token signature and payload.
+- Rejects a tampered payload/signature.
+- Hashes device IDs with a salt.
+- Signs/verifies offline grace token.
+- Calculates active vs expired license state.
+
+### 6.2 AI Provider Gateway self-test
+
+Command:
+
+```bash
+node tools/ai_provider_gateway_selftest.mjs
+```
+
+Result:
+
+```text
+ai_provider_gateway_selftest: PASS
+```
+
+Validated behaviors:
+
+- Builds a provider request from JSON configuration.
+- Expands `${model}`, `${prompt}`, and `${system}` templates in endpoint paths and bodies.
+- Detects OpenAI, Anthropic, Gemini, and generic REST response shapes from a real local HTTP test server.
+- Redacts API keys/secrets in provider configs.
+- Returns local MICAFP AI fallback descriptor when external AI is unavailable.
+
+### 6.3 JavaScript syntax checks
+
+Command:
+
+```bash
+node --check MICAFP/dashboard/src/lib/license-crypto.mjs
+node --check MICAFP/dashboard/src/lib/ai-provider-gateway.mjs
+```
+
+Result: pass.
+
+### 6.4 Localization regression gate after Milestone 1 additions
+
+Command:
+
+```bash
+bash "V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/scripts/gates/string-key-parity.sh"
+```
+
+Result: pass; EN/FA/RU remain at 967 keys each.
+
+### 6.5 UAC-Windows Python syntax regression
+
+Command:
+
+```bash
+python3 -m compileall -q uac_desktop
+```
+
+Result: pass; `__pycache__` output removed.
+
+### 6.6 Rust universal core build status
+
+Files added under `universal-core/`:
+
+- `Cargo.toml`
+- `src/lib.rs`
+- `src/license.rs`
+- `src/ai_provider.rs`
+- `src/config.rs`
+- `src/core_manager.rs`
+
+Local compilation remains blocked because `cargo`/`rustc` are not installed in the sandbox. The Rust code includes real implementations and unit tests, but must be compiled in a Rust-enabled CI/dev image before any completion claim.
+
+---
+
+## 7) Milestone 2 Android wiring checks
+
+### 7.1 Localization parity after Android License/AI strings
+
+Command:
+
+```bash
+bash "V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/scripts/gates/string-key-parity.sh"
+```
+
+Result:
+
+```text
+GATE_STATUS=PASS
+base (values/strings.xml): 1017 keys
+values-fa: 1017 keys
+values-ru: 1017 keys
+```
+
+### 7.2 Android Gradle build status after wiring
+
+Command:
+
+```bash
+bash "V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/gradlew" --version
+```
+
+Result: blocked locally because Java is absent:
+
+```text
+ERROR: JAVA_HOME is not set and no 'java' command could be found in your PATH.
+```
+
+No APK/build/connectivity completion claim is made from this sandbox. The new Android code still requires a Java/Android SDK environment and device or emulator validation.
+
+### 7.3 Regression self-tests rerun after Android wiring
+
+Commands:
+
+```bash
+node tools/license_crypto_selftest.mjs
+node tools/ai_provider_gateway_selftest.mjs
+python3 -m compileall -q "UAC-SNI-Spoofer-Windows- Make sure to fully add all features to the V2RayEZ app/uac_desktop"
+```
+
+Results:
+
+```text
+license_crypto_selftest: PASS
+ai_provider_gateway_selftest: PASS
+UAC Windows compileall: PASS
+```
+
+The first attempted UAC compileall rerun used an obsolete directory name and printed `Can't list ...`; the corrected path above passed and generated cache directories were removed.
+
+### 7.4 Android string XML parse check
+
+Command:
+
+```bash
+python3 - <<'PY'
+from xml.etree import ElementTree as ET
+from pathlib import Path
+for p in Path('V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/app/src/main/res').glob('values*/strings.xml'):
+    ET.parse(p)
+print('xml_strings_parse: PASS')
+PY
+```
+
+Result: `xml_strings_parse: PASS`.
+
+---
+
+## Milestone 3 desktop/Tauri + Android controller validation — 2026-09-01
+
+### Desktop frontend/static checks
+
+Command:
+
+```bash
+cd "V2RayEZ-GUI"
+node --check src/app.js && node --check src/i18n.js && npm test
+node -e "JSON.parse(require('fs').readFileSync('src-tauri/tauri.conf.json','utf8')); console.log('tauri config json pass')"
+```
+
+Result: PASS.
+
+Observed TAP summary:
+
+- 14 tests executed.
+- 14 passed.
+- 0 failed.
+
+New coverage includes License + AI Engine UI controls, EN/FA translation completeness, Tauri command references, connected-session license watchdog reference, and normal settings staying secret-free.
+
+### Android controller license preflight gates
+
+Command:
+
+```bash
+bash "V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/scripts/gates/string-key-parity.sh"
+```
+
+Result: PASS.
+
+Observed output:
+
+```text
+base (values/strings.xml): 1017 keys
+values-fa: 1017 keys — OK
+values-ru: 1017 keys — OK
+GATE_STATUS=PASS
+```
+
+Command:
+
+```bash
+python3 - <<'PY'
+import xml.etree.ElementTree as ET
+from pathlib import Path
+base=Path('V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/app/src/main/res')
+for path in sorted(base.glob('values*/strings.xml')):
+    ET.parse(path)
+    print(f'PASS {path}')
+PY
+```
+
+Result: PASS for `values/strings.xml`, `values-fa/strings.xml`, and `values-ru/strings.xml`.
+
+Command:
+
+```bash
+git diff --check
+```
+
+Result: PASS.
+
+### Toolchain blockers rechecked
+
+Command:
+
+```bash
+cargo --version
+```
+
+Result: BLOCKED — `/bin/bash: line 1: cargo: command not found`.
+
+Command:
+
+```bash
+cd "V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)"
+bash gradlew --version
+```
+
+Result: BLOCKED — `JAVA_HOME is not set and no 'java' command could be found in your PATH`.
+
+---
+
+## Milestone 4 OpenWrt LuCI checks — 2026-09-01
+
+Command:
+
+```bash
+sh -n MICAFP/openwrt/files/usr/libexec/unifiedshield/license-gate.sh
+sh -n MICAFP/openwrt/files/etc/init.d/unifiedshield
+```
+
+Result: PASS — OpenWrt shell helper/init syntax accepted by `/bin/sh -n`.
+
+Command:
+
+```bash
+lua -v
+```
+
+Result: BLOCKED — Lua/LuCI runtime is not installed in the sandbox, so `ai-provider-test.lua` and LuCI CBI/controller files could not be parsed/executed locally.
+
+OpenWrt package build result: BLOCKED — OpenWrt SDK/toolchain is absent, so no `.ipk` artifact was generated locally.
+
+---
+
+## Milestone 5 iOS static checks — 2026-09-01
+
+Command:
+
+```bash
+python3 - <<'PY'
+from pathlib import Path
+files=[
+'MICAFP/ios/UnifiedShield/App/LicenseManager.swift',
+'MICAFP/ios/UnifiedShield/App/AIProviderGateway.swift',
+'MICAFP/ios/UnifiedShield/App/SettingsView.swift',
+'MICAFP/ios/UnifiedShield/NetworkExtension/TunnelManager.swift',
+'MICAFP/ios/UnifiedShield/NetworkExtension/PacketTunnelProvider.swift',
+'MICAFP/ios/UnifiedShield/NetworkExtension/ExtensionLicenseGate.swift',
+'MICAFP/ios/UnifiedShield/NetworkExtension/ExtensionAIAdvisor.swift',
+]
+for f in files:
+    text=Path(f).read_text()
+    bal=0
+    for ch in text:
+        if ch=='{': bal+=1
+        elif ch=='}': bal-=1
+    print(f, 'brace_balance=', bal, 'lines=', len(text.splitlines()))
+PY
+```
+
+Result: PASS — brace balance 0 for all seven iOS files touched/added in Milestone 5.
+
+Command:
+
+```bash
+swift --version
+```
+
+Result: BLOCKED — `swift` is not installed in this Linux sandbox; no Xcode build or `.ipa` export was run.
+
+---
+
+## Milestone 6 dashboard UI validation attempt — 2026-09-01
+
+Command:
+
+```bash
+cd MICAFP/dashboard
+npm run lint
+```
+
+Result: BLOCKED — dashboard dependencies are not installed in the sandbox; command failed with `sh: 1: eslint: not found`.
+
+Static integration added but not fully validated:
+
+- `src/components/license-admin-panel.tsx`
+- `src/components/ai-provider-gateway-panel.tsx`
+- `src/app/page.tsx` tabs for `license` and `ai-gateway`
+
+Next required validation after dependency installation: `npm ci`, `npm run lint`, `npm run build`, `prisma validate`, Prisma client generation, and route-level API tests.
+
+### Milestone 6 helper self-test rerun
+
+Command:
+
+```bash
+node tools/license_crypto_selftest.mjs
+node tools/ai_provider_gateway_selftest.mjs
+git diff --check
+```
+
+Result: PASS.
+
+Observed output:
+
+```text
+license_crypto_selftest: PASS
+ai_provider_gateway_selftest: PASS
+```
+
+`git diff --check` also passed with no whitespace errors.
+
+---
+
+## Consolidated local rerun after Milestones 3–6 — 2026-09-01
+
+Commands rerun:
+
+```bash
+cd "V2RayEZ-GUI"
+node --check src/app.js
+node --check src/i18n.js
+node --check tests/frontend.test.mjs
+npm test
+node -e "JSON.parse(require('fs').readFileSync('src-tauri/tauri.conf.json','utf8')); console.log('tauri config json pass')"
+
+cd /home/user/V2RayEZ
+bash "V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/scripts/gates/string-key-parity.sh"
+python3 - <<'PY'
+import xml.etree.ElementTree as ET
+from pathlib import Path
+base=Path('V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/app/src/main/res')
+for path in sorted(base.glob('values*/strings.xml')):
+    ET.parse(path)
+    print(f'PASS {path}')
+PY
+node tools/license_crypto_selftest.mjs
+node tools/ai_provider_gateway_selftest.mjs
+sh -n MICAFP/openwrt/files/usr/libexec/unifiedshield/license-gate.sh
+sh -n MICAFP/openwrt/files/etc/init.d/unifiedshield
+git diff --check
+```
+
+Results:
+
+- V2RayEZ desktop GUI JS syntax checks — PASS.
+- V2RayEZ desktop GUI frontend tests — PASS, 14/14.
+- Tauri config JSON parse — PASS.
+- Android EN/FA/RU string parity — PASS, 1017 keys each.
+- Android string XML parse — PASS.
+- License crypto MJS self-test — PASS.
+- AI provider gateway MJS self-test — PASS.
+- OpenWrt shell helper/init syntax — PASS.
+- Swift static brace balance for Milestone 5 files — PASS.
+- `git diff --check` — PASS.
+
+---
+
+## Milestone 7 V2RayEZ GUI correction validation — 2026-09-01
+
+User correction: legacy Aether GUI donor must not be the final GUI; the final GUI must be V2RayEZ.
+
+Commands:
+
+```bash
+cd "V2RayEZ-GUI"
+node --check src/app.js
+node --check src/i18n.js
+node --check tests/frontend.test.mjs
+npm test
+node -e "JSON.parse(require('fs').readFileSync('src-tauri/tauri.conf.json','utf8')); console.log('tauri config json pass')"
+
+grep -RE "Ae(thon|therGUI)|AetherGui|aether_gui_lib|aether-gui" -n src src-tauri tests --exclude-dir=target
+```
+
+Result: PASS for syntax/tests/config JSON.
+
+Observed:
+
+- `npm test` PASS — 14/14.
+- Package identity is `@v2rayez/universal-gui`.
+- Tauri product name is `V2RayEZ` and identifier is `app.v2rayez.universal`.
+- Static tests assert no legacy donor GUI product strings remain in the desktop GUI HTML/JS/Tauri metadata/Cargo metadata.
+- Grep across `src`, `src-tauri`, and `tests` only finds the negative-regression assertion itself; no runtime product string remains.
+
+---
+
+## Milestone 8 dashboard build/lint recovery — 2026-09-01
+
+Commands:
+
+```bash
+cd MICAFP/dashboard
+npm install --ignore-scripts
+npm run lint
+npm run build
+```
+
+Initial failure 1: `next/font/google` could not fetch `Geist Mono` and `Vazirmatn` from Google Fonts. Fixed by removing remote font dependency and using offline-safe CSS font variables.
+
+Initial failure 2: Prisma client generation was unavailable offline and strict TypeScript surfaced license-service typing errors. Fixed by lazy-loading Prisma at API runtime, preserving a clear runtime error if `npm run db:generate` has not been run, and adding typed crypto-helper boundaries.
+
+Final result: PASS.
+
+Observed:
+
+- `npm run lint` PASS.
+- `npm run build` PASS.
+- Next.js compiled successfully, TypeScript finished, and static generation completed 27/27 pages.
+- License and AI Provider Gateway API routes were included in the production route manifest.
+- `npm run db:generate` remains blocked by `binaries.prisma.sh` engine download/TLS failure; runtime DB API tests still require generated Prisma client plus `DATABASE_URL`.
+
+---
+
+## Milestone 9 V2RayEZ-GUI path and legacy brand removal — 2026-09-01
+
+User reiterated that the GUI must be V2RayEZ GUI and not the old donor GUI identity.
+
+Commands:
+
+```bash
+cd V2RayEZ-GUI
+node --check src/app.js
+node --check src/i18n.js
+node --check tests/frontend.test.mjs
+npm test
+node -e "JSON.parse(require('fs').readFileSync('src-tauri/tauri.conf.json','utf8')); console.log('tauri config json pass')"
+
+cd ..
+python3 - <<'PY'
+from pathlib import Path
+import xml.etree.ElementTree as ET
+for p in [Path('V2RayEZ-GUI/android/app/src/main/res/values/strings.xml'), Path('V2RayEZ-GUI/android/app/src/main/res/values-fa/strings.xml'), Path('V2RayEZ-GUI/android/app/src/main/AndroidManifest.xml')]:
+    ET.parse(p)
+    print('xml pass', p)
+PY
+python3 tools/merge_inventory.py
+grep -R -i "firstham\|hamvex\|aethon\|aethergui\|aether-gui\|com.firstham" -n V2RayEZ-GUI --exclude-dir=target --exclude-dir=node_modules --exclude='*.png' --exclude='*.ico' --exclude='*.icns'
+find . -maxdepth 1 -type d -name 'AetherGUI*' -print
+git diff --check
+```
+
+Final result: PASS.
+
+Observed:
+
+- Desktop GUI tests PASS — 14/14.
+- Tauri config JSON parse PASS.
+- V2RayEZ-GUI Android manifest/strings XML parse PASS.
+- Case-insensitive legacy donor GUI/user/channel/package grep under `V2RayEZ-GUI/` returned no matches.
+- No root directory matching the old donor GUI prefix remains.
+- Inventory regeneration PASS: 8 sources, 27 feature probes.
+- `git diff --check` PASS.
+
+---
+
+## Milestone 10 OpenWrt LuCI packaging preservation — 2026-09-01
+
+Commands:
+
+```bash
+sh -n MICAFP/openwrt/files/etc/init.d/unifiedshield
+sh -n MICAFP/openwrt/files/usr/libexec/unifiedshield/license-gate.sh
+python3 -m json.tool MICAFP/openwrt/files/usr/share/rpcd/acl.d/luci-app-unifiedshield.json >/dev/null
+grep -n "view/unifiedshield/status.htm\|view/unifiedshield/advanced.htm\|luci-app-unifiedshield.json\|model/unifiedshield.lua\|model/cbi/unifiedshield.lua\|iran_ip_ranges.txt" MICAFP/openwrt/Makefile
+python3 - <<'PY'
+from pathlib import Path
+checks = {
+    Path('MICAFP/openwrt/src/luci-app-unifiedshield/luasrc/controller/unifiedshield.lua'): [
+        '{"admin", "services", "unifiedshield", "api", "resilience"}',
+        'template("unifiedshield/advanced")',
+        'template("unifiedshield/status")',
+        'function action_api_resilience()'
+    ],
+    Path('MICAFP/openwrt/files/usr/lib/lua/luci/view/unifiedshield/advanced.htm'): [
+        'admin/services/unifiedshield/api/resilience',
+        '<%+header%>',
+        '<%+footer%>'
+    ],
+}
+for path, needles in checks.items():
+    text=path.read_text()
+    for needle in needles:
+        assert needle in text, (path, needle)
+    print('openwrt static pass', path)
+PY
+git diff --check
+```
+
+Result: PASS.
+
+Observed:
+
+- OpenWrt init and license gate shell syntax PASS.
+- LuCI rpcd ACL JSON parse PASS.
+- Package Makefile now installs LuCI status and advanced templates, model helper, both CBI model paths, ACL, and Iran IP range asset.
+- Controller exposes template pages plus API endpoints for status/start/stop/restart/resilience/log.
+- Advanced LuCI view uses LuCI header/footer syntax and LuCI API path.
+- `git diff --check` PASS.
+
+Toolchain unblock attempt:
+
+```bash
+sudo apt-get update && sudo apt-get install -y openjdk-17-jdk-headless cargo rustc golang-go lua5.4
+```
+
+Result: BLOCKED. Debian package mirrors were unreachable from the sandbox, so Java/Rust/Go/Lua native build tools could not be installed.
