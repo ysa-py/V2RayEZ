@@ -905,3 +905,30 @@ Observed:
 - No generated sidecar binaries were left in the worktree after validation.
 - V2RayEZ-GUI frontend tests PASS — 14/14.
 - `git diff --check` PASS.
+
+---
+
+## Milestone 15 dashboard V2RayEZ identity preservation — 2026-09-01
+
+Commands:
+
+```bash
+npm ci --ignore-scripts --workspace dashboard
+npm run lint --workspace dashboard
+npm run build --workspace dashboard
+node -e "JSON.parse(require('fs').readFileSync('MICAFP/dashboard/package.json','utf8')); JSON.parse(require('fs').readFileSync('MICAFP/package-lock.json','utf8')); console.log('dashboard package json pass')"
+python3 tools/merge_inventory.py
+git diff --exit-code MERGE_INVENTORY.json
+git diff --check
+```
+
+Result: PASS.
+
+Observed:
+
+- `npm ci --ignore-scripts --workspace dashboard` installed 859 packages successfully. npm reported 9 dependency vulnerabilities (4 moderate, 5 high), which are upstream dependency audit findings and not caused by the branding edits.
+- Dashboard ESLint PASS.
+- Dashboard Next.js production build PASS.
+- Dashboard package JSON and package-lock JSON parse PASS.
+- Merge inventory regeneration produced no drift.
+- `git diff --check` PASS.

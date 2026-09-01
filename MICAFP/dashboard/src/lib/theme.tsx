@@ -12,7 +12,8 @@ import React, {
 export type Theme = 'dark' | 'light' | 'system';
 export type ResolvedTheme = 'dark' | 'light';
 
-const STORAGE_KEY = 'shield-theme';
+const STORAGE_KEY = 'v2rayez-theme';
+const LEGACY_STORAGE_KEY = 'shield-theme';
 
 function safeRead(key: string): string | null {
   try {
@@ -56,7 +57,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   // Restore persisted choice on mount (client only — avoids SSR hydration mismatch).
   useEffect(() => {
-    const saved = safeRead(STORAGE_KEY);
+    const saved = safeRead(STORAGE_KEY) ?? safeRead(LEGACY_STORAGE_KEY);
     if (isValidTheme(saved)) setThemeState(saved);
   }, []);
 

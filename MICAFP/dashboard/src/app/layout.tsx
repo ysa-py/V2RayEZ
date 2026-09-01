@@ -4,12 +4,12 @@ import { Toaster } from "@/components/ui/toaster";
 import { AppProviders } from "@/components/app-providers";
 
 export const metadata: Metadata = {
-  title: "یونیفایدشیلد — کنسول فرماندهی امنیت سایبری",
+  title: "V2RayEZ — کنسول فرماندهی امنیت سایبری",
   description:
     "موتور ضد سانسور هوشمند چند هسته‌ای بهینه‌شده برای ایران — ۳۰ هسته، هوش مصنوعی داخلی UCB، تعویض خودکار، حفاظت کوانتومی و قابلیت‌های سازمانی (Enterprise)",
   keywords: [
-    "UnifiedShield",
-    "MICAFP",
+    "V2RayEZ",
+    "V2RayEZ Universal",
     "ضد سانسور",
     "ایران",
     "VPN",
@@ -21,13 +21,13 @@ export const metadata: Metadata = {
     "Enterprise",
     "امنیت سایبری",
   ],
-  applicationName: "UnifiedShield Command Console",
-  authors: [{ name: "UnifiedShield" }],
+  applicationName: "V2RayEZ Command Console",
+  authors: [{ name: "V2RayEZ" }],
   icons: {
     icon: "/logo.svg",
   },
   openGraph: {
-    title: "یونیفایدشیلد — کنسول فرماندهی امنیت سایبری",
+    title: "V2RayEZ — کنسول فرماندهی امنیت سایبری",
     description:
       "پلتفرم ضد سانسور سازمانی چند هسته‌ای با هوش مصنوعی داخلی، پروتکل‌های استگانوگرافی و حفاظت کوانتومی",
     type: "website",
@@ -57,7 +57,7 @@ export default function RootLayout({
         {/* Apply persisted theme before first paint to avoid flash-of-wrong-theme */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var r=document.documentElement;var t=localStorage.getItem('shield-theme');var d=t==='dark'||((!t||t==='system')&&window.matchMedia('(prefers-color-scheme: dark)').matches);r.classList.toggle('dark',d);r.classList.toggle('light',!d);r.style.colorScheme=d?'dark':'light';var l=localStorage.getItem('shield-locale');if(l==='en'){r.lang='en';r.dir='ltr';}}catch(e){document.documentElement.classList.add('dark');}})();`,
+            __html: `(function(){try{var r=document.documentElement;var t=localStorage.getItem('v2rayez-theme')||localStorage.getItem('shield-theme');var d=t==='dark'||((!t||t==='system')&&window.matchMedia('(prefers-color-scheme: dark)').matches);r.classList.toggle('dark',d);r.classList.toggle('light',!d);r.style.colorScheme=d?'dark':'light';var l=localStorage.getItem('v2rayez-locale')||localStorage.getItem('shield-locale');if(l==='en'){r.lang='en';r.dir='ltr';}}catch(e){document.documentElement.classList.add('dark');}})();`,
           }}
         />
         {/* Ambient enterprise atmosphere — aurora + precision grid */}

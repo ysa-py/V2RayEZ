@@ -510,7 +510,7 @@ export function AutoScannerEngineSections() {
               </Button>
             </div>
           </div>
-          {/* Active tunnel — applied to UnifiedShield / MICAFP client */}
+          {/* Active tunnel — applied to V2RayEZ client */}
           <div className="flex items-center justify-between flex-wrap gap-2 mb-2 rounded-lg border border-emerald-500/20 bg-emerald-500/[0.05] px-2.5 py-2">
             <div className="flex items-center gap-2 min-w-0">
               {appliedTunnel.active ? (

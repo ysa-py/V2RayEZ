@@ -215,7 +215,7 @@ export const IRAN_CARRIERS: IranCarrier[] = [
   { id: 'zitel', nameFa: 'زیتل', asn: 'AS207256', networkType: 'fiber', mtuClamp: 1500, detected: false, latencyMs: null, coveragePct: 42 },
 ];
 
-// ── Tunnel config application (UnifiedShield / MICAFP client) ──
+// ── Tunnel config application (V2RayEZ client) ──
 
 export const IRAN_TUNNEL_KIND_MAP: Record<IranTunnelKind, { coreId: string; protocolId: string; labelFa: string }> = {
   'sing-box': { coreId: 'sing-box', protocolId: 'hysteria2-brutal', labelFa: 'تانل Sing-Box (Hysteria2)' },
@@ -482,7 +482,7 @@ export function buildIranDiagnosticReport(state: IranAutoScannerEngineState): st
   lines.push('— Local RL (on-device, no telemetry out) —');
   state.localRL.forEach((r) => lines.push(`  ${r.carrierId}: ${r.successes}/${r.attempts} (${r.winRatePct}%) avg ${r.avgSetupMs}ms | tlsSplit ${r.tlsSplitLength}`));
   lines.push('');
-  lines.push('— Active tunnel (applied to UnifiedShield client) —');
+  lines.push('— Active tunnel (applied to V2RayEZ client) —');
   lines.push(`  Auto-apply: ${state.autoApply ? 'ON' : 'OFF'}`);
   lines.push(`  Applied: ${state.appliedTunnel.active ? `${state.appliedTunnel.labelFa} (${state.appliedTunnel.coreId}/${state.appliedTunnel.protocolId})${state.appliedTunnel.autoApplied ? ' [AUTO]' : ' [MANUAL]'}` : 'none'}`);
   lines.push('════════════════════════════════════════════');
