@@ -255,7 +255,7 @@ export async function testAndAutoDetectProvider(config, input = {}, fetchImpl = 
 
 export function localAIFallbackDescriptor(reason = 'external_provider_unavailable') {
   return {
-    mode: 'local-micafp-ai',
+    mode: 'local-v2rayez-ai',
     reason,
     engines: [
       'dpi_classifier',

@@ -55,6 +55,7 @@ try {
   assert.notEqual(redacted.headers.Authorization, 'Bearer sk-super-secret-key');
 
   const fallback = localAIFallbackDescriptor('network_unreachable');
+  assert.equal(fallback.mode, 'local-v2rayez-ai');
   assert.equal(fallback.dependencyFreeCoreNetworking, true);
   assert.ok(fallback.engines.includes('dpi_classifier'));
 

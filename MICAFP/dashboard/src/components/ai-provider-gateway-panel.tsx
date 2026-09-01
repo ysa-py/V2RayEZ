@@ -16,12 +16,12 @@ const defaultTemplate = '{"model":"${model}","messages":[{"role":"system","conte
 export function AIProviderGatewayPanel() {
   const [enabled, setEnabled] = useState(true);
   const [fallback, setFallback] = useState(true);
-  const [providerId, setProviderId] = useState('local-aether');
+  const [providerId, setProviderId] = useState('local-v2rayez');
   const [name, setName] = useState('V2RayEZ Local AI');
   const [type, setType] = useState('local');
-  const [baseUrl, setBaseUrl] = useState('local://aether');
+  const [baseUrl, setBaseUrl] = useState('local://v2rayez');
   const [endpoint, setEndpoint] = useState('');
-  const [model, setModel] = useState('aether-anti-dpi-local');
+  const [model, setModel] = useState('v2rayez-anti-dpi-local');
   const [apiKeyAlias, setApiKeyAlias] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [headersJson, setHeadersJson] = useState('{}');
@@ -47,7 +47,7 @@ export function AIProviderGatewayPanel() {
         headersJson,
         requestTemplate,
         responsePath,
-        fallback: fallback ? { mode: 'local-micafp-ai', reason: 'external_unreachable', dependencyFreeCoreNetworking: true } : null,
+        fallback: fallback ? { mode: 'local-v2rayez-ai', reason: 'external_unreachable', dependencyFreeCoreNetworking: true } : null,
       };
       const response = await fetch('/api/ai-engine/providers/test', {
         method: 'POST',
@@ -72,7 +72,7 @@ export function AIProviderGatewayPanel() {
               <BrainCircuit className="h-5 w-5" /> AI Provider Gateway
             </CardTitle>
             <CardDescription>
-              افزودن بدون کد برای OpenAI، Anthropic، Gemini، Generic HTTP و fallback داخلی MICAFP/V2RayEZ.
+              افزودن بدون کد برای OpenAI، Anthropic، Gemini، Generic HTTP و fallback داخلی V2RayEZ.
             </CardDescription>
           </div>
           <Badge variant={result.startsWith('OK') ? 'secondary' : 'outline'}>{result}</Badge>

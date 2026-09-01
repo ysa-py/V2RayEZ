@@ -1451,3 +1451,52 @@ Warnings:
 Blocked locally:
 
 - Live Prisma/database-backed route execution still requires `DATABASE_URL`, generated Prisma engine, and a real database.
+
+---
+
+## Milestone 27 dashboard AI gateway V2RayEZ identity cleanup — 2026-09-02
+
+Commands:
+
+```bash
+node --check MICAFP/dashboard/src/lib/ai-provider-gateway.mjs
+node --check tools/ai_provider_gateway_selftest.mjs
+node tools/ai_provider_gateway_selftest.mjs
+python3 - <<'PY'
+from pathlib import Path
+required = {
+'MICAFP/dashboard/src/components/ai-provider-gateway-panel.tsx':['local-v2rayez', 'local://v2rayez', 'v2rayez-anti-dpi-local', 'local-v2rayez-ai'],
+'MICAFP/dashboard/src/lib/ai-provider-gateway.mjs':['local-v2rayez-ai'],
+'tools/ai_provider_gateway_selftest.mjs':['local-v2rayez-ai'],
+}
+for path, needles in required.items():
+    text = Path(path).read_text()
+    for needle in needles:
+        assert needle in text, f'{path}: {needle}'
+    for old in ['local-aether', 'local://aether', 'aether-anti-dpi-local', 'local-micafp-ai']:
+        assert old not in text, f'{path}: stale {old}'
+print('dashboard AI V2RayEZ identity static checks pass')
+PY
+npm install --prefix MICAFP/dashboard
+npm run lint --prefix MICAFP/dashboard
+npm run build --prefix MICAFP/dashboard
+git diff --check
+```
+
+Result: PASS.
+
+Observed:
+
+- Dashboard AI Provider Gateway defaults are V2RayEZ-branded (`local-v2rayez`, `local://v2rayez`, `v2rayez-anti-dpi-local`).
+- Dashboard local fallback descriptor is now `local-v2rayez-ai`.
+- Self-test validates the V2RayEZ fallback mode.
+- Dashboard lint/build passed after local dependency installation.
+
+Warnings:
+
+- Local `npm install --prefix MICAFP/dashboard` reported 9 vulnerabilities (4 moderate, 5 high).
+- The generated untracked `MICAFP/dashboard/package-lock.json` was removed and not committed.
+
+Blocked locally:
+
+- Real external AI calls and deployed dashboard/database runtime remain unavailable in this sandbox.
