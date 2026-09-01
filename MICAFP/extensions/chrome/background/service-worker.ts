@@ -54,13 +54,15 @@ chrome.runtime.onStartup.addListener(async () => {
 /* ────────────────────── config ────────────────────── */
 
 async function loadConfig(): Promise<void> {
-  const stored = await chrome.storage.local.get(StorageKeys.CONFIG);
-  if (stored[StorageKeys.CONFIG]) {
-    config = { ...DEFAULT_CONFIG, ...stored[StorageKeys.CONFIG] };
+  const stored = await chrome.storage.local.get([StorageKeys.CONFIG, StorageKeys.LEGACY_CONFIG]);
+  const savedConfig = stored[StorageKeys.CONFIG] ?? stored[StorageKeys.LEGACY_CONFIG];
+  if (savedConfig) {
+    config = { ...DEFAULT_CONFIG, ...savedConfig };
   }
-  const stateStored = await chrome.storage.local.get(StorageKeys.STATE);
-  if (stateStored[StorageKeys.STATE]) {
-    Object.assign(state, stateStored[StorageKeys.STATE]);
+  const stateStored = await chrome.storage.local.get([StorageKeys.STATE, StorageKeys.LEGACY_STATE]);
+  const savedState = stateStored[StorageKeys.STATE] ?? stateStored[StorageKeys.LEGACY_STATE];
+  if (savedState) {
+    Object.assign(state, savedState);
   }
 }
 

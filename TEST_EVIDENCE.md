@@ -1329,6 +1329,21 @@ for path, needles in checks.items():
         assert needle in text, f'{path}: {needle}'
 print('extension license/ai static checks pass')
 PY
+python3 - <<'PY'
+from pathlib import Path
+protocol = Path('MICAFP/extensions/shared/protocol.ts').read_text()
+for needle in ['CONFIG: \'v2rayez_config\'', 'LEGACY_CONFIG: \'unifiedshield_config\'', 'STATE: \'v2rayez_state\'', 'LEGACY_STATE: \'unifiedshield_state\'']:
+    assert needle in protocol, needle
+for path in ['MICAFP/extensions/chrome/background/service-worker.ts','MICAFP/extensions/firefox/background/background.ts']:
+    text = Path(path).read_text()
+    for needle in ['StorageKeys.LEGACY_CONFIG', 'StorageKeys.LEGACY_STATE', 'savedConfig', 'savedState']:
+        assert needle in text, f'{path}: {needle}'
+for path in ['MICAFP/extensions/chrome/options/options.ts','MICAFP/extensions/firefox/options/options.ts']:
+    text = Path(path).read_text()
+    for needle in ['StorageKeys.LEGACY_CONFIG', 'savedConfig', 'StorageKeys.SECRETS']:
+        assert needle in text, f'{path}: {needle}'
+print('extension storage migration checks pass')
+PY
 git diff --check
 ```
 
@@ -1348,3 +1363,49 @@ Expected warning:
 Blocked locally:
 
 - Browser runtime, real signed serial, and dashboard-backed online validation remain unavailable in this sandbox.
+
+---
+
+## Milestone 25 browser extension V2RayEZ storage migration — 2026-09-02
+
+Commands:
+
+```bash
+set -e
+npm run lint --prefix MICAFP/extensions/chrome
+npm run lint --prefix MICAFP/extensions/firefox
+npm run build --prefix MICAFP/extensions/chrome
+npm run build --prefix MICAFP/extensions/firefox
+python3 - <<'PY'
+from pathlib import Path
+protocol = Path('MICAFP/extensions/shared/protocol.ts').read_text()
+for needle in ['CONFIG: \'v2rayez_config\'', 'LEGACY_CONFIG: \'unifiedshield_config\'', 'STATE: \'v2rayez_state\'', 'LEGACY_STATE: \'unifiedshield_state\'']:
+    assert needle in protocol, needle
+for path in ['MICAFP/extensions/chrome/background/service-worker.ts','MICAFP/extensions/firefox/background/background.ts']:
+    text = Path(path).read_text()
+    for needle in ['StorageKeys.LEGACY_CONFIG', 'StorageKeys.LEGACY_STATE', 'savedConfig', 'savedState']:
+        assert needle in text, f'{path}: {needle}'
+for path in ['MICAFP/extensions/chrome/options/options.ts','MICAFP/extensions/firefox/options/options.ts']:
+    text = Path(path).read_text()
+    for needle in ['StorageKeys.LEGACY_CONFIG', 'savedConfig', 'StorageKeys.SECRETS']:
+        assert needle in text, f'{path}: {needle}'
+print('extension storage migration checks pass')
+PY
+git diff --check
+```
+
+Result: PASS.
+
+Observed:
+
+- Extension preferred config/state/stats storage keys are now V2RayEZ-branded.
+- Legacy `unifiedshield_*` config/state keys remain supported as fallback reads.
+- Chrome/Firefox background and options scripts read preferred V2RayEZ keys first and save to V2RayEZ keys.
+
+Expected warning:
+
+- Extension builds continue to warn that the real WASM obfuscator artifact is missing and package the deterministic fallback module.
+
+Blocked locally:
+
+- Browser-profile migration runtime validation remains unavailable in this sandbox.

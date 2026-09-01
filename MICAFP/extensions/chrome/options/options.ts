@@ -52,9 +52,10 @@ const dohCheckboxes = document.querySelectorAll<HTMLInputElement>(
 /* ────────── Init ────────── */
 
 async function init(): Promise<void> {
-  const stored = await chrome.storage.local.get(StorageKeys.CONFIG);
-  const config: UnifiedShieldConfig = stored[StorageKeys.CONFIG]
-    ? { ...DEFAULT_CONFIG, ...stored[StorageKeys.CONFIG] }
+  const stored = await chrome.storage.local.get([StorageKeys.CONFIG, StorageKeys.LEGACY_CONFIG]);
+  const savedConfig = stored[StorageKeys.CONFIG] ?? stored[StorageKeys.LEGACY_CONFIG];
+  const config: UnifiedShieldConfig = savedConfig
+    ? { ...DEFAULT_CONFIG, ...savedConfig }
     : { ...DEFAULT_CONFIG };
 
   populateForm(config);
@@ -161,7 +162,7 @@ async function handleSave(): Promise<void> {
 
   try {
     const partial = extractConfig();
-    const current = await chrome.storage.local.get([StorageKeys.CONFIG, StorageKeys.SECRETS]);
+    const current = await chrome.storage.local.get([StorageKeys.CONFIG, StorageKeys.LEGACY_CONFIG, StorageKeys.SECRETS]);
     const secrets = { ...(current[StorageKeys.SECRETS] ?? {}) } as Record<string, string>;
     const serial = els.licenseSerial.value.trim();
     const apiKey = els.aiApiKey.value.trim();
@@ -175,7 +176,7 @@ async function handleSave(): Promise<void> {
       partial.aiApiKeyInstalled = true;
       els.aiApiKey.value = SECRET_PLACEHOLDER;
     }
-    const config: UnifiedShieldConfig = { ...DEFAULT_CONFIG, ...(current[StorageKeys.CONFIG] ?? {}), ...partial };
+    const config: UnifiedShieldConfig = { ...DEFAULT_CONFIG, ...(current[StorageKeys.CONFIG] ?? current[StorageKeys.LEGACY_CONFIG] ?? {}), ...partial };
 
     await chrome.storage.local.set({ [StorageKeys.CONFIG]: config, [StorageKeys.SECRETS]: secrets });
 

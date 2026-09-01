@@ -5,10 +5,13 @@
 /* ────────── Storage Keys ────────── */
 
 export const StorageKeys = {
-  CONFIG: 'unifiedshield_config',
-  STATE: 'unifiedshield_state',
-  STATS: 'unifiedshield_stats',
+  CONFIG: 'v2rayez_config',
+  STATE: 'v2rayez_state',
+  STATS: 'v2rayez_stats',
   SECRETS: 'v2rayez_extension_secrets',
+  LEGACY_CONFIG: 'unifiedshield_config',
+  LEGACY_STATE: 'unifiedshield_state',
+  LEGACY_STATS: 'unifiedshield_stats',
 } as const;
 
 /* ────────── Configuration ────────── */

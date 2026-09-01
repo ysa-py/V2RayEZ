@@ -12,6 +12,7 @@ Extend the packaged V2RayEZ Chrome/Firefox extensions with the same serial/licen
 - Extended shared extension protocol types and defaults:
   - License validation URL, account ID, offline grace toggle, installed-secret flags, and last validation metadata.
   - AI Engine enable toggle, automatic local fallback, provider alias/base URL/endpoint/model, and installed API-key flag.
+  - New preferred V2RayEZ storage keys (`v2rayez_config`, `v2rayez_state`, `v2rayez_stats`) with legacy `unifiedshield_*` fallback reads preserved.
   - Separate `StorageKeys.SECRETS` (`v2rayez_extension_secrets`) so serial/API key values are not mixed into exported normal config.
 - Added options-page controls for both Chrome and Firefox:
   - Signed serial/license token field.
@@ -70,6 +71,21 @@ for path, needles in checks.items():
     for needle in needles:
         assert needle in text, f'{path}: {needle}'
 print('extension license/ai static checks pass')
+PY
+python3 - <<'PY'
+from pathlib import Path
+protocol = Path('MICAFP/extensions/shared/protocol.ts').read_text()
+for needle in ['CONFIG: \'v2rayez_config\'', 'LEGACY_CONFIG: \'unifiedshield_config\'', 'STATE: \'v2rayez_state\'', 'LEGACY_STATE: \'unifiedshield_state\'']:
+    assert needle in protocol, needle
+for path in ['MICAFP/extensions/chrome/background/service-worker.ts','MICAFP/extensions/firefox/background/background.ts']:
+    text = Path(path).read_text()
+    for needle in ['StorageKeys.LEGACY_CONFIG', 'StorageKeys.LEGACY_STATE', 'savedConfig', 'savedState']:
+        assert needle in text, f'{path}: {needle}'
+for path in ['MICAFP/extensions/chrome/options/options.ts','MICAFP/extensions/firefox/options/options.ts']:
+    text = Path(path).read_text()
+    for needle in ['StorageKeys.LEGACY_CONFIG', 'savedConfig', 'StorageKeys.SECRETS']:
+        assert needle in text, f'{path}: {needle}'
+print('extension storage migration checks pass')
 PY
 python3 tools/merge_inventory.py
 git diff --check
