@@ -31,7 +31,13 @@ final class VpnConnectionController {
                 .putExtra("splitApps", preferences.getString("splitApps", ""))
                 .putExtra("dnsLeak", preferences.getBoolean("dnsLeak", true))
                 .putExtra("killSwitch", preferences.getBoolean("killSwitch", false))
-                .putExtra("quickReconnect", preferences.getBoolean("quickReconnect", true));
+                .putExtra("quickReconnect", preferences.getBoolean("quickReconnect", true))
+                .putExtra("licenseAccountId", preferences.getString("licenseAccountId", ""))
+                .putExtra("licenseServerUrl", preferences.getString("licenseServerUrl", ""))
+                .putExtra("aiProviderAlias", preferences.getString("aiProviderAlias", ""))
+                .putExtra("aiProviderEndpoint", preferences.getString("aiProviderEndpoint", ""))
+                .putExtra("aiProviderModel", preferences.getString("aiProviderModel", ""))
+                .putExtra("aiLocalFallback", preferences.getBoolean("aiLocalFallback", true));
     }
 
     static void connect(Context context, SharedPreferences preferences) {

@@ -284,6 +284,15 @@ public final class AetherVpnService extends VpnService {
         env.put("TMPDIR", getCacheDir().getAbsolutePath());
         String peer = request.getStringExtra("peer");
         if (peer != null && !peer.trim().isEmpty()) env.put("AETHER_PEER", peer.trim());
+        AndroidSecretStore secrets = new AndroidSecretStore(this);
+        putEnvIfPresent(env, "V2RAYEZ_LICENSE_KEY", secretValue(secrets, AndroidSecretStore.LICENSE_SERIAL));
+        putEnvIfPresent(env, "V2RAYEZ_LICENSE_ACCOUNT_ID", value(request, "licenseAccountId", ""));
+        putEnvIfPresent(env, "V2RAYEZ_LICENSE_SERVER", value(request, "licenseServerUrl", ""));
+        putEnvIfPresent(env, "V2RAYEZ_AI_PROVIDER_ALIAS", value(request, "aiProviderAlias", ""));
+        putEnvIfPresent(env, "V2RAYEZ_AI_PROVIDER_ENDPOINT", value(request, "aiProviderEndpoint", ""));
+        putEnvIfPresent(env, "V2RAYEZ_AI_PROVIDER_MODEL", value(request, "aiProviderModel", ""));
+        putEnvIfPresent(env, "V2RAYEZ_AI_PROVIDER_API_KEY", secretValue(secrets, AndroidSecretStore.AI_API_KEY));
+        env.put("V2RAYEZ_AI_LOCAL_FALLBACK", request.getBooleanExtra("aiLocalFallback", true) ? "1" : "0");
 
         masqueH3GatewayUnavailable = false;
 
@@ -917,6 +926,15 @@ public final class AetherVpnService extends VpnService {
     private static String safeMessage(Throwable error) {
         String message = error.getMessage();
         return message == null || message.trim().isEmpty() ? error.getClass().getSimpleName() : message;
+    }
+
+    private static void putEnvIfPresent(Map<String, String> env, String key, String value) {
+        if (value != null && !value.trim().isEmpty()) env.put(key, value.trim());
+    }
+
+    private static String secretValue(AndroidSecretStore secrets, String key) {
+        try { return secrets.get(key); }
+        catch (Exception error) { return ""; }
     }
 
     private static String yamlEscape(String value) { return value.replace("'", "''"); }

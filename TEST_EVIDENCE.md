@@ -1137,3 +1137,60 @@ Observed:
 Blocked locally:
 
 - Rust/Cargo are unavailable in this sandbox, so native compile/test remains pending until the toolchain is available.
+
+---
+
+## Milestone 21 Android license and AI provider settings — 2026-09-02
+
+Commands:
+
+```bash
+python3 - <<'PY'
+import xml.etree.ElementTree as ET
+for path in [
+    'V2RayEZ-GUI/android/app/src/main/res/layout/activity_main.xml',
+    'V2RayEZ-GUI/android/app/src/main/res/values/strings.xml',
+    'V2RayEZ-GUI/android/app/src/main/res/values-fa/strings.xml',
+]:
+    ET.parse(path)
+    print('xml ok', path)
+PY
+python3 - <<'PY'
+from pathlib import Path
+files = {
+ 'MainActivity': Path('V2RayEZ-GUI/android/app/src/main/java/app/v2rayez/gui/MainActivity.java').read_text(),
+ 'Service': Path('V2RayEZ-GUI/android/app/src/main/java/app/v2rayez/gui/AetherVpnService.java').read_text(),
+ 'Controller': Path('V2RayEZ-GUI/android/app/src/main/java/app/v2rayez/gui/VpnConnectionController.java').read_text(),
+ 'SecretStore': Path('V2RayEZ-GUI/android/app/src/main/java/app/v2rayez/gui/AndroidSecretStore.java').read_text(),
+ 'LicenseGate': Path('V2RayEZ-GUI/android/app/src/main/java/app/v2rayez/gui/AndroidLicenseGate.java').read_text(),
+ 'Layout': Path('V2RayEZ-GUI/android/app/src/main/res/layout/activity_main.xml').read_text(),
+}
+checks = {
+ 'MainActivity': ['saveLicenseSettings', 'saveAiSettings', 'AndroidLicenseGate.Decision', 'continueConnectAfterLicense', 'license_validating'],
+ 'Service': ['V2RAYEZ_LICENSE_KEY', 'V2RAYEZ_LICENSE_SERVER', 'V2RAYEZ_AI_PROVIDER_API_KEY', 'V2RAYEZ_AI_LOCAL_FALLBACK'],
+ 'Controller': ['licenseAccountId', 'licenseServerUrl', 'aiProviderAlias', 'aiLocalFallback'],
+ 'SecretStore': ['AndroidKeyStore', 'AES/GCM/NoPadding', 'LICENSE_SERIAL', 'AI_API_KEY'],
+ 'LicenseGate': ['HttpURLConnection', '/api/licenses/validate', 'offlineGraceUntil', 'localHardCutoff', 'license_expired', 'offline_grace_expired'],
+ 'Layout': ['license_serial_input', 'ai_api_key_input', 'ai_provider_endpoint_input'],
+}
+for name, needles in checks.items():
+    text = files[name]
+    for needle in needles:
+        assert needle in text, f'{name}: {needle}'
+print('android license gate/settings static checks pass')
+PY
+git diff --check
+```
+
+Result: PASS.
+
+Observed:
+
+- Android settings now includes license activation and AI Engine/API provider controls.
+- Signed serial and AI API key are encrypted via Android Keystore AES-GCM and hidden behind a placeholder.
+- VPN/proxy connect path validates the installed signed serial against the dashboard endpoint and hard-cuts off expired cached license/grace state when serial mode is active.
+- Native process launch exports V2RayEZ license/AI provider environment variables without logging secret values.
+
+Blocked locally:
+
+- Android Gradle/Java/device runtime validation remains blocked by absent Java, Android SDK/NDK, signing credentials, and device/emulator hardware in this sandbox.

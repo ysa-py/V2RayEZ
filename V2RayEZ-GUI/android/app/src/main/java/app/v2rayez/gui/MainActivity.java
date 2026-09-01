@@ -52,8 +52,10 @@ public final class MainActivity extends AppCompatActivity {
     private static final int NOTIFICATION_REQUEST = 42;
     private static final int APPS_REQUEST = 43;
     private static final String INTERNAL_PERMISSION = "app.v2rayez.gui.permission.INTERNAL";
+    private static final String SECRET_PLACEHOLDER = "••••••••";
     private ActivityMainBinding binding;
     private SharedPreferences preferences;
+    private AndroidSecretStore secretStore;
     private String state = "disconnected";
     private String page = "connect";
     private boolean receiverRegistered;
@@ -80,6 +82,7 @@ public final class MainActivity extends AppCompatActivity {
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         preferences = getSharedPreferences("aether", MODE_PRIVATE);
+        secretStore = new AndroidSecretStore(this);
         applyLanguage(preferences.getString("language", "en"), false);
         AppCompatDelegate.setDefaultNightMode(themeMode(preferences.getInt("theme", 2)));
         super.onCreate(savedInstanceState);
@@ -197,6 +200,10 @@ public final class MainActivity extends AppCompatActivity {
         binding.autoDownloadSwitch.setOnCheckedChangeListener((button, checked) -> { getSharedPreferences(UpdateConfig.PREFS, MODE_PRIVATE).edit().putBoolean(UpdateConfig.KEY_AUTO_DOWNLOAD, checked).apply(); AppUpdateManager.setAutomaticChecks(this, checked); if (checked) checkForUpdates(); });
         binding.notificationSettingsButton.setOnClickListener(v -> openNotificationSettings());
         binding.addTileButton.setOnClickListener(v -> requestQuickSettingsTile());
+        binding.saveLicenseButton.setOnClickListener(v -> saveLicenseSettings(true));
+        binding.clearLicenseSecretButton.setOnClickListener(v -> clearSecret(AndroidSecretStore.LICENSE_SERIAL, R.string.license_serial_cleared));
+        binding.saveAiButton.setOnClickListener(v -> saveAiSettings(true));
+        binding.clearAiSecretButton.setOnClickListener(v -> clearSecret(AndroidSecretStore.AI_API_KEY, R.string.ai_api_key_cleared));
         binding.telegramCard.setOnClickListener(v -> openTelegram());
     }
 
@@ -214,7 +221,7 @@ public final class MainActivity extends AppCompatActivity {
         binding.socksInput.setText(preferences.getString("socks", getString(R.string.default_socks_address)));
         binding.peerInput.setText(preferences.getString("peer", "")); binding.mtuInput.setText(preferences.getString("mtu", getString(R.string.default_mtu)));
         binding.dnsSwitch.setChecked(preferences.getBoolean("dnsLeak", true)); binding.killswitchSwitch.setChecked(preferences.getBoolean("killSwitch", false)); binding.reconnectSwitch.setChecked(preferences.getBoolean("quickReconnect", true));
-        boolean split = preferences.getInt("routing", 0) >= 2; binding.splitSwitch.setChecked(split); binding.splitContainer.setVisibility(split ? View.VISIBLE : View.GONE); binding.routingGroup.check(preferences.getInt("routing", 2) == 3 ? R.id.exclude_apps_radio : R.id.include_apps_radio); updateModeUi(); updateSelectedCount();
+        boolean split = preferences.getInt("routing", 0) >= 2; binding.splitSwitch.setChecked(split); binding.splitContainer.setVisibility(split ? View.VISIBLE : View.GONE); binding.routingGroup.check(preferences.getInt("routing", 2) == 3 ? R.id.exclude_apps_radio : R.id.include_apps_radio); restoreUniversalSettings(); updateModeUi(); updateSelectedCount();
     }
 
     private void setSelection(MaterialAutoCompleteTextView view, String key, int fallback, int arrayId) { setSelection(view, preferences.getInt(key, fallback), arrayId); }
@@ -226,6 +233,26 @@ public final class MainActivity extends AppCompatActivity {
         if (!validSocks(text(binding.socksInput))) { binding.socksInput.setError(getString(R.string.invalid_socks)); return; }
         if (binding.splitSwitch.isChecked() && selectedPackages().isEmpty() && binding.routingGroup.getCheckedRadioButtonId() == R.id.include_apps_radio) { Toast.makeText(this, R.string.split_include_empty, Toast.LENGTH_LONG).show(); return; }
         saveSettings();
+        if (secretStore.contains(AndroidSecretStore.LICENSE_SERIAL)) {
+            binding.connectButton.setEnabled(false);
+            binding.connectionStatus.setText(R.string.license_validating);
+            new Thread(() -> {
+                AndroidLicenseGate.Decision decision = new AndroidLicenseGate(this, preferences, secretStore).validate();
+                runOnUiThread(() -> {
+                    binding.connectButton.setEnabled(true);
+                    if (decision.allowed) continueConnectAfterLicense();
+                    else {
+                        renderState("error", getString(R.string.license_validation_failed, decision.reason));
+                        Toast.makeText(this, getString(R.string.license_validation_failed, decision.reason), Toast.LENGTH_LONG).show();
+                    }
+                });
+            }, "v2rayez-license-validation").start();
+            return;
+        }
+        continueConnectAfterLicense();
+    }
+
+    private void continueConnectAfterLicense() {
         if (!"manual".equals(preferences.getString("mode", "vpn"))) { Intent permission = VpnService.prepare(this); if (permission != null) { startActivityForResult(permission, VPN_REQUEST); return; } }
         VpnConnectionController.connect(this, preferences);
     }
@@ -300,7 +327,76 @@ public final class MainActivity extends AppCompatActivity {
         int routing = binding.splitSwitch.isChecked() ? (binding.routingGroup.getCheckedRadioButtonId() == R.id.exclude_apps_radio ? 3 : 2) : 0;
         String include = preferences.getString("splitIncludeApps", ""); String exclude = preferences.getString("splitExcludeApps", "");
         preferences.edit().putInt("protocol", selectedIndex(binding.protocolInput)).putInt("scan", selectedIndex(binding.scanInput)).putInt("transport", selectedIndex(binding.transportInput)).putInt("ip", selectedIndex(binding.ipInput)).putInt("obfuscation", selectedIndex(binding.obfuscationInput)).putInt("log", selectedIndex(binding.logInput)).putInt("theme", selectedIndex(binding.themeInput)).putInt("routing", routing).putString("splitApps", routing == 3 ? exclude : include).putString("socks", text(binding.socksInput)).putString("peer", text(binding.peerInput)).putString("mtu", text(binding.mtuInput)).putBoolean("dnsLeak", binding.dnsSwitch.isChecked()).putBoolean("killSwitch", binding.killswitchSwitch.isChecked()).putBoolean("quickReconnect", binding.reconnectSwitch.isChecked()).apply();
+        saveLicenseSettings(false);
+        saveAiSettings(false);
     }
+
+    private void restoreUniversalSettings() {
+        binding.licenseAccountInput.setText(preferences.getString("licenseAccountId", ""));
+        binding.licenseServerInput.setText(preferences.getString("licenseServerUrl", ""));
+        binding.licenseSerialInput.setText(secretStore.contains(AndroidSecretStore.LICENSE_SERIAL) ? SECRET_PLACEHOLDER : "");
+        binding.licenseStateValue.setText(secretStore.contains(AndroidSecretStore.LICENSE_SERIAL) ? R.string.license_serial_configured : R.string.license_serial_not_configured);
+        binding.aiProviderAliasInput.setText(preferences.getString("aiProviderAlias", ""));
+        binding.aiProviderEndpointInput.setText(preferences.getString("aiProviderEndpoint", ""));
+        binding.aiProviderModelInput.setText(preferences.getString("aiProviderModel", ""));
+        binding.aiApiKeyInput.setText(secretStore.contains(AndroidSecretStore.AI_API_KEY) ? SECRET_PLACEHOLDER : "");
+        binding.aiStateValue.setText(secretStore.contains(AndroidSecretStore.AI_API_KEY) ? R.string.ai_api_key_configured : R.string.ai_api_key_not_configured);
+    }
+
+    private void saveLicenseSettings(boolean notify) {
+        try {
+            preferences.edit()
+                    .putString("licenseAccountId", text(binding.licenseAccountInput))
+                    .putString("licenseServerUrl", text(binding.licenseServerInput))
+                    .apply();
+            String serial = text(binding.licenseSerialInput);
+            if (!serial.isEmpty() && !SECRET_PLACEHOLDER.equals(serial)) {
+                secretStore.put(AndroidSecretStore.LICENSE_SERIAL, serial);
+                binding.licenseSerialInput.setText(SECRET_PLACEHOLDER);
+            }
+            binding.licenseStateValue.setText(secretStore.contains(AndroidSecretStore.LICENSE_SERIAL) ? R.string.license_serial_configured : R.string.license_serial_not_configured);
+            if (notify) Toast.makeText(this, R.string.license_settings_saved, Toast.LENGTH_SHORT).show();
+        } catch (Exception error) {
+            Toast.makeText(this, getString(R.string.secret_store_failed) + ": " + safeSecretError(error), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void saveAiSettings(boolean notify) {
+        try {
+            preferences.edit()
+                    .putString("aiProviderAlias", safeAlias(text(binding.aiProviderAliasInput)))
+                    .putString("aiProviderEndpoint", text(binding.aiProviderEndpointInput))
+                    .putString("aiProviderModel", text(binding.aiProviderModelInput))
+                    .putBoolean("aiLocalFallback", true)
+                    .apply();
+            String apiKey = text(binding.aiApiKeyInput);
+            if (!apiKey.isEmpty() && !SECRET_PLACEHOLDER.equals(apiKey)) {
+                secretStore.put(AndroidSecretStore.AI_API_KEY, apiKey);
+                binding.aiApiKeyInput.setText(SECRET_PLACEHOLDER);
+            }
+            binding.aiStateValue.setText(secretStore.contains(AndroidSecretStore.AI_API_KEY) ? R.string.ai_api_key_configured : R.string.ai_api_key_not_configured);
+            if (notify) Toast.makeText(this, R.string.ai_settings_saved, Toast.LENGTH_SHORT).show();
+        } catch (Exception error) {
+            Toast.makeText(this, getString(R.string.secret_store_failed) + ": " + safeSecretError(error), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void clearSecret(String key, int toastString) {
+        secretStore.remove(key);
+        restoreUniversalSettings();
+        Toast.makeText(this, toastString, Toast.LENGTH_SHORT).show();
+    }
+
+    private static String safeAlias(String alias) {
+        StringBuilder result = new StringBuilder();
+        for (int i = 0; i < alias.length(); i++) {
+            char c = alias.charAt(i);
+            if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '-') result.append(c);
+        }
+        return result.toString();
+    }
+
+    private static String safeSecretError(Exception error) { return error == null || error.getMessage() == null ? "error" : error.getMessage(); }
 
     private Set<String> selectedPackages() { Set<String> result = new LinkedHashSet<>(); String key = binding.routingGroup.getCheckedRadioButtonId() == R.id.exclude_apps_radio ? "splitExcludeApps" : "splitIncludeApps"; AppSelectionActivity.parsePackages(preferences.getString(key, ""), result); return result; }
     private void updateSelectedCount() { if (binding == null) return; binding.selectedAppsCount.setText(getResources().getQuantityString(R.plurals.app_picker_selected_count, selectedPackages().size(), selectedPackages().size())); }
