@@ -12,6 +12,10 @@ on:
         required: false
         default: false
         type: boolean
+      apple_team_id:
+        description: "Optional Apple Development Team ID for signed IPA export"
+        required: false
+        type: string
   push:
     tags:
       - "v*"
@@ -207,26 +211,60 @@ jobs:
           path: /tmp/openwrt-sdk/bin/packages/**/*.ipk
           if-no-files-found: error
 
-  ios-static-and-signing-gate:
-    name: iOS IPA signing gate
+  ios-ipa-with-xcodegen:
+    name: iOS IPA with XcodeGen project
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Validate Swift source balance
+      - name: Validate Swift source balance and iOS plists
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import plistlib
           roots = [Path('MICAFP/ios/UnifiedShield/App'), Path('MICAFP/ios/UnifiedShield/NetworkExtension')]
           for path in sorted(p for r in roots for p in r.glob('*.swift')):
               text = path.read_text()
               assert text.count('{') == text.count('}'), f'brace imbalance: {path}'
               print('swift brace pass', path)
+          for path in [Path('MICAFP/ios/Info.plist'), Path('MICAFP/ios/V2RayEZPacketTunnel/Info.plist'), Path('MICAFP/ios/ExportOptions.plist')]:
+              with path.open('rb') as fh:
+                  plistlib.load(fh)
+              print('plist pass', path)
           PY
 
-      - name: Require Xcode project and signing material for real IPA
+      - name: Generate Xcode project
         run: |
-          if ! find MICAFP/ios -maxdepth 3 \( -name '*.xcodeproj' -o -name '*.xcworkspace' \) | grep -q .; then
-            echo 'No Xcode project/workspace is present yet; IPA packaging remains blocked until the iOS shell is promoted into a signed Xcode project with Network Extension entitlements.' >&2
+          brew install xcodegen
+          cd MICAFP/ios
+          xcodegen generate --spec project.yml
+
+      - name: Require Apple signing material for real IPA
+        run: |
+          if [ -z "${{ inputs.apple_team_id }}" ]; then
+            echo 'Apple Team ID/signing material is required for a real .ipa archive/export. Provide workflow input apple_team_id and configure signing certificates/profiles on the macOS runner.' >&2
             exit 1
           fi
+
+      - name: Archive and export IPA
+        run: |
+          cd MICAFP/ios
+          xcodebuild \
+            -project V2RayEZ.xcodeproj \
+            -scheme V2RayEZ \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath "$PWD/build/V2RayEZ.xcarchive" \
+            DEVELOPMENT_TEAM="${{ inputs.apple_team_id }}" \
+            archive
+          xcodebuild \
+            -exportArchive \
+            -archivePath "$PWD/build/V2RayEZ.xcarchive" \
+            -exportOptionsPlist ExportOptions.plist \
+            -exportPath "$PWD/build/export"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v2rayez-ios-ipa
+          path: MICAFP/ios/build/export/*.ipa
+          if-no-files-found: error

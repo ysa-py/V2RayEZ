@@ -93,14 +93,16 @@ jobs:
           gcc -std=gnu99 -Wall -Wextra -fsyntax-only -I MICAFP/openwrt/src \
             MICAFP/openwrt/src/main.c MICAFP/openwrt/src/netifd_proto.c
 
-      - name: Validate iOS touched-file brace balance
+      - name: Validate iOS touched-file brace balance and plist metadata
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import plistlib
           files = [
               Path('MICAFP/ios/UnifiedShield/App/AIProviderGateway.swift'),
               Path('MICAFP/ios/UnifiedShield/App/LicenseManager.swift'),
               Path('MICAFP/ios/UnifiedShield/App/SettingsView.swift'),
+              Path('MICAFP/ios/UnifiedShield/App/StatusView.swift'),
               Path('MICAFP/ios/UnifiedShield/NetworkExtension/ExtensionAIAdvisor.swift'),
               Path('MICAFP/ios/UnifiedShield/NetworkExtension/ExtensionLicenseGate.swift'),
               Path('MICAFP/ios/UnifiedShield/NetworkExtension/PacketTunnelProvider.swift'),
@@ -110,6 +112,11 @@ jobs:
               text = path.read_text()
               assert text.count('{') == text.count('}'), f'brace imbalance: {path}'
               print('swift brace pass', path)
+          for path in [Path('MICAFP/ios/Info.plist'), Path('MICAFP/ios/V2RayEZPacketTunnel/Info.plist'), Path('MICAFP/ios/ExportOptions.plist')]:
+              with path.open('rb') as fh:
+                  plistlib.load(fh)
+              print('plist pass', path)
+          assert Path('MICAFP/ios/project.yml').exists(), 'XcodeGen project.yml missing'
           PY
 
       - name: Regenerate merge inventory and check for drift

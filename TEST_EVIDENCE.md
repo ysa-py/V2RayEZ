@@ -816,3 +816,56 @@ Observed:
 - The full workflows were preserved as templates under `docs/ci/github-workflows/*.yml.sample` for later activation.
 - `MERGE_INVENTORY.json` was regenerated, and `tools/merge_inventory.py` now ignores generated/cache directories for stable clean-checkout results.
 - Full artifact builds remain dependent on active workflow placement, GitHub-hosted toolchains, and target-specific signing/SDK inputs.
+
+---
+
+## Milestone 13 iOS V2RayEZ identity and IPA project preparation — 2026-09-01
+
+Commands:
+
+```bash
+python3 - <<'PY'
+from pathlib import Path
+import plistlib
+for path in [Path('MICAFP/ios/Info.plist'), Path('MICAFP/ios/V2RayEZPacketTunnel/Info.plist'), Path('MICAFP/ios/ExportOptions.plist'), Path('MICAFP/ios/V2RayEZ.entitlements'), Path('MICAFP/ios/V2RayEZPacketTunnel.entitlements')]:
+    with path.open('rb') as fh:
+        data = plistlib.load(fh)
+    print('plist pass', path, data.get('CFBundleIdentifier', 'entitlements/export'))
+for path in [Path('MICAFP/ios/project.yml'), *Path('docs/ci/github-workflows').glob('*.yml.sample')]:
+    text = path.read_text()
+    assert '\t' not in text, f'tab in {path}'
+    assert text.endswith('\n')
+    print('yaml basic pass', path, len(text.splitlines()))
+PY
+python3 - <<'PY'
+from pathlib import Path
+files = [
+    Path('MICAFP/ios/UnifiedShield/App/AIProviderGateway.swift'),
+    Path('MICAFP/ios/UnifiedShield/App/LicenseManager.swift'),
+    Path('MICAFP/ios/UnifiedShield/App/SettingsView.swift'),
+    Path('MICAFP/ios/UnifiedShield/App/StatusView.swift'),
+    Path('MICAFP/ios/UnifiedShield/NetworkExtension/ExtensionAIAdvisor.swift'),
+    Path('MICAFP/ios/UnifiedShield/NetworkExtension/ExtensionLicenseGate.swift'),
+    Path('MICAFP/ios/UnifiedShield/NetworkExtension/PacketTunnelProvider.swift'),
+    Path('MICAFP/ios/UnifiedShield/NetworkExtension/TunnelManager.swift'),
+]
+for path in files:
+    text = path.read_text()
+    assert text.count('{') == text.count('}'), f'brace imbalance: {path}'
+    print('swift brace pass', path)
+PY
+grep -R -n "hamvex" "EasySNI- Make sure to fully add all features to the V2RayEZ app/Configs/Spoof-Configs.txt" || true
+grep -R -n "com\.shield\|com\.unifiedshield\.packet-tunnel\|UnifiedShield VPN\|serverAddress: \"UnifiedShield\"\|navigationTitle(\"UnifiedShield\")" MICAFP/ios/Info.plist MICAFP/ios/UnifiedShield || true
+git diff --check
+```
+
+Result: PASS locally.
+
+Observed:
+
+- Active iOS app/extension plist files and entitlements parse successfully.
+- XcodeGen/project workflow templates pass basic whitespace/newline checks.
+- Active touched Swift files pass brace-balance checks.
+- No `hamvex` marker remains in the EasySNI sample config after relabeling the fragment to V2RayEZ.
+- Active iOS product-identity grep returned no old bundle/user-visible names except donor provenance comments.
+- `git diff --check` PASS.

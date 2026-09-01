@@ -2,7 +2,7 @@ import NetworkExtension
 import Foundation
 
 /**
- * PacketTunnelProvider for UnifiedShield VPN on iOS.
+ * PacketTunnelProvider for V2RayEZ on iOS.
  *
  * Implements NEPacketTunnelProvider for VPN functionality without jailbreak.
  * Uses Rust FFI core for protocol handling and packet routing.

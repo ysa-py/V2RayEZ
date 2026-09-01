@@ -1,0 +1,61 @@
+name: V2RayEZ
+
+options:
+  bundleIdPrefix: app.v2rayez
+  deploymentTarget:
+    iOS: "15.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+
+configs:
+  Debug: debug
+  Release: release
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    MARKETING_VERSION: "2.0.0"
+    CURRENT_PROJECT_VERSION: "200"
+    IPHONEOS_DEPLOYMENT_TARGET: "15.0"
+    ENABLE_BITCODE: NO
+    CODE_SIGN_STYLE: Automatic
+
+targets:
+  V2RayEZ:
+    type: application
+    platform: iOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: UnifiedShield/App
+      - path: AdvancedSecurityBridge.swift
+      - path: BatteryManager.swift
+      - path: BleMeshManager.swift
+    dependencies:
+      - target: V2RayEZPacketTunnel
+        embed: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.v2rayez.ios
+        PRODUCT_NAME: V2RayEZ
+        INFOPLIST_FILE: Info.plist
+        CODE_SIGN_ENTITLEMENTS: V2RayEZ.entitlements
+    preBuildScripts:
+      - name: Verify Rust core artifact placeholder
+        script: |
+          if [ ! -e "$SRCROOT/libv2rayez_universal.a" ]; then
+            echo "warning: libv2rayez_universal.a is not present; archive builds need the shared Rust core built for iOS."
+          fi
+
+  V2RayEZPacketTunnel:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: UnifiedShield/NetworkExtension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.v2rayez.ios.PacketTunnel
+        PRODUCT_NAME: V2RayEZPacketTunnel
+        INFOPLIST_FILE: V2RayEZPacketTunnel/Info.plist
+        CODE_SIGN_ENTITLEMENTS: V2RayEZPacketTunnel.entitlements
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks"
