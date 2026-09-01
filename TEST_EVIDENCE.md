@@ -1681,3 +1681,62 @@ Observed:
 Scope note:
 
 - This is deterministic local E2E coverage using production crypto primitives and an in-memory validation model. Real deployed dashboard/API/native-device validation remains blocked by unavailable external runtime, devices, router, and native toolchains.
+
+---
+
+## Milestone 32 runtime license watchdog hard cutoff — 2026-09-02
+
+Commands:
+
+```bash
+node --check tools/runtime_license_watchdog_gate.mjs
+node tools/runtime_license_watchdog_gate.mjs
+node --check tools/license_crypto_selftest.mjs
+node tools/license_crypto_selftest.mjs
+node --check tools/license_serial_e2e_selftest.mjs
+node tools/license_serial_e2e_selftest.mjs
+node --check tools/v2rayez_identity_gate.mjs
+node tools/v2rayez_identity_gate.mjs
+node --check tools/ai_provider_gateway_selftest.mjs
+node tools/ai_provider_gateway_selftest.mjs
+sh -n MICAFP/openwrt/files/etc/init.d/unifiedshield
+sh -n MICAFP/openwrt/files/usr/libexec/unifiedshield/license-gate.sh
+sh -n MICAFP/openwrt/files/usr/libexec/unifiedshield/license-watchdog.sh
+sh -n MICAFP/openwrt/files/lib/netifd/proto/unifiedshield.sh
+python3 - <<'PY'
+from pathlib import Path
+files = [
+    Path('MICAFP/ios/UnifiedShield/NetworkExtension/PacketTunnelProvider.swift'),
+    Path('MICAFP/ios/UnifiedShield/NetworkExtension/TunnelManager.swift'),
+]
+for path in files:
+    text = path.read_text()
+    assert text.count('{') == text.count('}'), f'brace imbalance: {path}'
+    assert 'let status = await' in text and 'Task.sleep(nanoseconds: UInt64(waitSeconds)' in text
+    print('swift watchdog static pass', path)
+PY
+python3 - <<'PY'
+from pathlib import Path
+text = Path('docs/ci/github-workflows/universal-source-gates.yml.sample').read_text()
+assert 'node tools/runtime_license_watchdog_gate.mjs' in text
+assert 'node tools/license_serial_e2e_selftest.mjs' in text
+assert '\t' not in text
+print('runtime watchdog workflow template check pass')
+PY
+npm test --prefix V2RayEZ-GUI
+git diff --check
+```
+
+Result: PASS.
+
+Observed:
+
+- Desktop/Tauri watchdog now receives the initial license remaining window and sleeps only up to the next cutoff/check deadline.
+- Android watchdog no longer sleeps twice per cycle and has a 1-second fail-safe for impossible allowed states with zero remaining seconds.
+- iOS app and Packet Tunnel watchdogs enforce before sleeping and cap sleep by `remainingSeconds`.
+- OpenWrt package now installs and starts a runtime license watchdog procd instance that stops the service on denial.
+- New runtime watchdog source gate passed and is referenced by the CI sample.
+
+Scope note:
+
+- Native compilation and real device/router hard-cutoff timing tests remain blocked by missing toolchains, signing credentials, and hardware.

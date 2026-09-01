@@ -104,13 +104,14 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         licenseWatchdogTask?.cancel()
         licenseWatchdogTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 60_000_000_000)
-                guard !Task.isCancelled else { return }
                 let status = await ExtensionLicenseGate.shared.enforce()
                 if !status.allowed {
                     self?.cancelTunnelWithError(PacketTunnelError.licenseRequired(status.reason))
                     return
                 }
+                let waitSeconds = max(Int64(1), min(status.remainingSeconds > 0 ? status.remainingSeconds : 60, Int64(60)))
+                try? await Task.sleep(nanoseconds: UInt64(waitSeconds) * 1_000_000_000)
+                guard !Task.isCancelled else { return }
             }
         }
     }

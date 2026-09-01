@@ -175,6 +175,7 @@ define Package/unifiedshield/install
 	# License/AI helper scripts
 	$(INSTALL_DIR) $(1)/usr/libexec/unifiedshield
 	$(INSTALL_BIN) ./files/usr/libexec/unifiedshield/license-gate.sh $(1)/usr/libexec/unifiedshield/license-gate.sh
+	$(INSTALL_BIN) ./files/usr/libexec/unifiedshield/license-watchdog.sh $(1)/usr/libexec/unifiedshield/license-watchdog.sh
 	$(INSTALL_BIN) ./files/usr/libexec/unifiedshield/ai-provider-test.lua $(1)/usr/libexec/unifiedshield/ai-provider-test.lua
 
 	# LuCI web interface: controller, models, CBI forms, templates, and ACL.

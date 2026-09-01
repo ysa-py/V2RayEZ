@@ -1602,6 +1602,7 @@ class V2RayVpnService : VpnService() {
                     return@launch
                 }
                 val waitMs = when {
+                    decision.remainingSeconds <= 0 -> 1_000L
                     decision.remainingSeconds in 1..60 -> decision.remainingSeconds * 1_000L
                     else -> 60_000L
                 }

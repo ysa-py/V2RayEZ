@@ -282,8 +282,8 @@ The V2RayEZ desktop/Tauri GUI now has a first-pass license gate while keeping th
 - `src-tauri/src/settings.rs` persists `license` metadata (validation URL, account ID, device label, offline-grace toggle, last result/reason/expiry) and validates URL/account syntax.
 - `src-tauri/src/license.rs` reuses `universal-core` Ed25519 compact token verification, stores the activated serial/grace token through `src-tauri/src/secure_store.rs`, validates online via `/api/licenses/validate`, and uses signed offline grace only when configured.
 - `src-tauri/src/secure_store.rs` encrypts protected desktop state with Windows DPAPI on Windows and uses `0600` app-config files on Unix-like desktop targets until the Linux libsecret/keyring backend is added.
-- `connect()` calls `license::enforce()` before starting Aether/MASQUE/WireGuard/gool or Windows VPN routing, so doomed foreground/network setup is avoided.
-- A watchdog revalidates while connected and hard-stops Aether plus the routing manager if expiry/revocation/grace failure occurs mid-session.
+- `connect()` calls `license::enforce()` before starting the V2RayEZ core protocols or Windows VPN routing, so doomed foreground/network setup is avoided.
+- A watchdog revalidates while connected and hard-stops the V2RayEZ core plus the routing manager if expiry/revocation/grace failure occurs mid-session.
 - The frontend exposes License activation/validate/clear controls in Settings and keeps only redacted serial/status metadata in normal settings; the serial itself stays outside `settings.json`.
 
 Desktop build note: the V2RayEZ GUI is the target app; public keys are supplied through `V2RAYEZ_LICENSE_PUBLIC_KEY_PEM`, `V2RAYEZ_LICENSE_PUBLIC_KEYS_JSON`, and `V2RAYEZ_LICENSE_DEVICE_HASH_SALT` at runtime/build time. Rust/Tauri compilation is still pending because `cargo`/`rustc` are not installed in this sandbox.
@@ -296,8 +296,8 @@ The MICAFP/OpenWrt package path now has additive license-gate wiring for univers
 
 - `/etc/config/unifiedshield` includes license metadata, account binding, validation URL, public-key file, offline-grace toggle, last result/reason/expiry, and AI Engine defaults.
 - LuCI CBI model `src/luci-app-unifiedshield/luasrc/model/cbi/unifiedshield/config.lua` exposes License controls without ever storing or displaying the signed serial. Operators install the serial at `/etc/unifiedshield/license.token` with root-only permissions.
-- `/usr/libexec/unifiedshield/license-gate.sh` is fail-closed and is called by the new procd init script before daemon start/reload. It prefers a future universal-core-backed native verifier (`/usr/bin/v2rayez-license-gate`) for local Ed25519/grace validation; the shell fallback only permits online dashboard validation and refuses offline grace without the native verifier.
-- `/etc/init.d/unifiedshield` blocks service startup when license validation fails, preserving kill-switch/no-leak expectations on routers.
+- `/usr/libexec/unifiedshield/license-gate.sh` is fail-closed and is called by the procd init script before daemon start/reload. `/usr/libexec/unifiedshield/license-watchdog.sh` keeps validating during runtime and stops the service on serial expiry/revocation/grace denial. The gate prefers a future universal-core-backed native verifier (`/usr/bin/v2rayez-license-gate`) for local Ed25519/grace validation; the shell fallback only permits online dashboard validation and refuses offline grace without the native verifier.
+- `/etc/init.d/unifiedshield` blocks service startup when license validation fails and starts a runtime license watchdog beside the daemon, preserving kill-switch/no-leak expectations on routers.
 
 OpenWrt build note: the `.ipk` build itself is still blocked in this sandbox because no OpenWrt SDK/toolchain is installed, and the native verifier binary still needs to be produced from `universal-core` for final local anti-forgery/offline-grace verification on routers.
 

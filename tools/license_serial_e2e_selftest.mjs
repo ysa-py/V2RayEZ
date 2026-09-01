@@ -2,6 +2,8 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import {
+  base64urlDecode,
+  base64urlEncode,
   generateEd25519KeyPairPem,
   hashDeviceId,
   hashLicenseKey,
@@ -205,7 +207,11 @@ assert.equal(repeatValidation.activationId, firstValidation.activationId);
 assert.equal(validateSerial(db, { licenseKey: issued.licenseKey, accountId: 'acct_alice', deviceId: 'device-b', platform: 'android' }).reason, 'device_limit_exceeded');
 assert.equal(validateSerial(db, { licenseKey: issued.licenseKey, accountId: 'acct_bob', deviceId: 'device-a', platform: 'android' }).reason, 'account_mismatch');
 
-const tampered = issued.licenseKey.replace(/.$/, (last) => (last === 'A' ? 'B' : 'A'));
+const tamperedParts = issued.licenseKey.split('.');
+const tamperedPayload = JSON.parse(Buffer.from(base64urlDecode(tamperedParts[1])).toString('utf8'));
+tamperedPayload.accountId = 'acct_mallory';
+tamperedParts[1] = base64urlEncode(JSON.stringify(tamperedPayload));
+const tampered = tamperedParts.join('.');
 assert.match(validateSerial(db, { licenseKey: tampered, accountId: 'acct_alice', deviceId: 'device-a', platform: 'android' }).reason, /^license_signature_invalid:/);
 
 const expired = issueSerial({ expiresAt: earlier(60 * 1000) });

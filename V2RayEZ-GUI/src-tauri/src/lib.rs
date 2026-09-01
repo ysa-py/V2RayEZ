@@ -31,7 +31,7 @@ async fn connect(
 ) -> Result<(), String> {
     let mut settings = settings;
     settings.normalize_protocol_options();
-    let _license_status = license::enforce(app.clone(), &settings).await?;
+    let license_status = license::enforce(app.clone(), &settings).await?;
     if settings.connection_mode == "smart" {
         settings.connection_mode = "vpn".into();
         let mut selected = None;
@@ -95,6 +95,7 @@ async fn connect(
         state.routing.clone(),
         settings.clone(),
         generation,
+        license_status.remaining_seconds,
     );
     Ok(())
 }
@@ -105,19 +106,17 @@ fn spawn_license_watchdog(
     routing: Arc<RoutingManager>,
     settings: Settings,
     generation: u64,
+    initial_remaining_seconds: i64,
 ) {
     tauri::async_runtime::spawn(async move {
+        let mut wait = license_watchdog_delay(initial_remaining_seconds);
         loop {
-            tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+            tokio::time::sleep(wait).await;
             if process.generation().await != generation || !process.is_running().await {
                 return;
             }
             match license::enforce(app.clone(), &settings).await {
-                Ok(status) => {
-                    if status.remaining_seconds > 0 && status.remaining_seconds < 60 {
-                        tokio::time::sleep(std::time::Duration::from_secs(status.remaining_seconds as u64)).await;
-                    }
-                }
+                Ok(status) => wait = license_watchdog_delay(status.remaining_seconds),
                 Err(error) => {
                     let _ = routing.stop(&app).await;
                     let _ = process.stop().await;
@@ -127,6 +126,15 @@ fn spawn_license_watchdog(
             }
         }
     });
+}
+
+fn license_watchdog_delay(remaining_seconds: i64) -> std::time::Duration {
+    let seconds = if remaining_seconds <= 0 {
+        1
+    } else {
+        remaining_seconds.min(60) as u64
+    };
+    std::time::Duration::from_secs(seconds)
 }
 
 async fn start_core_with_fallback(
