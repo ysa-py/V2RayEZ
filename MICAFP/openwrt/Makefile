@@ -116,7 +116,19 @@ define Build/Compile
 			--target $(RUST_TARGET) \
 			--no-default-features \
 			--features platform-openwrt \
-			--manifest-path "$$DAEMON_DIR/Cargo.toml"
+			--manifest-path "$$DAEMON_DIR/Cargo.toml"; \
+		if [ -f "$(PKG_BUILD_DIR)/universal-core/Cargo.toml" ]; then \
+			cd "$(PKG_BUILD_DIR)/universal-core"; \
+			CARGO_HOME=$(CARGO_HOME) \
+			RUSTFLAGS="-C target-feature=+crt-static -C opt-level=z -C panic=abort" \
+			$(CARGO) build \
+				--release \
+				--target $(RUST_TARGET) \
+				--no-default-features \
+				--features std \
+				--bin v2rayez-license-gate \
+				--manifest-path "$(PKG_BUILD_DIR)/universal-core/Cargo.toml"; \
+		fi
 endef
 
 # ---------------------------------------------------------------------------
@@ -132,7 +144,10 @@ define Package/unifiedshield/install
 		else \
 			DAEMON_DIR="$(PKG_BUILD_DIR)/daemon"; \
 		fi; \
-		$(INSTALL_BIN) "$$DAEMON_DIR/target/$(RUST_TARGET)/release/shield-daemon" $(1)/usr/bin/unifiedshield
+		$(INSTALL_BIN) "$$DAEMON_DIR/target/$(RUST_TARGET)/release/shield-daemon" $(1)/usr/bin/unifiedshield; \
+		if [ -x "$(PKG_BUILD_DIR)/universal-core/target/$(RUST_TARGET)/release/v2rayez-license-gate" ]; then \
+			$(INSTALL_BIN) "$(PKG_BUILD_DIR)/universal-core/target/$(RUST_TARGET)/release/v2rayez-license-gate" $(1)/usr/bin/v2rayez-license-gate; \
+		fi
 
 	# Configuration files
 	$(INSTALL_DIR) $(1)/etc/config

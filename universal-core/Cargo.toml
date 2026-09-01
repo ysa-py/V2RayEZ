@@ -9,6 +9,10 @@ description = "Canonical shared core API layer for V2RayEZ Universal"
 name = "v2rayez_universal_core"
 crate-type = ["rlib", "staticlib", "cdylib"]
 
+[[bin]]
+name = "v2rayez-license-gate"
+path = "src/bin/v2rayez-license-gate.rs"
+
 [features]
 default = ["std"]
 std = []

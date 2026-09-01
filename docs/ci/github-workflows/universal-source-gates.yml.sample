@@ -23,6 +23,21 @@ env:
   GUI_DIR: V2RayEZ-GUI
 
 jobs:
+  universal-core-rust:
+    name: Universal Rust core and license gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Test universal core and license gate
+        run: |
+          cargo test --manifest-path universal-core/Cargo.toml
+          cargo build --manifest-path universal-core/Cargo.toml --bin v2rayez-license-gate
+
   v2rayez-gui-and-source-gates:
     name: V2RayEZ GUI, license/AI, OpenWrt, and iOS static gates
     runs-on: ubuntu-latest

@@ -1087,3 +1087,53 @@ Observed:
 - V2RayEZ repository layout and donor-source layout are both detected for daemon/config build paths.
 - OpenWrt shell and C syntax checks still pass.
 - `git diff --check` PASS.
+
+---
+
+## Milestone 20 native license gate CLI wiring — 2026-09-02
+
+Commands:
+
+```bash
+python3 - <<'PY'
+from pathlib import Path
+import tomllib
+cargo = tomllib.loads(Path('universal-core/Cargo.toml').read_text())
+assert any(bin.get('name') == 'v2rayez-license-gate' for bin in cargo.get('bin', [])), 'license gate bin missing'
+text = Path('universal-core/src/bin/v2rayez-license-gate.rs').read_text()
+for needle in ['LicenseVerifier::new', 'verify_license_key', 'offline_start_decision', 'fn validate_online', 'fn update_uci', 'license_expires_at', 'license_offline_grace_until']:
+    assert needle in text, needle
+print('universal-core license gate static checks pass')
+PY
+python3 - <<'PY'
+from pathlib import Path
+text = Path('MICAFP/openwrt/Makefile').read_text()
+for needle in ['--bin v2rayez-license-gate', '/usr/bin/v2rayez-license-gate', '--features platform-openwrt', '--features std']:
+    assert needle in text, needle
+assert '--features openwrt' not in text
+print('openwrt native license gate wiring checks pass')
+PY
+python3 - <<'PY'
+from pathlib import Path
+for p in Path('docs/ci/github-workflows').glob('*.yml.sample'):
+    text = p.read_text()
+    assert '\t' not in text, f'tab in {p}'
+    assert text.endswith('\n')
+    print('workflow template basic pass', p, 'lines', len(text.splitlines()))
+PY
+git diff --check
+```
+
+Result: PASS for local static validation.
+
+Observed:
+
+- `universal-core` now declares the `v2rayez-license-gate` binary.
+- Native gate source includes local signed-license verification, online validation, signed grace validation, UCI status updates, and hard-cutoff reporting.
+- OpenWrt package Makefile builds and installs `/usr/bin/v2rayez-license-gate` when using the V2RayEZ source layout.
+- Workflow templates now include Rust core/license-gate build coverage for future activation.
+- `git diff --check` PASS.
+
+Blocked locally:
+
+- Rust/Cargo are unavailable in this sandbox, so native compile/test remains pending until the toolchain is available.
