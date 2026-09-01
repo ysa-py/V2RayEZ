@@ -38,7 +38,7 @@ pub async fn test_provider(
         &app,
         &settings,
         &provider,
-        "Suggest a safe V2RayEZ/Aether anti-DPI strategy for a blocked TLS connection.",
+        "Suggest a safe V2RayEZ anti-DPI strategy for a blocked TLS connection.",
     )
     .await)
 }
@@ -62,7 +62,7 @@ pub async fn advise_on_failure(
             app,
             settings,
             selected,
-            &format!("Aether desktop connection failed: {failure}. Recommend a safe anti-DPI fallback."),
+            &format!("V2RayEZ desktop connection failed: {failure}. Recommend a safe anti-DPI fallback."),
         )
         .await,
     )
@@ -245,7 +245,7 @@ fn local_fallback(provider: &AiProviderSettings, prompt: &str, source: &str) -> 
     } else if prompt.to_ascii_lowercase().contains("dns") {
         "Prefer proxied DNS, block leak-prone direct resolvers, and keep split-tunnel exclusions explicit."
     } else {
-        "Use the local V2RayEZ/Aether policy: retry with conservative obfuscation, then switch protocol through Smart Connect."
+        "Use the local V2RayEZ policy: retry with conservative obfuscation, then switch protocol through Smart Connect."
     };
     AiProviderResult {
         success: true,

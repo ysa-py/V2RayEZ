@@ -50,13 +50,13 @@ pub struct AiProviderSettings {
 impl Default for AiProviderSettings {
     fn default() -> Self {
         Self {
-            id: "local-aether".into(),
+            id: "local-v2rayez".into(),
             name: "V2RayEZ Local AI".into(),
             provider_type: "local".into(),
             enabled: true,
-            base_url: "local://aether".into(),
+            base_url: "local://v2rayez".into(),
             endpoint: String::new(),
-            model: "aether-anti-dpi-local".into(),
+            model: "v2rayez-anti-dpi-local".into(),
             api_key_alias: String::new(),
             headers_json: "{}".into(),
             request_template: String::new(),
@@ -81,9 +81,9 @@ impl Default for AiEngineSettings {
     fn default() -> Self {
         Self {
             enabled: true,
-            selected_provider_id: "local-aether".into(),
+            selected_provider_id: "local-v2rayez".into(),
             auto_fallback_to_local: true,
-            local_model: "aether-anti-dpi-local".into(),
+            local_model: "v2rayez-anti-dpi-local".into(),
             providers: vec![AiProviderSettings::default()],
             last_provider_test_result: "not_tested".into(),
         }

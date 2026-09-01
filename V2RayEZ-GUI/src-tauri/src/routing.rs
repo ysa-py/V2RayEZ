@@ -511,14 +511,14 @@ pub fn helper_main(request_path: &Path) -> Result<(), String> {
                         write_status(
                             &request.session_dir,
                             "reconnecting",
-                            "Kill Switch is holding system traffic while Aether recovers",
+                            "Kill Switch is holding system traffic while V2RayEZ recovers",
                             child.id(),
                         )?;
                     } else {
                         write_status(
                             &request.session_dir,
                             "restoring",
-                            "Aether is unavailable; fail-open is restoring normal networking",
+                            "V2RayEZ is unavailable; fail-open is restoring normal networking",
                             child.id(),
                         )?;
                         break;
@@ -528,7 +528,7 @@ pub fn helper_main(request_path: &Path) -> Result<(), String> {
                     write_status(
                         &request.session_dir,
                         "connected",
-                        "Aether recovered and system-wide routing resumed",
+                        "V2RayEZ recovered and system-wide routing resumed",
                         child.id(),
                     )?;
                 }

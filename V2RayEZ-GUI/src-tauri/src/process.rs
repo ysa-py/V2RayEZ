@@ -32,7 +32,7 @@ impl ProcessManager {
         let mut child_guard = self.child.lock().await;
         if let Some(child) = child_guard.as_mut() {
             if child.try_wait().map_err(display_err)?.is_none() {
-                return Err("Aether is already running".into());
+                return Err("V2RayEZ core is already running".into());
             }
         }
         let data_dir = app.path().app_local_data_dir().map_err(display_err)?;
@@ -48,18 +48,18 @@ impl ProcessManager {
             .kill_on_drop(true);
         #[cfg(windows)]
         command.creation_flags(windows_sys::Win32::System::Threading::CREATE_NO_WINDOW);
-        emit_status(&app, "scanning", None, Some("Starting Aether".into()));
+        emit_status(&app, "scanning", None, Some("Starting V2RayEZ core".into()));
         let mut child = command
             .spawn()
             .map_err(|e| format!("Could not start {}: {e}", core.display()))?;
         let stdout = child
             .stdout
             .take()
-            .ok_or("Could not capture Aether output")?;
+            .ok_or("Could not capture V2RayEZ core output")?;
         let stderr = child
             .stderr
             .take()
-            .ok_or("Could not capture Aether errors")?;
+            .ok_or("Could not capture V2RayEZ core errors")?;
         let mut generation = self.generation.lock().await;
         *generation += 1;
         let this_generation = *generation;
@@ -98,7 +98,7 @@ impl ProcessManager {
                         &monitor_app,
                         "error",
                         None,
-                        Some(format!("Aether exited unexpectedly ({status})")),
+                        Some(format!("V2RayEZ core exited unexpectedly ({status})")),
                     );
                     break;
                 }
@@ -113,14 +113,14 @@ impl ProcessManager {
             {
                 if settings.watchdog {
                     let _ = manager.stop().await;
-                    emit_status(&app, "error", None, Some(format!("Aether did not open the SOCKS5 listener within {} seconds and was stopped", settings.stall_timeout)));
+                    emit_status(&app, "error", None, Some(format!("V2RayEZ core did not open the SOCKS5 listener within {} seconds and was stopped", settings.stall_timeout)));
                 } else {
                     emit_status(
                         &app,
                         "connecting",
                         None,
                         Some(format!(
-                            "Aether is still working after {} seconds; watchdog is disabled",
+                            "V2RayEZ core is still working after {} seconds; watchdog is disabled",
                             settings.stall_timeout
                         )),
                     );
@@ -283,7 +283,7 @@ pub fn emit_status(
             .next()
             .map(|c| c.to_uppercase().collect::<String>() + chars.as_str())
             .unwrap_or_default();
-        let _ = tray.set_tooltip(Some(format!("Aether - {label}")));
+        let _ = tray.set_tooltip(Some(format!("V2RayEZ - {label}")));
     }
 }
 fn resolve_core_binary(app: &AppHandle) -> Result<std::path::PathBuf, String> {
@@ -311,7 +311,7 @@ fn resolve_core_binary(app: &AppHandle) -> Result<std::path::PathBuf, String> {
         return Ok(dev);
     }
     Err(format!(
-        "Bundled Aether core was not found at {}. Build it first or set AETHER_GUI_CORE_PATH.",
+        "Bundled V2RayEZ core adapter was not found at {}. Build it first or set AETHER_GUI_CORE_PATH.",
         resource.display()
     ))
 }

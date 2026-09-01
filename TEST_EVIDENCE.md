@@ -1245,3 +1245,43 @@ Observed:
 Blocked locally:
 
 - Xcode and signed iOS runtime validation remain unavailable in this Linux sandbox.
+
+---
+
+## Milestone 23 desktop V2RayEZ identity and local AI defaults — 2026-09-02
+
+Commands:
+
+```bash
+npm test --prefix V2RayEZ-GUI
+python3 - <<'PY'
+from pathlib import Path
+text = Path('V2RayEZ-GUI/src/app.js').read_text()
+for needle in ['local-v2rayez', 'local://v2rayez', 'v2rayez-anti-dpi-local', 'normalizeAiEngine', '[V2RayEZ core]']:
+    assert needle in text, needle
+settings = Path('V2RayEZ-GUI/src-tauri/src/settings.rs').read_text()
+for needle in ['local-v2rayez', 'local://v2rayez', 'v2rayez-anti-dpi-local']:
+    assert needle in settings, needle
+process = Path('V2RayEZ-GUI/src-tauri/src/process.rs').read_text()
+for needle in ['Starting V2RayEZ core', 'V2RayEZ core exited unexpectedly', 'V2RayEZ - {label}', 'Bundled V2RayEZ core adapter']:
+    assert needle in process, needle
+routing = Path('V2RayEZ-GUI/src-tauri/src/routing.rs').read_text()
+for needle in ['V2RayEZ recovers', 'V2RayEZ is unavailable', 'V2RayEZ recovered']:
+    assert needle in routing, needle
+print('desktop V2RayEZ identity/static AI defaults pass')
+PY
+git diff --check
+```
+
+Result: PASS.
+
+Observed:
+
+- Frontend/Tauri local AI defaults are V2RayEZ-specific.
+- Frontend migrates legacy `local-aether`/`local://aether`/`aether-anti-dpi-local` values to V2RayEZ equivalents.
+- User-visible desktop process/routing strings now say V2RayEZ core/V2RayEZ.
+- `npm test --prefix V2RayEZ-GUI` passed 14/14.
+
+Blocked locally:
+
+- Full native desktop compilation and installer/package generation remain blocked by missing Rust/Cargo and native Tauri dependencies.
