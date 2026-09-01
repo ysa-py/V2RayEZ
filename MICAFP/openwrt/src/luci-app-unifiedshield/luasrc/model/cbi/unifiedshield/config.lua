@@ -8,6 +8,15 @@ local util = require "luci.util"
 local m, s, o
 local license_token_file = "/etc/unifiedshield/license.token"
 local license_grace_file = "/etc/unifiedshield/license.grace"
+local ai_secret_dir = "/etc/unifiedshield/ai-secrets"
+
+local function safe_alias(alias)
+    alias = (alias or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    if alias:match("^[A-Za-z0-9_.-]+$") then
+        return alias
+    end
+    return nil
+end
 
 m = Map("unifiedshield", translate("V2RayEZ Universal"),
     translate("Router-grade anti-censorship gateway using the preserved UnifiedShield/OpenWrt pipeline. License checks fail closed before the daemon starts; AI providers can be added without code changes and fall back to the local router policy when external APIs are blocked."))
@@ -231,6 +240,34 @@ o.rmempty = true
 
 o = s:option(Value, "api_key_alias", translate("API key alias"), translate("Secret is read from /etc/unifiedshield/ai-secrets/<alias>.secret"))
 o.rmempty = true
+
+o = s:option(TextValue, "_api_key_secret", translate("Install API key secret"), translate("Paste or rotate this provider's API key. The value is written to /etc/unifiedshield/ai-secrets/<alias>.secret with root-only permissions and is never stored in UCI or echoed back."))
+o.rows = 2
+o.rmempty = true
+function o.cfgvalue()
+    return ""
+end
+function o.write(self, section, value)
+    value = (value or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    if value ~= "" then
+        local alias = safe_alias(m.uci:get("unifiedshield", section, "api_key_alias") or section)
+        if alias then
+            fs.mkdirr(ai_secret_dir)
+            local secret_path = ai_secret_dir .. "/" .. alias .. ".secret"
+            fs.writefile(secret_path, value .. "\n")
+            sys.call("chmod 600 " .. util.shellquote(secret_path) .. " >/dev/null 2>&1")
+        end
+    end
+end
+
+o = s:option(Button, "_api_key_clear_secret", translate("Clear API key secret"), translate("Remove the alias secret file for this provider"))
+o.inputstyle = "reset"
+function o.write(self, section)
+    local alias = safe_alias(m.uci:get("unifiedshield", section, "api_key_alias") or section)
+    if alias then
+        fs.remove(ai_secret_dir .. "/" .. alias .. ".secret")
+    end
+end
 
 o = s:option(TextValue, "headers_json", translate("Headers JSON"))
 o.rows = 2

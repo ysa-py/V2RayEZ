@@ -1007,3 +1007,40 @@ Observed:
 - The serial control writes `/etc/unifiedshield/license.token`, uses `0600`, and never echoes the serial back through LuCI/UCI.
 - License gate and netifd shell syntax still pass.
 - `git diff --check` PASS.
+
+---
+
+## Milestone 18 OpenWrt LuCI AI secret rotation controls — 2026-09-02
+
+Commands:
+
+```bash
+python3 - <<'PY'
+from pathlib import Path
+path = Path('MICAFP/openwrt/src/luci-app-unifiedshield/luasrc/model/cbi/unifiedshield/config.lua')
+text = path.read_text()
+for needle in [
+    'local ai_secret_dir = "/etc/unifiedshield/ai-secrets"',
+    'local function safe_alias(alias)',
+    '_api_key_secret',
+    'fs.writefile(secret_path, value .. "\\n")',
+    'chmod 600',
+    '_api_key_clear_secret',
+]:
+    assert needle in text, needle
+assert 'never stored in UCI or echoed back' in text
+print('openwrt ai secret controls pass')
+PY
+sh -n MICAFP/openwrt/files/usr/libexec/unifiedshield/license-gate.sh
+sh -n MICAFP/openwrt/files/lib/netifd/proto/unifiedshield.sh
+git diff --check
+```
+
+Result: PASS.
+
+Observed:
+
+- OpenWrt AI Provider Gateway now has LuCI controls to install/rotate and clear alias-backed API key secrets.
+- API keys are written to `/etc/unifiedshield/ai-secrets/<alias>.secret` with `0600`, are not stored in UCI, and are never echoed back to LuCI.
+- License gate and netifd shell syntax still pass.
+- `git diff --check` PASS.
