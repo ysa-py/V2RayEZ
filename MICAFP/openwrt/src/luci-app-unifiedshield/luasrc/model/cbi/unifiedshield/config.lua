@@ -4,16 +4,19 @@
 
 local fs = require "nixio.fs"
 local sys = require "luci.sys"
+local util = require "luci.util"
 local m, s, o
+local license_token_file = "/etc/unifiedshield/license.token"
+local license_grace_file = "/etc/unifiedshield/license.grace"
 
-m = Map("unifiedshield", translate("V2RayEZ Universal / UnifiedShield"),
+m = Map("unifiedshield", translate("V2RayEZ Universal"),
     translate("Router-grade anti-censorship gateway using the preserved UnifiedShield/OpenWrt pipeline. License checks fail closed before the daemon starts; AI providers can be added without code changes and fall back to the local router policy when external APIs are blocked."))
 
 s = m:section(TypedSection, "unifiedshield", translate("General Settings"))
 s.anonymous = true
 s.addremove = false
 
-o = s:option(Flag, "enabled", translate("Enable"), translate("Enable or disable the UnifiedShield service"))
+o = s:option(Flag, "enabled", translate("Enable"), translate("Enable or disable the V2RayEZ router service"))
 o.rmempty = false
 o.default = "0"
 
@@ -127,6 +130,31 @@ o = s:option(Flag, "license_allow_offline_grace", translate("Offline grace"), tr
 o.default = "1"
 o.rmempty = false
 
+o = s:option(TextValue, "_license_serial", translate("Install signed serial"), translate("Paste a signed V2RayEZ serial here. It is written to /etc/unifiedshield/license.token with root-only permissions and is never stored in UCI or echoed back."))
+o.rows = 3
+o.rmempty = true
+function o.cfgvalue()
+    return ""
+end
+function o.write(self, section, value)
+    value = (value or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    if value ~= "" then
+        fs.mkdirr("/etc/unifiedshield")
+        fs.writefile(license_token_file, value .. "\n")
+        sys.call("chmod 600 " .. util.shellquote(license_token_file) .. " >/dev/null 2>&1")
+    end
+end
+
+o = s:option(Button, "_license_clear_serial", translate("Clear serial"), translate("Remove the installed serial and offline grace token from this router"))
+o.inputstyle = "reset"
+function o.write()
+    fs.remove(license_token_file)
+    fs.remove(license_grace_file)
+    m.uci:set("unifiedshield", "default", "license_last_result", "DENIED")
+    m.uci:set("unifiedshield", "default", "license_last_reason", "serial_cleared")
+    m.uci:commit("unifiedshield")
+end
+
 o = s:option(Button, "license_validate_now", translate("Validate now"), translate("Runs the local license gate without starting the tunnel"))
 o.inputstyle = "apply"
 function o.write()
@@ -135,10 +163,10 @@ end
 
 o = s:option(DummyValue, "license_note", translate("Serial storage"))
 function o.cfgvalue()
-    if fs.access("/etc/unifiedshield/license.token") then
+    if fs.access(license_token_file) then
         return translate("Serial is installed in /etc/unifiedshield/license.token with root-only permissions")
     end
-    return translate("Install the signed serial at /etc/unifiedshield/license.token; LuCI never stores or displays the serial value")
+    return translate("Paste a signed serial above or install it manually at /etc/unifiedshield/license.token; LuCI never displays the serial value")
 end
 
 s = m:section(TypedSection, "unifiedshield", translate("AI Engine"), translate("External providers can be configured without code changes; blocked/unreachable calls fall back to local anti-DPI guidance."))

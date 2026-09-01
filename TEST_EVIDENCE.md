@@ -977,3 +977,33 @@ Observed:
 - Extension ZIP packaging smoke test PASS; generated zips were removed after validation.
 - `MERGE_INVENTORY.json` regenerated.
 - `git diff --check` PASS.
+
+---
+
+## Milestone 17 OpenWrt LuCI serial install controls — 2026-09-01
+
+Commands:
+
+```bash
+python3 - <<'PY'
+from pathlib import Path
+path = Path('MICAFP/openwrt/src/luci-app-unifiedshield/luasrc/model/cbi/unifiedshield/config.lua')
+text = path.read_text()
+for needle in ['_license_serial', 'license_token_file', 'fs.writefile(license_token_file', 'util.shellquote', '_license_clear_serial']:
+    assert needle in text, needle
+assert 'LuCI never displays the serial value' in text
+print('openwrt cbi license serial controls pass')
+PY
+sh -n MICAFP/openwrt/files/usr/libexec/unifiedshield/license-gate.sh
+sh -n MICAFP/openwrt/files/lib/netifd/proto/unifiedshield.sh
+git diff --check
+```
+
+Result: PASS.
+
+Observed:
+
+- OpenWrt CBI serial install/clear controls are present.
+- The serial control writes `/etc/unifiedshield/license.token`, uses `0600`, and never echoes the serial back through LuCI/UCI.
+- License gate and netifd shell syntax still pass.
+- `git diff --check` PASS.
