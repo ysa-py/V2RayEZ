@@ -132,11 +132,11 @@
     <string name="tile_add_manual">Open Quick Settings edit mode and add V2RayEZ VPN.</string>
     <string name="about">About</string>
     <string name="about_summary">V2RayEZ VPN for Android</string>
-    <string name="original_project">Original Project: Aether</string>
-    <string name="aether_credit">Based on the original Aether project by CluvexStudio.</string>
+    <string name="original_project">Integrated donor capabilities</string>
+    <string name="aether_credit">Aether/MSN networking capabilities are preserved only behind the V2RayEZ interface.</string>
     <string name="aether_repository" translatable="false">https://github.com/CluvexStudio/Aether</string>
     <string name="application_project">Application: V2RayEZ VPN</string>
-    <string name="v2rayez_credit">Android application/interface developed for Aether.</string>
+    <string name="v2rayez_credit">V2RayEZ Android interface is the product UI/UX; donor capabilities run behind it.</string>
     <string name="v2rayez_repository" translatable="false">https://github.com/ysa-py/V2RayEZ</string>
     <string name="telegram_title">V2RayEZ on Telegram</string>
     <string name="telegram_summary">Updates, tips, and new releases from @v2rayez.</string>

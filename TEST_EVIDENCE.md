@@ -1532,3 +1532,49 @@ Observed:
 Scope note:
 
 - The gate is identity-only. It does not remove donor capabilities or required internal adapter/provenance references.
+
+---
+
+## Milestone 29 V2RayEZ user-visible runtime wording — 2026-09-02
+
+Commands:
+
+```bash
+npm test --prefix V2RayEZ-GUI
+python3 - <<'PY'
+import xml.etree.ElementTree as ET
+for path in ['V2RayEZ-GUI/android/app/src/main/res/values/strings.xml','V2RayEZ-GUI/android/app/src/main/res/values-fa/strings.xml']:
+    ET.parse(path)
+print('android string xml parse pass')
+PY
+node --check tools/v2rayez_identity_gate.mjs
+node tools/v2rayez_identity_gate.mjs
+python3 - <<'PY'
+from pathlib import Path
+checks = {
+'V2RayEZ-GUI/src-tauri/src/lib.rs':['V2RayEZ core and System-wide VPN Mode are ready','V2RayEZ SOCKS5 proxy is ready','V2RayEZ core did not open its SOCKS5 listener'],
+'V2RayEZ-GUI/android/app/src/main/java/app/v2rayez/gui/AetherVpnService.java':['V2RayEZ core log stream closed','V2RayEZ core exited with code','V2RayEZ core stopped unexpectedly'],
+'V2RayEZ-GUI/android/app/src/main/res/values/strings.xml':['Integrated donor capabilities','product UI/UX; donor capabilities run behind it'],
+'V2RayEZ-GUI/android/app/src/main/res/values-fa/strings.xml':['قابلیت‌های اهدایی ادغام‌شده','UI/UX محصول'],
+}
+for path, needles in checks.items():
+    text = Path(path).read_text()
+    for needle in needles:
+        assert needle in text, f'{path}: {needle}'
+print('V2RayEZ user-visible wording checks pass')
+PY
+git diff --check
+```
+
+Result: PASS.
+
+Observed:
+
+- V2RayEZ GUI frontend tests passed 14/14.
+- Desktop runtime status/error strings now show V2RayEZ core identity.
+- Android service log/error strings now show V2RayEZ core identity.
+- Android About strings explicitly state V2RayEZ is the product UI/UX and donor capabilities run behind it.
+
+Scope note:
+
+- This is a UI-surface wording cleanup only; donor networking capabilities and internal adapters are preserved.

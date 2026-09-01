@@ -23,10 +23,10 @@
     <string name="tile_add_manual">حالت ویرایش تنظیمات سریع را باز کنید و V2RayEZ VPN را اضافه کنید.</string>
     <string name="about">درباره</string>
     <string name="about_summary">V2RayEZ VPN برای اندروید</string>
-    <string name="original_project">پروژه اصلی: Aether</string>
-    <string name="aether_credit">بر پایه پروژه اصلی Aether توسط CluvexStudio.</string>
+    <string name="original_project">قابلیت‌های اهدایی ادغام‌شده</string>
+    <string name="aether_credit">قابلیت‌های شبکه‌ای Aether/MSN فقط پشت رابط V2RayEZ حفظ شده‌اند.</string>
     <string name="aether_repository" translatable="false">https://github.com/CluvexStudio/Aether</string>
     <string name="application_project">برنامه: V2RayEZ VPN</string>
-    <string name="v2rayez_credit">برنامه و رابط اندروید توسعه‌یافته برای Aether.</string>
+    <string name="v2rayez_credit">رابط اندروید V2RayEZ همان UI/UX محصول است؛ قابلیت‌های اهدایی پشت آن اجرا می‌شوند.</string>
     <string name="v2rayez_repository" translatable="false">https://github.com/ysa-py/V2RayEZ</string>
 </resources>

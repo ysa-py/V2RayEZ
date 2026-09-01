@@ -84,9 +84,9 @@ async fn connect(
     }
     state.process.mark_connected().await;
     let message = if settings.connection_mode == "vpn" {
-        "Aether and System-wide VPN Mode are ready"
+        "V2RayEZ core and System-wide VPN Mode are ready"
     } else {
-        "Aether SOCKS5 proxy is ready"
+        "V2RayEZ SOCKS5 proxy is ready"
     };
     emit_status(&app, "connected", None, Some(message.into()));
     spawn_license_watchdog(
@@ -196,20 +196,20 @@ async fn wait_for_core_socks(
         }
         if !process.is_running().await {
             return Err(if detail.is_empty() {
-                "Aether exited before opening its SOCKS5 listener".into()
+                "V2RayEZ core exited before opening its SOCKS5 listener".into()
             } else {
-                format!("Aether exited before opening its SOCKS5 listener: {detail}")
+                format!("V2RayEZ core exited before opening its SOCKS5 listener: {detail}")
             });
         }
         if Instant::now() >= deadline {
             return Err(if detail.is_empty() {
                 format!(
-                    "Aether did not open its SOCKS5 listener within {} seconds",
+                    "V2RayEZ core did not open its SOCKS5 listener within {} seconds",
                     settings.stall_timeout
                 )
             } else {
                 format!(
-                    "Aether did not open its SOCKS5 listener within {} seconds: {detail}",
+                    "V2RayEZ core did not open its SOCKS5 listener within {} seconds: {detail}",
                     settings.stall_timeout
                 )
             });
@@ -241,11 +241,11 @@ async fn disconnect(app: AppHandle, state: tauri::State<'_, AppState>) -> Result
     match (routing_result, process_result) {
         (Ok(()), Ok(())) => Ok(()),
         (Err(routing), Ok(())) => Err(format!(
-            "Aether stopped, but Windows network cleanup needs attention: {routing}"
+            "V2RayEZ core stopped, but Windows network cleanup needs attention: {routing}"
         )),
-        (Ok(()), Err(process)) => Err(format!("Could not stop the Aether core: {process}")),
+        (Ok(()), Err(process)) => Err(format!("Could not stop the V2RayEZ core: {process}")),
         (Err(routing), Err(process)) => Err(format!(
-            "Aether and Windows network cleanup both reported errors: {process}; {routing}"
+            "V2RayEZ core and Windows network cleanup both reported errors: {process}; {routing}"
         )),
     }
 }

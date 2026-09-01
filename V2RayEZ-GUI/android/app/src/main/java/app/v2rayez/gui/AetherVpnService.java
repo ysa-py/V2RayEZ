@@ -323,7 +323,7 @@ public final class AetherVpnService extends VpnService {
                 }
             }
         } catch (Exception error) {
-            if (!stopping) sendLog("Aether log stream closed: " + safeMessage(error));
+            if (!stopping) sendLog("V2RayEZ core log stream closed: " + safeMessage(error));
         }
     }
 
@@ -335,9 +335,9 @@ public final class AetherVpnService extends VpnService {
             long processStartedAt = System.currentTimeMillis();
             int exitCode = process.waitFor();
             if (stopping || generation.get() != session) return;
-            sendLog("Aether exited with code " + exitCode);
+            sendLog("V2RayEZ core exited with code " + exitCode);
             if (!request.getBooleanExtra("quickReconnect", true)) {
-                throw new IllegalStateException("Aether stopped unexpectedly (exit " + exitCode + ")");
+                throw new IllegalStateException("V2RayEZ core stopped unexpectedly (exit " + exitCode + ")");
             }
             waitForUnderlyingNetwork(session);
             if (stopping || generation.get() != session) return;
