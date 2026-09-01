@@ -98,6 +98,17 @@ async function loadWasmObfuscator(): Promise<WasmObfuscator | null> {
       get_output_len: () => number;
     };
 
+    if (
+      !(exports.memory instanceof WebAssembly.Memory) ||
+      typeof exports.transform !== "function" ||
+      typeof exports.reverse_transform !== "function" ||
+      typeof exports.alloc !== "function" ||
+      typeof exports.dealloc !== "function" ||
+      typeof exports.get_output_len !== "function"
+    ) {
+      throw new Error("WASM obfuscator exports are incomplete");
+    }
+
     const memory = exports.memory;
 
     function writeBytes(data: Uint8Array): number {

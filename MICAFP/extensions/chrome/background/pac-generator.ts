@@ -41,7 +41,7 @@ export class PacGenerator {
     const forcedProxyDomains = this.buildForcedProxyDomains();
 
     const pac = `
-// UnifiedShield NextGen PAC Script
+// V2RayEZ Universal PAC Script
 // Generated: ${new Date().toISOString()}
 // ISP: ${this.isp?.name ?? 'unknown'}
 // Mode: ${mode}

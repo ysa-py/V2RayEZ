@@ -1,6 +1,6 @@
 // @ts-nocheck
 /**
- * MICAFP-UnifiedShield-6.0 — Firefox Popup Script
+ * MICAFP-V2RayEZ-6.0 — Firefox Popup Script
  *
  * Same UI logic as the Chrome popup but using the `browser.*` API
  * namespace which returns Promises (no callbacks).
@@ -173,7 +173,7 @@ settingsLink.addEventListener("click", (e) => {
 
 aboutLink.addEventListener("click", (e) => {
   e.preventDefault();
-  window.open("https://github.com/MICAFP/UnifiedShield", "_blank");
+  window.open("https://github.com/MICAFP/V2RayEZ", "_blank");
 });
 
 // ---------------------------------------------------------------------------

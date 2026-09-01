@@ -1,5 +1,5 @@
 /**
- * UnifiedShield NextGen — MV3 Service Worker
+ * V2RayEZ Universal — MV3 Service Worker
  * Manages proxy, PAC script generation, WebRTC relay, DoH, and ISP detection.
  */
 
@@ -38,7 +38,7 @@ const state: ProxyState = {
 /* ────────────────────── lifecycle ────────────────────── */
 
 chrome.runtime.onInstalled.addListener(async (details) => {
-  console.log('[UnifiedShield] Installed:', details.reason);
+  console.log('[V2RayEZ] Installed:', details.reason);
   await loadConfig();
   await initModules();
   if (details.reason === 'install') {
@@ -81,7 +81,7 @@ async function initModules(): Promise<void> {
   // Detect ISP
   const isp = await ispDetector.detect();
   state.ispDetected = isp;
-  console.log('[UnifiedShield] ISP detected:', isp?.name ?? 'unknown');
+  console.log('[V2RayEZ] ISP detected:', isp?.name ?? 'unknown');
 
   // Auto-start proxy if configured
   if (config.autoStart) {
@@ -115,7 +115,7 @@ async function startProxy(): Promise<void> {
       await proxyManager.setProxy(config.socksHost, config.socksPort);
       state.connected = true;
       state.mode = 'socks5';
-      console.log('[UnifiedShield] SOCKS5 proxy active');
+      console.log('[V2RayEZ] SOCKS5 proxy active');
     }
 
     // Fallback to WebRTC relay if native not available
@@ -126,13 +126,13 @@ async function startProxy(): Promise<void> {
         state.mode = 'webrtc';
         state.webrtcActive = true;
         await proxyManager.setWebRTCProxy(peer);
-        console.log('[UnifiedShield] WebRTC relay active');
+        console.log('[V2RayEZ] WebRTC relay active');
       }
     }
 
     await saveConfig();
   } catch (err) {
-    console.error('[UnifiedShield] Proxy start failed:', err);
+    console.error('[V2RayEZ] Proxy start failed:', err);
     state.connected = false;
     await saveConfig();
   }
@@ -147,7 +147,7 @@ async function stopProxy(): Promise<void> {
   state.connected = false;
   state.mode = 'direct';
   await saveConfig();
-  console.log('[UnifiedShield] Proxy stopped');
+  console.log('[V2RayEZ] Proxy stopped');
 }
 
 /* ────────────────────── request monitoring ────────────────────── */
@@ -183,11 +183,11 @@ function onRequestError(
   ) {
     state.blockedCount++;
     state.lastBlockTime = Date.now();
-    console.warn('[UnifiedShield] Possible DPI block:', details.url, err);
+    console.warn('[V2RayEZ] Possible DPI block:', details.url, err);
 
     // Auto-switch relay if too many blocks
     if (state.blockedCount > 5 && config.webrtcFallback && !state.webrtcActive) {
-      console.log('[UnifiedShield] High block count, switching to WebRTC relay');
+      console.log('[V2RayEZ] High block count, switching to WebRTC relay');
       startProxy();
     }
   }
@@ -200,7 +200,7 @@ async function handleAlarm(alarm: chrome.alarms.Alarm): Promise<void> {
     case 'isp-check': {
       const isp = await ispDetector.detect();
       if (isp?.name !== state.ispDetected?.name) {
-        console.log('[UnifiedShield] ISP changed:', isp?.name);
+        console.log('[V2RayEZ] ISP changed:', isp?.name);
         state.ispDetected = isp;
         // Re-generate PAC with new ISP info
         pacGenerator.updateISP(isp);
@@ -298,7 +298,7 @@ function connectNative(): void {
   try {
     nativePort = chrome.runtime.connectNative('com.unifiedshield.native');
     nativePort.onMessage.addListener((msg) => {
-      console.log('[UnifiedShield] Native message:', msg);
+      console.log('[V2RayEZ] Native message:', msg);
       if (msg.type === 'SOCKS_READY') {
         state.connected = true;
         state.mode = 'socks5';
@@ -306,7 +306,7 @@ function connectNative(): void {
       }
     });
     nativePort.onDisconnect.addListener(() => {
-      console.warn('[UnifiedShield] Native app disconnected');
+      console.warn('[V2RayEZ] Native app disconnected');
       nativePort = null;
       if (state.mode === 'socks5') {
         state.connected = false;
@@ -317,7 +317,7 @@ function connectNative(): void {
       }
     });
   } catch {
-    console.warn('[UnifiedShield] Native app not available');
+    console.warn('[V2RayEZ] Native app not available');
   }
 }
 
@@ -326,4 +326,4 @@ if (config.nativeAppEnabled) {
   connectNative();
 }
 
-console.log('[UnifiedShield] Service worker loaded');
+console.log('[V2RayEZ] Service worker loaded');

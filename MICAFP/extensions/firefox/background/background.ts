@@ -1,7 +1,7 @@
 // @ts-nocheck
 // @ts-nocheck
 /**
- * UnifiedShield NextGen — Firefox Background Script (MV2)
+ * V2RayEZ Universal — Firefox Background Script (MV2)
  * Uses browser.* APIs with fallback to chrome.*
  */
 
@@ -40,7 +40,7 @@ const state: ProxyState = {
 /* ────────────────────── lifecycle ────────────────────── */
 
 api.runtime.onInstalled.addListener(async (details) => {
-  console.log('[UnifiedShield-FF] Installed:', details.reason);
+  console.log('[V2RayEZ-FF] Installed:', details.reason);
   await loadConfig();
   await initModules();
 });
@@ -146,7 +146,7 @@ async function startProxy(): Promise<void> {
     state.mode = 'socks5';
     await saveConfig();
   } catch (err) {
-    console.error('[UnifiedShield-FF] Proxy start failed:', err);
+    console.error('[V2RayEZ-FF] Proxy start failed:', err);
     state.connected = false;
     await saveConfig();
   }
@@ -244,7 +244,7 @@ function connectNative(): void {
       }
     });
   } catch {
-    console.warn('[UnifiedShield-FF] Native app not available');
+    console.warn('[V2RayEZ-FF] Native app not available');
   }
 }
 
@@ -252,4 +252,4 @@ if (config.nativeAppEnabled) {
   connectNative();
 }
 
-console.log('[UnifiedShield-FF] Background script loaded');
+console.log('[V2RayEZ-FF] Background script loaded');

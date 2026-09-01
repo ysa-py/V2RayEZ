@@ -144,7 +144,7 @@ jobs:
         run: git diff --check
 
   dashboard-build:
-    name: MICAFP dashboard lint and production build
+    name: V2RayEZ dashboard lint and production build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -168,3 +168,41 @@ jobs:
       - name: Build dashboard
         working-directory: MICAFP
         run: npm run build --workspace dashboard
+
+  browser-extension-build:
+    name: V2RayEZ Chrome and Firefox extension build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: MICAFP/package-lock.json
+
+      - name: Install extension dependencies
+        working-directory: MICAFP
+        run: npm ci --ignore-scripts --workspace extensions/chrome --workspace extensions/firefox
+
+      - name: Lint and build extensions
+        working-directory: MICAFP
+        run: |
+          npm run lint --workspace extensions/chrome
+          npm run lint --workspace extensions/firefox
+          npm run build --workspace extensions/chrome
+          npm run build --workspace extensions/firefox
+
+      - name: Validate packaged extension manifests
+        working-directory: MICAFP
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          for (const path of ['extensions/chrome/dist/manifest.json', 'extensions/firefox/dist/manifest.json']) {
+            const manifest = JSON.parse(fs.readFileSync(path, 'utf8'));
+            if (manifest.name !== 'V2RayEZ Universal' || manifest.version !== '2.0.0') throw new Error(`${path} has wrong identity`);
+            console.log('extension manifest pass', path, manifest.name, manifest.version);
+          }
+          NODE

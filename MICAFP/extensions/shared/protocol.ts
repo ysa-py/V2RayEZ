@@ -1,5 +1,5 @@
 /**
- * UnifiedShield NextGen — Shared Protocol Types
+ * V2RayEZ Universal — Shared Protocol Types
  */
 
 /* ────────── Storage Keys ────────── */

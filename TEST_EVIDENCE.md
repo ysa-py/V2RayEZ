@@ -932,3 +932,48 @@ Observed:
 - Dashboard package JSON and package-lock JSON parse PASS.
 - Merge inventory regeneration produced no drift.
 - `git diff --check` PASS.
+
+---
+
+## Milestone 16 browser extension V2RayEZ packaging path — 2026-09-01
+
+Commands:
+
+```bash
+npm ci --ignore-scripts --workspace extensions/chrome --workspace extensions/firefox
+npm run lint --workspace extensions/chrome
+npm run lint --workspace extensions/firefox
+npm run build --workspace extensions/chrome
+npm run build --workspace extensions/firefox
+node --check MICAFP/extensions/scripts/build-extension.mjs
+python3 -m json.tool MICAFP/extensions/chrome/manifest.json >/dev/null
+python3 -m json.tool MICAFP/extensions/firefox/manifest.json >/dev/null
+python3 -m json.tool MICAFP/extensions/chrome/package.json >/dev/null
+python3 -m json.tool MICAFP/extensions/firefox/package.json >/dev/null
+node - <<'NODE'
+const fs = require('fs');
+for (const path of ['MICAFP/extensions/chrome/dist/manifest.json', 'MICAFP/extensions/firefox/dist/manifest.json']) {
+  const manifest = JSON.parse(fs.readFileSync(path, 'utf8'));
+  if (manifest.name !== 'V2RayEZ Universal' || manifest.version !== '2.0.0') throw new Error(`${path} identity drift`);
+  console.log('extension manifest pass', path, manifest.name, manifest.version, manifest.action?.default_popup || manifest.browser_action?.default_popup);
+}
+NODE
+(cd MICAFP/extensions/chrome/dist && zip -qr ../../v2rayez-chrome-extension.zip .)
+(cd MICAFP/extensions/firefox/dist && zip -qr ../../v2rayez-firefox-extension.zip .)
+ls -l MICAFP/extensions/v2rayez-*-extension.zip
+rm -f MICAFP/extensions/v2rayez-chrome-extension.zip MICAFP/extensions/v2rayez-firefox-extension.zip
+python3 tools/merge_inventory.py
+git diff --check
+```
+
+Result: PASS, with the expected warning that the real WASM obfuscator artifact is missing and fallback packaging was used.
+
+Observed:
+
+- Chrome and Firefox extension dependencies installed successfully.
+- Chrome and Firefox TypeScript lint/typecheck PASS.
+- Chrome and Firefox package builds PASS.
+- Packaged manifests validate as V2RayEZ Universal v2.0.0.
+- Extension ZIP packaging smoke test PASS; generated zips were removed after validation.
+- `MERGE_INVENTORY.json` regenerated.
+- `git diff --check` PASS.

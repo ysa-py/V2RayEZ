@@ -179,6 +179,37 @@ jobs:
           path: MICAFP/dashboard/.next
           if-no-files-found: error
 
+  browser-extensions:
+    name: Browser extension packages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: MICAFP/package-lock.json
+
+      - name: Build Chrome and Firefox extension packages
+        working-directory: MICAFP
+        run: |
+          npm ci --ignore-scripts --workspace extensions/chrome --workspace extensions/firefox
+          npm run lint --workspace extensions/chrome
+          npm run lint --workspace extensions/firefox
+          npm run build --workspace extensions/chrome
+          npm run build --workspace extensions/firefox
+          (cd extensions/chrome/dist && zip -r ../../v2rayez-chrome-extension.zip .)
+          (cd extensions/firefox/dist && zip -r ../../v2rayez-firefox-extension.zip .)
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v2rayez-browser-extensions
+          path: |
+            MICAFP/extensions/v2rayez-chrome-extension.zip
+            MICAFP/extensions/v2rayez-firefox-extension.zip
+          if-no-files-found: error
+
   openwrt-ipk-with-sdk:
     name: Optional OpenWrt .ipk build with supplied SDK
     runs-on: ubuntu-latest
