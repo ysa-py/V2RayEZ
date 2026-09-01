@@ -48,8 +48,24 @@ jobs:
           node --check src/app.js
           node --check src/i18n.js
           node --check tests/frontend.test.mjs
+          node --check scripts/prepare-sidecar.mjs
           npm test
           node -e "JSON.parse(require('fs').readFileSync('src-tauri/tauri.conf.json','utf8')); console.log('tauri config json pass')"
+
+      - name: Validate cross-platform sidecar staging script
+        run: |
+          tmp="${RUNNER_TEMP:-/tmp}/v2rayez-sidecar-test"
+          mkdir -p "$tmp"
+          printf 'aether' > "$tmp/aether"
+          printf 'sing-box' > "$tmp/sing-box"
+          cd V2RayEZ-GUI
+          TAURI_ENV_TARGET_TRIPLE=x86_64-unknown-linux-gnu \
+            AETHER_CORE_BINARY="$tmp/aether" \
+            SING_BOX_BINARY="$tmp/sing-box" \
+            npm run prepare:sidecars
+          test -f src-tauri/binaries/aether-x86_64-unknown-linux-gnu
+          test -f src-tauri/binaries/sing-box-x86_64-unknown-linux-gnu
+          rm -rf src-tauri/binaries
 
       - name: Assert legacy GUI identity is absent from V2RayEZ-GUI runtime sources
         run: |

@@ -869,3 +869,39 @@ Observed:
 - No `hamvex` marker remains in the EasySNI sample config after relabeling the fragment to V2RayEZ.
 - Active iOS product-identity grep returned no old bundle/user-visible names except donor provenance comments.
 - `git diff --check` PASS.
+
+---
+
+## Milestone 14 cross-platform V2RayEZ-GUI sidecar staging — 2026-09-01
+
+Commands:
+
+```bash
+tmp=$(mktemp -d)
+printf 'aether' > "$tmp/aether"
+printf 'sing-box' > "$tmp/sing-box"
+(
+  cd V2RayEZ-GUI
+  TAURI_ENV_TARGET_TRIPLE=x86_64-unknown-linux-gnu AETHER_CORE_BINARY="$tmp/aether" SING_BOX_BINARY="$tmp/sing-box" node scripts/prepare-sidecar.mjs
+  test -f src-tauri/binaries/aether-x86_64-unknown-linux-gnu
+  test -f src-tauri/binaries/sing-box-x86_64-unknown-linux-gnu
+  rm -rf src-tauri/binaries
+  TAURI_ENV_TARGET_TRIPLE=x86_64-pc-windows-msvc AETHER_CORE_BINARY="$tmp/aether" SING_BOX_BINARY="$tmp/sing-box" node scripts/prepare-sidecar.mjs
+  test -f src-tauri/binaries/aether-x86_64-pc-windows-msvc.exe
+  test -f src-tauri/binaries/sing-box-x86_64-pc-windows-msvc.exe
+  rm -rf src-tauri/binaries
+)
+rm -rf "$tmp"
+node --check V2RayEZ-GUI/scripts/prepare-sidecar.mjs
+npm test --prefix V2RayEZ-GUI
+git diff --check
+```
+
+Result: PASS.
+
+Observed:
+
+- `prepare-sidecar.mjs` staged Aether and sing-box for Linux and Windows Tauri target triples using environment-provided sidecar binaries.
+- No generated sidecar binaries were left in the worktree after validation.
+- V2RayEZ-GUI frontend tests PASS — 14/14.
+- `git diff --check` PASS.
