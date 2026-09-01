@@ -1409,3 +1409,45 @@ Expected warning:
 Blocked locally:
 
 - Browser-profile migration runtime validation remains unavailable in this sandbox.
+
+---
+
+## Milestone 26 dashboard license validation hardening — 2026-09-02
+
+Commands:
+
+```bash
+npm install --prefix MICAFP/dashboard
+npm run lint --prefix MICAFP/dashboard
+node --check MICAFP/dashboard/src/lib/license-crypto.mjs
+node --check tools/license_crypto_selftest.mjs
+node tools/license_crypto_selftest.mjs
+python3 - <<'PY'
+from pathlib import Path
+text = Path('MICAFP/dashboard/src/lib/license-service.ts').read_text()
+for needle in ['boundedInteger', 'payload_not_active', 'license_not_yet_valid', 'payload_database_mismatch', 'const licenseKey = input.licenseKey.trim()', 'const accountId = input.accountId.trim()']:
+    assert needle in text, needle
+print('dashboard license service hardening static checks pass')
+PY
+git diff --check
+npm run build --prefix MICAFP/dashboard
+```
+
+Result: PASS.
+
+Observed:
+
+- Dashboard license service now validates normalized required inputs.
+- Issue-time `maxDevices` and `offlineGraceHours` are bounded integers.
+- Validation rejects inactive signed payloads, future/invalid `notBefore`, and signed-payload/database expiry/device/grace mismatches.
+- Dashboard lint and production build passed after local dependency installation.
+- License crypto self-test passed.
+
+Warnings:
+
+- Local `npm install --prefix MICAFP/dashboard` reported 9 vulnerabilities (4 moderate, 5 high).
+- The generated untracked `MICAFP/dashboard/package-lock.json` was removed and not committed.
+
+Blocked locally:
+
+- Live Prisma/database-backed route execution still requires `DATABASE_URL`, generated Prisma engine, and a real database.

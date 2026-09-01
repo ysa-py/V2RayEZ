@@ -100,6 +100,20 @@ function publicVerificationConfig() {
   return publicKeys;
 }
 
+function boundedInteger(value: unknown, min: number, max: number, label: string): number {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < min || parsed > max) {
+    throw new Error(`${label} must be an integer between ${min} and ${max}`);
+  }
+  return parsed;
+}
+
+function isoFromPayload(value: unknown): string {
+  const date = new Date(String(value || ''));
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toISOString();
+}
+
 export async function issueLicense(input: IssueLicenseInput) {
   const dashboardDb = db as DashboardDb;
   const { privateKeyPem, keyId } = signingConfig();
@@ -117,17 +131,21 @@ export async function issueLicense(input: IssueLicenseInput) {
     throw new Error('Target user does not exist or is inactive');
   }
 
+  const maxDevices = boundedInteger(input.maxDevices ?? 1, 1, 10_000, 'maxDevices');
+  const offlineGraceHours = boundedInteger(input.offlineGraceHours ?? 72, 0, 24 * 30, 'offlineGraceHours');
+  const accountId = input.accountId?.trim() || user.id;
+
   const licenseId = crypto.randomUUID();
   const issuedAt = now.toISOString();
   const payload = makeLicensePayload({
     licenseId,
     userId: user.id,
-    accountId: input.accountId || user.id,
+    accountId,
     status: 'ACTIVE',
     issuedAt,
     expiresAt: expiresAt.toISOString(),
-    maxDevices: input.maxDevices ?? 1,
-    offlineGraceHours: input.offlineGraceHours ?? 72,
+    maxDevices,
+    offlineGraceHours,
     features: input.features ?? ([] as string[]),
     metadata: input.metadata ?? {},
   });
@@ -166,8 +184,16 @@ export async function validateLicense(input: ValidateLicenseInput, requestMeta: 
   const publicKeys = publicVerificationConfig();
   const now = new Date();
   const serverTime = now.toISOString();
-  const licenseKeyHash = hashLicenseKey(input.licenseKey);
-  const deviceIdHash = hashDeviceId(input.deviceId, deviceSalt);
+  if (!input.licenseKey || !input.licenseKey.trim()) throw new Error('licenseKey is required');
+  if (!input.deviceId || !input.deviceId.trim()) throw new Error('deviceId is required');
+  if (!input.accountId || !input.accountId.trim()) throw new Error('accountId is required');
+  if (!input.platform || !input.platform.trim()) throw new Error('platform is required');
+  const licenseKey = input.licenseKey.trim();
+  const deviceId = input.deviceId.trim();
+  const accountId = input.accountId.trim();
+  const platform = input.platform.trim();
+  const licenseKeyHash = hashLicenseKey(licenseKey);
+  const deviceIdHash = hashDeviceId(deviceId, deviceSalt);
 
   let parsedPayload: Record<string, unknown> | null = null;
   let result = 'DENIED';
@@ -176,7 +202,7 @@ export async function validateLicense(input: ValidateLicenseInput, requestMeta: 
   let activation: any = null;
 
   try {
-    parsedPayload = verifyLicenseKey(input.licenseKey, publicKeys) as LicensePayload;
+    parsedPayload = verifyLicenseKey(licenseKey, publicKeys) as LicensePayload;
     const verifiedPayload = parsedPayload;
     licenseRecord = await dashboardDb.license.findUnique({
       where: { licenseKeyHash },
@@ -193,7 +219,27 @@ export async function validateLicense(input: ValidateLicenseInput, requestMeta: 
       return { success: false, result, reason, serverTime };
     }
 
-    if (String(verifiedPayload.accountId) !== input.accountId || licenseRecord.accountId !== input.accountId) {
+    if (String(verifiedPayload.status || 'ACTIVE') !== 'ACTIVE') {
+      reason = 'payload_not_active';
+      return { success: false, result, reason, serverTime };
+    }
+
+    if (verifiedPayload.notBefore) {
+      const notBefore = new Date(String(verifiedPayload.notBefore));
+      if (Number.isNaN(notBefore.getTime()) || notBefore > now) {
+        reason = 'license_not_yet_valid';
+        return { success: false, result, reason, serverTime };
+      }
+    }
+
+    if (isoFromPayload(verifiedPayload.expiresAt) !== licenseRecord.expiresAt.toISOString()
+        || Number(verifiedPayload.maxDevices) !== Number(licenseRecord.maxDevices)
+        || Number(verifiedPayload.offlineGraceHours) !== Number(licenseRecord.offlineGraceHours)) {
+      reason = 'payload_database_mismatch';
+      return { success: false, result, reason, serverTime };
+    }
+
+    if (String(verifiedPayload.accountId) !== accountId || licenseRecord.accountId !== accountId) {
       reason = 'account_mismatch';
       return { success: false, result, reason, serverTime };
     }
@@ -238,9 +284,9 @@ export async function validateLicense(input: ValidateLicenseInput, requestMeta: 
         data: {
           licenseId: licenseRecord.id,
           userId: licenseRecord.userId,
-          accountId: input.accountId,
+          accountId,
           deviceIdHash,
-          platform: input.platform,
+          platform,
           appVersion: input.appVersion,
           deviceLabel: input.deviceLabel,
           firstSeenAt: now,
@@ -253,7 +299,7 @@ export async function validateLicense(input: ValidateLicenseInput, requestMeta: 
         where: { id: activation.id },
         data: {
           lastSeenAt: now,
-          platform: input.platform,
+          platform,
           appVersion: input.appVersion,
           deviceLabel: input.deviceLabel ?? activation.deviceLabel,
         },
@@ -270,7 +316,7 @@ export async function validateLicense(input: ValidateLicenseInput, requestMeta: 
       userId: licenseRecord.userId,
       accountId: licenseRecord.accountId,
       deviceIdHash,
-      platform: input.platform,
+      platform,
       status: 'ACTIVE',
       serverTime,
       graceUntil,
@@ -304,9 +350,9 @@ export async function validateLicense(input: ValidateLicenseInput, requestMeta: 
     await dashboardDb.licenseValidation.create({
       data: {
         licenseId: licenseRecord?.id,
-        accountId: input.accountId,
+        accountId,
         deviceIdHash,
-        platform: input.platform,
+        platform,
         appVersion: input.appVersion,
         result,
         reason,
@@ -314,7 +360,7 @@ export async function validateLicense(input: ValidateLicenseInput, requestMeta: 
         ipAddress: requestMeta.ipAddress || undefined,
         userAgent: requestMeta.userAgent || undefined,
         metadata: {
-          redactedLicenseKey: redactLicenseKey(input.licenseKey),
+          redactedLicenseKey: redactLicenseKey(licenseKey),
           parsedLicenseId: parsedPayload?.licenseId,
         },
       },
