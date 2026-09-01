@@ -1044,3 +1044,46 @@ Observed:
 - API keys are written to `/etc/unifiedshield/ai-secrets/<alias>.secret` with `0600`, are not stored in UCI, and are never echoed back to LuCI.
 - License gate and netifd shell syntax still pass.
 - `git diff --check` PASS.
+
+---
+
+## Milestone 19 OpenWrt package source and feature consistency — 2026-09-02
+
+Commands:
+
+```bash
+python3 - <<'PY'
+from pathlib import Path
+p = Path('MICAFP/openwrt/Makefile')
+text = p.read_text()
+checks = [
+    'PKG_VERSION:=2.0.0',
+    'PKG_SOURCE_URL:=https://github.com/ysa-py/V2RayEZ.git',
+    'PKG_SOURCE_VERSION:=arena/01a05e13-v2rayez',
+    '--features platform-openwrt',
+    '$(PKG_BUILD_DIR)/MICAFP/daemon/Cargo.toml',
+    'TITLE:=V2RayEZ Universal Router Gateway',
+]
+for needle in checks:
+    assert needle in text, needle
+assert '--features openwrt' not in text
+assert 'MICAFP/UnifiedShield.git' not in text
+print('openwrt makefile source/feature checks pass')
+PY
+sh -n MICAFP/openwrt/files/etc/init.d/unifiedshield
+sh -n MICAFP/openwrt/files/usr/libexec/unifiedshield/license-gate.sh
+sh -n MICAFP/openwrt/files/lib/netifd/proto/unifiedshield.sh
+gcc -std=gnu99 -Wall -Wextra -fsyntax-only -I MICAFP/openwrt/src \
+  MICAFP/openwrt/src/main.c MICAFP/openwrt/src/netifd_proto.c
+git diff --check
+```
+
+Result: PASS.
+
+Observed:
+
+- OpenWrt package source now points to the integrated V2RayEZ repository/branch.
+- OpenWrt daemon build feature now uses the actual `platform-openwrt` feature.
+- V2RayEZ repository layout and donor-source layout are both detected for daemon/config build paths.
+- OpenWrt shell and C syntax checks still pass.
+- `git diff --check` PASS.

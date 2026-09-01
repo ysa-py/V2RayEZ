@@ -1,7 +1,7 @@
 # =============================================================================
-# MICAFP-UnifiedShield-6.0 — OpenWrt Package Makefile
+# V2RayEZ Universal — OpenWrt Package Makefile
 #
-# Build the UnifiedShield daemon and LuCI web interface for OpenWrt.
+# Build the V2RayEZ router daemon and LuCI web interface for OpenWrt.
 #
 # Supported targets:
 #   mipsel_24kc     — Most common MIPS routers (TP-Link, D-Link, etc.)
@@ -23,15 +23,15 @@ include $(TOPDIR)/rules.mk
 # ---------------------------------------------------------------------------
 
 PKG_NAME:=unifiedshield
-PKG_VERSION:=6.0.0
+PKG_VERSION:=2.0.0
 PKG_RELEASE:=1
 
-PKG_MAINTAINER:=MICAFP Team <team@micAFP.org>
+PKG_MAINTAINER:=V2RayEZ Contributors
 PKG_LICENSE:=MIT
 
 PKG_SOURCE_PROTO:=git
-PKG_SOURCE_URL:=https://github.com/MICAFP/UnifiedShield.git
-PKG_SOURCE_VERSION:=v$(PKG_VERSION)
+PKG_SOURCE_URL:=https://github.com/ysa-py/V2RayEZ.git
+PKG_SOURCE_VERSION:=arena/01a05e13-v2rayez
 PKG_MIRROR_HASH:=skip
 
 PKG_BUILD_DEPENDS:=rust/host
@@ -45,15 +45,16 @@ include $(INCLUDE_DIR)/package.mk
 define Package/unifiedshield
   SECTION:=net
   CATEGORY:=Network
-  TITLE:=UnifiedShield Anti-Censorship VPN Daemon
+  TITLE:=V2RayEZ Universal Router Gateway
   DEPENDS:=+libc +libpthread +ca-bundle +libopenssl +kmod-tun +netifd +uclient-fetch
   PKGARCH:=all
 endef
 
 define Package/unifiedshield/description
-  UnifiedShield is an anti-censorship VPN designed for Iran.
-  It uses WebTransport/HTTPS tunnels through CDN workers with
-  traffic obfuscation to bypass DPI and the national firewall.
+  V2RayEZ Universal router gateway packages the preserved UnifiedShield/OpenWrt
+  daemon pipeline behind the V2RayEZ product identity. It uses WebTransport/HTTPS
+  tunnels through CDN workers with traffic obfuscation, license gating, LuCI
+  management, AI Provider Gateway fallback, and netifd integration.
 
   Features:
   - WebTransport/HTTPS tunneling through CDN workers
@@ -96,21 +97,26 @@ RUSTC:=$(STAGING_DIR_HOSTPKG)/rust/bin/rustc
 CARGO:=$(STAGING_DIR_HOSTPKG)/rust/bin/cargo
 
 define Build/Compile
-	# Set up cross-compilation environment
-	mkdir -p $(PKG_BUILD_DIR)/daemon/.cargo
-	echo '[target.$(RUST_TARGET)]' > $(PKG_BUILD_DIR)/daemon/.cargo/config.toml
-	echo 'linker = "$(TARGET_CC)"' >> $(PKG_BUILD_DIR)/daemon/.cargo/config.toml
-
-	# Build the daemon with release optimizations
-	cd $(PKG_BUILD_DIR)/daemon && \
+	# Set up cross-compilation environment. Support both donor-source layout
+	# ($(PKG_BUILD_DIR)/daemon) and this repository layout ($(PKG_BUILD_DIR)/MICAFP/daemon).
+	set -eu; \
+		if [ -f "$(PKG_BUILD_DIR)/MICAFP/daemon/Cargo.toml" ]; then \
+			DAEMON_DIR="$(PKG_BUILD_DIR)/MICAFP/daemon"; \
+		else \
+			DAEMON_DIR="$(PKG_BUILD_DIR)/daemon"; \
+		fi; \
+		mkdir -p "$$DAEMON_DIR/.cargo"; \
+		echo '[target.$(RUST_TARGET)]' > "$$DAEMON_DIR/.cargo/config.toml"; \
+		echo 'linker = "$(TARGET_CC)"' >> "$$DAEMON_DIR/.cargo/config.toml"; \
+		cd "$$DAEMON_DIR"; \
 		CARGO_HOME=$(CARGO_HOME) \
 		RUSTFLAGS="-C target-feature=+crt-static -C opt-level=z -C panic=abort" \
 		$(CARGO) build \
 			--release \
 			--target $(RUST_TARGET) \
 			--no-default-features \
-			--features openwrt \
-			--manifest-path $(PKG_BUILD_DIR)/daemon/Cargo.toml
+			--features platform-openwrt \
+			--manifest-path "$$DAEMON_DIR/Cargo.toml"
 endef
 
 # ---------------------------------------------------------------------------
@@ -120,18 +126,28 @@ endef
 define Package/unifiedshield/install
 	# Daemon binary
 	$(INSTALL_DIR) $(1)/usr/bin
-	$(INSTALL_BIN) \
-		$(PKG_BUILD_DIR)/daemon/target/$(RUST_TARGET)/release/shield-daemon \
-		$(1)/usr/bin/unifiedshield
+	set -eu; \
+		if [ -f "$(PKG_BUILD_DIR)/MICAFP/daemon/Cargo.toml" ]; then \
+			DAEMON_DIR="$(PKG_BUILD_DIR)/MICAFP/daemon"; \
+		else \
+			DAEMON_DIR="$(PKG_BUILD_DIR)/daemon"; \
+		fi; \
+		$(INSTALL_BIN) "$$DAEMON_DIR/target/$(RUST_TARGET)/release/shield-daemon" $(1)/usr/bin/unifiedshield
 
 	# Configuration files
 	$(INSTALL_DIR) $(1)/etc/config
 	$(INSTALL_CONF) ./files/etc/config/unifiedshield $(1)/etc/config/unifiedshield
 
 	$(INSTALL_DIR) $(1)/etc/unifiedshield
-	$(INSTALL_CONF) $(PKG_BUILD_DIR)/configs/cdn-endpoints.json $(1)/etc/unifiedshield/
-	$(INSTALL_CONF) $(PKG_BUILD_DIR)/configs/p2p-bootstrap-peers.json $(1)/etc/unifiedshield/
-	$(INSTALL_CONF) $(PKG_BUILD_DIR)/configs/isp-profiles.json $(1)/etc/unifiedshield/
+	set -eu; \
+		if [ -d "$(PKG_BUILD_DIR)/MICAFP/configs" ]; then \
+			CONFIG_DIR="$(PKG_BUILD_DIR)/MICAFP/configs"; \
+		else \
+			CONFIG_DIR="$(PKG_BUILD_DIR)/configs"; \
+		fi; \
+		$(INSTALL_CONF) "$$CONFIG_DIR/cdn-endpoints.json" $(1)/etc/unifiedshield/; \
+		$(INSTALL_CONF) "$$CONFIG_DIR/p2p-bootstrap-peers.json" $(1)/etc/unifiedshield/; \
+		$(INSTALL_CONF) "$$CONFIG_DIR/isp-profiles.json" $(1)/etc/unifiedshield/
 	$(INSTALL_CONF) ./files/etc/unifiedshield/iran_ip_ranges.txt $(1)/etc/unifiedshield/
 
 	# Init script and netifd protocol integration
