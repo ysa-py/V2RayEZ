@@ -747,3 +747,30 @@ sudo apt-get update && sudo apt-get install -y openjdk-17-jdk-headless cargo rus
 ```
 
 Result: BLOCKED. Debian package mirrors were unreachable from the sandbox, so Java/Rust/Go/Lua native build tools could not be installed.
+
+---
+
+## Milestone 11 OpenWrt netifd integration and C source repair — 2026-09-01
+
+Commands:
+
+```bash
+sh -n MICAFP/openwrt/files/etc/init.d/unifiedshield
+sh -n MICAFP/openwrt/files/usr/libexec/unifiedshield/license-gate.sh
+sh -n MICAFP/openwrt/files/lib/netifd/proto/unifiedshield.sh
+grep -R "nullptr" -n MICAFP/openwrt/src || true
+gcc -std=gnu99 -Wall -Wextra -fsyntax-only -I MICAFP/openwrt/src \
+  MICAFP/openwrt/src/main.c MICAFP/openwrt/src/netifd_proto.c
+grep -n "lib/netifd/proto/unifiedshield.sh" MICAFP/openwrt/Makefile
+git diff --check
+```
+
+Result: PASS.
+
+Observed:
+
+- Init script, license gate, and new netifd protocol script pass `sh -n`.
+- OpenWrt C sources no longer contain `nullptr`.
+- `main.c` and `netifd_proto.c` pass local GCC syntax checks with `-std=gnu99 -Wall -Wextra -fsyntax-only`.
+- Package Makefile installs `/lib/netifd/proto/unifiedshield.sh` and declares `+netifd`.
+- `git diff --check` PASS.

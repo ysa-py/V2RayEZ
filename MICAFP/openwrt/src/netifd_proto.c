@@ -31,6 +31,8 @@
 #include <arpa/inet.h>
 #include <net/route.h>
 #include <errno.h>
+#include <stdint.h>
+#include <sys/select.h>
 
 static int g_tunFd = -1;
 static char g_devName[IFNAMSIZ] = "us0";
@@ -54,6 +56,10 @@ int netifd_proto_init(const char* dev_name) {
 int netifd_proto_setup(const char* ip_address, int prefix_len,
                        const char* gateway, int mtu,
                        const char** dns_servers, int dns_count) {
+    (void)gateway;
+    (void)dns_servers;
+    (void)dns_count;
+
     // Create TUN device
     struct ifreq ifr;
     memset(&ifr, 0, sizeof(ifr));
@@ -150,7 +156,7 @@ void netifd_proto_process(void) {
     FD_ZERO(&readFds);
     FD_SET(g_tunFd, &readFds);
 
-    int result = select(g_tunFd + 1, &readFds, nullptr, nullptr, &tv);
+    int result = select(g_tunFd + 1, &readFds, NULL, NULL, &tv);
     if (result <= 0) return;
 
     uint8_t buffer[2000];

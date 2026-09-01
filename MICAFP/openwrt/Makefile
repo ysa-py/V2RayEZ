@@ -46,7 +46,7 @@ define Package/unifiedshield
   SECTION:=net
   CATEGORY:=Network
   TITLE:=UnifiedShield Anti-Censorship VPN Daemon
-  DEPENDS:=+libc +libpthread +ca-bundle +libopenssl +kmod-tun +uclient-fetch
+  DEPENDS:=+libc +libpthread +ca-bundle +libopenssl +kmod-tun +netifd +uclient-fetch
   PKGARCH:=all
 endef
 
@@ -134,9 +134,12 @@ define Package/unifiedshield/install
 	$(INSTALL_CONF) $(PKG_BUILD_DIR)/configs/isp-profiles.json $(1)/etc/unifiedshield/
 	$(INSTALL_CONF) ./files/etc/unifiedshield/iran_ip_ranges.txt $(1)/etc/unifiedshield/
 
-	# Init script
+	# Init script and netifd protocol integration
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) ./files/etc/init.d/unifiedshield $(1)/etc/init.d/unifiedshield
+
+	$(INSTALL_DIR) $(1)/lib/netifd/proto
+	$(INSTALL_BIN) ./files/lib/netifd/proto/unifiedshield.sh $(1)/lib/netifd/proto/unifiedshield.sh
 
 	# License/AI helper scripts
 	$(INSTALL_DIR) $(1)/usr/libexec/unifiedshield
