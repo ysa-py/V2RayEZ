@@ -82,15 +82,8 @@ jobs:
           test -f src-tauri/binaries/sing-box-x86_64-unknown-linux-gnu
           rm -rf src-tauri/binaries
 
-      - name: Assert legacy GUI identity is absent from V2RayEZ-GUI runtime sources
-        run: |
-          ! grep -R -i "firstham\|hamvex\|aethon\|aethergui\|aether-gui\|com.firstham" \
-            V2RayEZ-GUI \
-            --exclude-dir=target \
-            --exclude-dir=node_modules \
-            --exclude='*.png' \
-            --exclude='*.ico' \
-            --exclude='*.icns'
+      - name: Assert legacy GUI identity is absent from runtime UI surfaces
+        run: node tools/v2rayez_identity_gate.mjs
 
       - name: Run shared license and AI Provider Gateway self-tests
         run: |

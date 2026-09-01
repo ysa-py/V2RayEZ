@@ -1500,3 +1500,35 @@ Warnings:
 Blocked locally:
 
 - Real external AI calls and deployed dashboard/database runtime remain unavailable in this sandbox.
+
+---
+
+## Milestone 28 V2RayEZ runtime identity guard — 2026-09-02
+
+Commands:
+
+```bash
+node --check tools/v2rayez_identity_gate.mjs
+node tools/v2rayez_identity_gate.mjs
+python3 - <<'PY'
+from pathlib import Path
+text = Path('docs/ci/github-workflows/universal-source-gates.yml.sample').read_text()
+assert 'node tools/v2rayez_identity_gate.mjs' in text
+assert 'Assert legacy GUI identity is absent from runtime UI surfaces' in text
+assert '\t' not in text
+print('identity gate workflow template check pass')
+PY
+git diff --check
+```
+
+Result: PASS.
+
+Observed:
+
+- Runtime UI/app surfaces do not expose AetherGUI/Aethon/Firstham identity.
+- A reusable Node source gate now enforces that correction.
+- CI template references the new gate for future workflow activation.
+
+Scope note:
+
+- The gate is identity-only. It does not remove donor capabilities or required internal adapter/provenance references.
