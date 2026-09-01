@@ -1,0 +1,147 @@
+name: V2RayEZ Universal Source Gates
+
+on:
+  push:
+    branches:
+      - main
+      - arena/01a05e13-v2rayez
+  pull_request:
+    branches:
+      - main
+      - arena/01a05e13-v2rayez
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: v2rayez-source-gates-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BASE_ANDROID_DIR: "V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)"
+  GUI_DIR: V2RayEZ-GUI
+
+jobs:
+  v2rayez-gui-and-source-gates:
+    name: V2RayEZ GUI, license/AI, OpenWrt, and iOS static gates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            V2RayEZ-GUI/package-lock.json
+
+      - name: Install V2RayEZ GUI dependencies
+        working-directory: ${{ env.GUI_DIR }}
+        run: npm ci
+
+      - name: Validate V2RayEZ GUI identity and frontend wiring
+        working-directory: ${{ env.GUI_DIR }}
+        run: |
+          node --check src/app.js
+          node --check src/i18n.js
+          node --check tests/frontend.test.mjs
+          npm test
+          node -e "JSON.parse(require('fs').readFileSync('src-tauri/tauri.conf.json','utf8')); console.log('tauri config json pass')"
+
+      - name: Assert legacy GUI identity is absent from V2RayEZ-GUI runtime sources
+        run: |
+          ! grep -R -i "firstham\|hamvex\|aethon\|aethergui\|aether-gui\|com.firstham" \
+            V2RayEZ-GUI \
+            --exclude-dir=target \
+            --exclude-dir=node_modules \
+            --exclude='*.png' \
+            --exclude='*.ico' \
+            --exclude='*.icns'
+
+      - name: Run shared license and AI Provider Gateway self-tests
+        run: |
+          node tools/license_crypto_selftest.mjs
+          node tools/ai_provider_gateway_selftest.mjs
+
+      - name: Run base V2RayEZ EN/FA/RU localization parity gate
+        run: bash "$BASE_ANDROID_DIR/scripts/gates/string-key-parity.sh"
+
+      - name: Validate V2RayEZ-GUI Android XML resources
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          for p in [
+              Path('V2RayEZ-GUI/android/app/src/main/res/values/strings.xml'),
+              Path('V2RayEZ-GUI/android/app/src/main/res/values-fa/strings.xml'),
+              Path('V2RayEZ-GUI/android/app/src/main/AndroidManifest.xml'),
+          ]:
+              ET.parse(p)
+              print('xml pass', p)
+          PY
+
+      - name: Validate OpenWrt shell, ACL, netifd, and C syntax
+        run: |
+          sh -n MICAFP/openwrt/files/etc/init.d/unifiedshield
+          sh -n MICAFP/openwrt/files/usr/libexec/unifiedshield/license-gate.sh
+          sh -n MICAFP/openwrt/files/lib/netifd/proto/unifiedshield.sh
+          python3 -m json.tool MICAFP/openwrt/files/usr/share/rpcd/acl.d/luci-app-unifiedshield.json >/dev/null
+          ! grep -R "nullptr" -n MICAFP/openwrt/src
+          gcc -std=gnu99 -Wall -Wextra -fsyntax-only -I MICAFP/openwrt/src \
+            MICAFP/openwrt/src/main.c MICAFP/openwrt/src/netifd_proto.c
+
+      - name: Validate iOS touched-file brace balance
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          files = [
+              Path('MICAFP/ios/UnifiedShield/App/AIProviderGateway.swift'),
+              Path('MICAFP/ios/UnifiedShield/App/LicenseManager.swift'),
+              Path('MICAFP/ios/UnifiedShield/App/SettingsView.swift'),
+              Path('MICAFP/ios/UnifiedShield/NetworkExtension/ExtensionAIAdvisor.swift'),
+              Path('MICAFP/ios/UnifiedShield/NetworkExtension/ExtensionLicenseGate.swift'),
+              Path('MICAFP/ios/UnifiedShield/NetworkExtension/PacketTunnelProvider.swift'),
+              Path('MICAFP/ios/UnifiedShield/NetworkExtension/TunnelManager.swift'),
+          ]
+          for path in files:
+              text = path.read_text()
+              assert text.count('{') == text.count('}'), f'brace imbalance: {path}'
+              print('swift brace pass', path)
+          PY
+
+      - name: Regenerate merge inventory and check for drift
+        run: |
+          python3 tools/merge_inventory.py
+          git diff --exit-code MERGE_INVENTORY.json
+
+      - name: Git whitespace check
+        run: git diff --check
+
+  dashboard-build:
+    name: MICAFP dashboard lint and production build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: MICAFP/package-lock.json
+
+      - name: Install dashboard dependencies
+        working-directory: MICAFP
+        run: npm ci --ignore-scripts --workspace dashboard
+
+      - name: Lint dashboard
+        working-directory: MICAFP
+        run: npm run lint --workspace dashboard
+
+      - name: Build dashboard
+        working-directory: MICAFP
+        run: npm run build --workspace dashboard

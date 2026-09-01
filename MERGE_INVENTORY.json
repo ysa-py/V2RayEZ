@@ -41,7 +41,7 @@
     "MICAFP-UnifiedShield": {
       "path": "MICAFP",
       "exists": true,
-      "file_count": 1226,
+      "file_count": 719,
       "top_level_dirs": [
         "ai-models",
         "android",
@@ -58,7 +58,6 @@
         "ios",
         "linux",
         "models",
-        "node_modules",
         "openwrt",
         "scripts",
         "tests",

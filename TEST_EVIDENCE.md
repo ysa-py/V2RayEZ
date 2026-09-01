@@ -774,3 +774,45 @@ Observed:
 - `main.c` and `netifd_proto.c` pass local GCC syntax checks with `-std=gnu99 -Wall -Wextra -fsyntax-only`.
 - Package Makefile installs `/lib/netifd/proto/unifiedshield.sh` and declares `+netifd`.
 - `git diff --check` PASS.
+
+---
+
+## Milestone 12 CI workflow templates and inventory stabilization — 2026-09-01
+
+Commands:
+
+```bash
+python3 tools/merge_inventory.py
+python3 - <<'PY'
+from pathlib import Path
+for p in Path('docs/ci/github-workflows').glob('*.yml.sample'):
+    text = p.read_text()
+    assert '\t' not in text, f'tab in {p}'
+    assert text.endswith('\n')
+    print('workflow template basic pass', p, 'lines', len(text.splitlines()))
+PY
+node --check V2RayEZ-GUI/src/app.js
+node --check V2RayEZ-GUI/src/i18n.js
+node --check V2RayEZ-GUI/tests/frontend.test.mjs
+npm test --prefix V2RayEZ-GUI
+node tools/license_crypto_selftest.mjs
+node tools/ai_provider_gateway_selftest.mjs
+bash "V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/scripts/gates/string-key-parity.sh"
+sh -n MICAFP/openwrt/files/etc/init.d/unifiedshield
+sh -n MICAFP/openwrt/files/usr/libexec/unifiedshield/license-gate.sh
+sh -n MICAFP/openwrt/files/lib/netifd/proto/unifiedshield.sh
+python3 -m json.tool MICAFP/openwrt/files/usr/share/rpcd/acl.d/luci-app-unifiedshield.json >/dev/null
+! grep -R "nullptr" -n MICAFP/openwrt/src
+gcc -std=gnu99 -Wall -Wextra -fsyntax-only -I MICAFP/openwrt/src \
+  MICAFP/openwrt/src/main.c MICAFP/openwrt/src/netifd_proto.c
+git diff --check
+```
+
+Result: PASS locally for syntax/static checks.
+
+Observed:
+
+- Active root `.github/workflows/*.yml` files were prepared but cannot be pushed by the current Arena GitHub App connection because GitHub rejects workflow updates without `workflows` permission.
+- The full workflows were preserved as templates under `docs/ci/github-workflows/*.yml.sample` for later activation.
+- `MERGE_INVENTORY.json` was regenerated, and `tools/merge_inventory.py` now ignores generated/cache directories for stable clean-checkout results.
+- Full artifact builds remain dependent on active workflow placement, GitHub-hosted toolchains, and target-specific signing/SDK inputs.

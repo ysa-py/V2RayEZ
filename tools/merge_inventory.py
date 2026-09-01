@@ -27,6 +27,25 @@ SOURCES = {
     "MasterDnsVPN": "MasterDnsVPN-main",
 }
 
+SKIPPED_DIRS = {
+    ".cache",
+    ".gradle",
+    ".next",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".svelte-kit",
+    ".tox",
+    ".venv",
+    ".vite",
+    "__pycache__",
+    "build",
+    "coverage",
+    "dist",
+    "node_modules",
+    "out",
+    "target",
+}
+
 @dataclass(frozen=True)
 class FeatureProbe:
     feature: str
@@ -44,10 +63,9 @@ def rel(path: Path) -> str:
 def file_count(root: Path) -> int:
     if not root.exists():
         return 0
-    skipped = {".git", "__pycache__", "node_modules", "build", "dist", "target", ".gradle"}
     count = 0
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in skipped]
+        dirnames[:] = [d for d in dirnames if d not in SKIPPED_DIRS]
         count += len(filenames)
     return count
 
@@ -67,7 +85,7 @@ def source_summary() -> dict[str, dict[str, object]]:
         root = REPO_ROOT / dirname
         top_dirs = []
         if root.exists():
-            top_dirs = sorted(p.name for p in root.iterdir() if p.is_dir())[:80]
+            top_dirs = sorted(p.name for p in root.iterdir() if p.is_dir() and p.name not in SKIPPED_DIRS)[:80]
         summary[name] = {
             "path": dirname,
             "exists": root.exists(),
