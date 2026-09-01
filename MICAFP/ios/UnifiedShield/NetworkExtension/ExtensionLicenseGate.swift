@@ -11,7 +11,7 @@ struct ExtensionLicenseStatus {
 final class ExtensionLicenseGate {
     static let shared = ExtensionLicenseGate()
 
-    private let defaults = UserDefaults.standard
+    private let defaults = UserDefaults(suiteName: "group.app.v2rayez.ios") ?? .standard
     private let service = "com.v2rayez.universal.license"
     private let serialKey = "v2rayez.license.serial"
     private let graceKey = "v2rayez.license.grace"
@@ -168,24 +168,26 @@ final class ExtensionLicenseGate {
 
     private func keychainSet(_ value: String, account: String) {
         keychainDelete(account: account)
-        let query: [String: Any] = [
+        var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
             kSecValueData as String: Data(value.utf8)
         ]
+        applyKeychainAccessGroup(&query)
         SecItemAdd(query as CFDictionary, nil)
     }
 
     private func keychainGet(account: String) -> String? {
-        let query: [String: Any] = [
+        var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne
         ]
+        applyKeychainAccessGroup(&query)
         var item: CFTypeRef?
         guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
               let data = item as? Data else { return nil }
@@ -193,12 +195,20 @@ final class ExtensionLicenseGate {
     }
 
     private func keychainDelete(account: String) {
-        let query: [String: Any] = [
+        var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account
         ]
+        applyKeychainAccessGroup(&query)
         SecItemDelete(query as CFDictionary)
+    }
+
+    private func applyKeychainAccessGroup(_ query: inout [String: Any]) {
+        guard let group = Bundle.main.object(forInfoDictionaryKey: "V2RayEZKeychainAccessGroup") as? String,
+              !group.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              !group.contains("$(") else { return }
+        query[kSecAttrAccessGroup as String] = group
     }
 }
 

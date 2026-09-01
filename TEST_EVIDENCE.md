@@ -1194,3 +1194,54 @@ Observed:
 Blocked locally:
 
 - Android Gradle/Java/device runtime validation remains blocked by absent Java, Android SDK/NDK, signing credentials, and device/emulator hardware in this sandbox.
+
+---
+
+## Milestone 22 iOS shared license/AI storage hardening — 2026-09-02
+
+Commands:
+
+```bash
+python3 - <<'PY'
+import plistlib
+from pathlib import Path
+for path in ['MICAFP/ios/Info.plist','MICAFP/ios/V2RayEZPacketTunnel/Info.plist','MICAFP/ios/V2RayEZ.entitlements','MICAFP/ios/V2RayEZPacketTunnel.entitlements']:
+    data = plistlib.loads(Path(path).read_bytes())
+    print('plist ok', path, sorted(data.keys())[:4])
+assert plistlib.loads(Path('MICAFP/ios/V2RayEZ.entitlements').read_bytes())['keychain-access-groups'] == ['$(AppIdentifierPrefix)app.v2rayez.ios']
+assert plistlib.loads(Path('MICAFP/ios/V2RayEZPacketTunnel.entitlements').read_bytes())['keychain-access-groups'] == ['$(AppIdentifierPrefix)app.v2rayez.ios']
+assert plistlib.loads(Path('MICAFP/ios/Info.plist').read_bytes())['V2RayEZKeychainAccessGroup'] == '$(AppIdentifierPrefix)app.v2rayez.ios'
+assert plistlib.loads(Path('MICAFP/ios/V2RayEZPacketTunnel/Info.plist').read_bytes())['V2RayEZKeychainAccessGroup'] == '$(AppIdentifierPrefix)app.v2rayez.ios'
+print('ios plist shared keychain assertions pass')
+PY
+python3 - <<'PY'
+from pathlib import Path
+checks = {
+'MICAFP/ios/UnifiedShield/App/LicenseManager.swift':['UserDefaults(suiteName: "group.app.v2rayez.ios")', 'applyKeychainAccessGroup', 'V2RayEZKeychainAccessGroup'],
+'MICAFP/ios/UnifiedShield/App/AIProviderGateway.swift':['UserDefaults(suiteName: "group.app.v2rayez.ios")', 'local-v2rayez', 'local://v2rayez', 'applyKeychainAccessGroup'],
+'MICAFP/ios/UnifiedShield/App/SettingsView.swift':['store: UserDefaults(suiteName: "group.app.v2rayez.ios")', 'local-v2rayez', 'v2rayez-anti-dpi-local'],
+'MICAFP/ios/UnifiedShield/NetworkExtension/ExtensionLicenseGate.swift':['UserDefaults(suiteName: "group.app.v2rayez.ios")', 'applyKeychainAccessGroup', 'V2RayEZKeychainAccessGroup'],
+'MICAFP/ios/UnifiedShield/NetworkExtension/ExtensionAIAdvisor.swift':['UserDefaults(suiteName: "group.app.v2rayez.ios")', 'V2RayEZ core profile'],
+}
+for path, needles in checks.items():
+    text = Path(path).read_text()
+    for needle in needles:
+        assert needle in text, f'{path}: {needle}'
+print('ios shared settings/keychain static checks pass')
+PY
+git diff --check
+```
+
+Result: PASS.
+
+Observed:
+
+- App and Packet Tunnel entitlements now include the same V2RayEZ keychain access group.
+- Both app and extension now use `group.app.v2rayez.ios` defaults for license and AI settings.
+- License and AI Keychain queries attach the expanded `V2RayEZKeychainAccessGroup` when present.
+- Local AI provider identity is V2RayEZ-specific with legacy `local-aether` compatibility.
+- Android service user-visible logs/errors now say V2RayEZ core instead of Aether core while preserving donor binary names internally.
+
+Blocked locally:
+
+- Xcode and signed iOS runtime validation remain unavailable in this Linux sandbox.

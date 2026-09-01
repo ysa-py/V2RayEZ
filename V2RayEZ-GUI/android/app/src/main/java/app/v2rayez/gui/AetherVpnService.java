@@ -198,7 +198,7 @@ public final class AetherVpnService extends VpnService {
             updateState("scanning", getString(R.string.service_scanning));
             boolean socksReady = startAetherWithMasqueFallback(request, SOCKS_TIMEOUT_MS);
             if (!socksReady) {
-                throw new IllegalStateException(aetherExitMessage("Aether did not open its SOCKS5 listener"));
+                throw new IllegalStateException(aetherExitMessage("V2RayEZ core did not open its SOCKS5 listener"));
             }
 
             connectionEstablished = true;
@@ -264,7 +264,7 @@ public final class AetherVpnService extends VpnService {
 
     private void startAether(Intent request) throws Exception {
         File executable = new File(getApplicationInfo().nativeLibraryDir, "libaether.so");
-        if (!executable.isFile()) throw new IllegalStateException("Aether core is missing for this device architecture");
+        if (!executable.isFile()) throw new IllegalStateException("V2RayEZ core is missing for this device architecture");
 
         ProcessBuilder builder = new ProcessBuilder(executable.getAbsolutePath());
         builder.directory(getFilesDir());
@@ -300,7 +300,7 @@ public final class AetherVpnService extends VpnService {
             aetherProcess = builder.start();
         }
         Process process = aetherProcess;
-        sendLog("Aether core started for " + Build.SUPPORTED_ABIS[0]);
+        sendLog("V2RayEZ core started for " + Build.SUPPORTED_ABIS[0]);
         Thread logs = new Thread(() -> readAetherLogs(process, protocol, transport), "aether-log-reader");
         logs.setDaemon(true);
         logs.start();
@@ -310,7 +310,7 @@ public final class AetherVpnService extends VpnService {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                sendLog("[Aether] " + line);
+                sendLog("[V2RayEZ core] " + line);
                 String lower = line.toLowerCase(Locale.US);
                 if (process == aetherProcess && "masque".equals(protocol) && "h3".equals(transport)
                         && lower.contains("no usable masque gateway found")) {
@@ -350,7 +350,7 @@ public final class AetherVpnService extends VpnService {
             updateState("reconnecting", getString(R.string.service_reconnecting));
             Thread.sleep(Math.min(20_000L, 1_500L << (attempts - 1)));
             if (!startAetherWithMasqueFallback(request, SOCKS_TIMEOUT_MS)) {
-                sendLog(aetherExitMessage("Aether reconnect attempt did not become ready"));
+                sendLog(aetherExitMessage("V2RayEZ reconnect attempt did not become ready"));
                 Process retry = aetherProcess;
                 if (retry != null && retry.isAlive()) retry.destroy();
                 continue;

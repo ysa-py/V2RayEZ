@@ -13,6 +13,8 @@
     <string>200</string>
     <key>CFBundleShortVersionString</key>
     <string>2.0.0</string>
+    <key>V2RayEZKeychainAccessGroup</key>
+    <string>$(AppIdentifierPrefix)app.v2rayez.ios</string>
 
     <!-- Network Extension entitlement -->
     <key>UIBackgroundModes</key>

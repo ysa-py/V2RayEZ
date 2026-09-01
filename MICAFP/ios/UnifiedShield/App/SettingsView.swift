@@ -1,26 +1,26 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @AppStorage("killSwitchEnabled") private var killSwitchEnabled = true
-    @AppStorage("splitTunnelEnabled") private var splitTunnelEnabled = true
-    @AppStorage("autoCoreSwitchEnabled") private var autoCoreSwitchEnabled = true
-    @AppStorage("autoUpdateEnabled") private var autoUpdateEnabled = true
-    @AppStorage("startOnBootEnabled") private var startOnBootEnabled = false
-    @AppStorage("dnsProvider") private var dnsProvider = "alibaba"
-    @AppStorage("obfuscationLevel") private var obfuscationLevel = 1
+    @AppStorage("killSwitchEnabled", store: UserDefaults(suiteName: "group.app.v2rayez.ios")) private var killSwitchEnabled = true
+    @AppStorage("splitTunnelEnabled", store: UserDefaults(suiteName: "group.app.v2rayez.ios")) private var splitTunnelEnabled = true
+    @AppStorage("autoCoreSwitchEnabled", store: UserDefaults(suiteName: "group.app.v2rayez.ios")) private var autoCoreSwitchEnabled = true
+    @AppStorage("autoUpdateEnabled", store: UserDefaults(suiteName: "group.app.v2rayez.ios")) private var autoUpdateEnabled = true
+    @AppStorage("startOnBootEnabled", store: UserDefaults(suiteName: "group.app.v2rayez.ios")) private var startOnBootEnabled = false
+    @AppStorage("dnsProvider", store: UserDefaults(suiteName: "group.app.v2rayez.ios")) private var dnsProvider = "alibaba"
+    @AppStorage("obfuscationLevel", store: UserDefaults(suiteName: "group.app.v2rayez.ios")) private var obfuscationLevel = 1
 
-    @AppStorage("licenseValidationUrl") private var licenseValidationUrl = ""
-    @AppStorage("licenseAccountId") private var licenseAccountId = ""
-    @AppStorage("licenseDeviceLabel") private var licenseDeviceLabel = "iOS device"
-    @AppStorage("licensePublicKeyPem") private var licensePublicKeyPem = ""
-    @AppStorage("licenseAllowOfflineGrace") private var licenseAllowOfflineGrace = true
-    @AppStorage("licenseLastResult") private var licenseLastResult = "not_validated"
-    @AppStorage("licenseLastReason") private var licenseLastReason = ""
+    @AppStorage("licenseValidationUrl", store: UserDefaults(suiteName: "group.app.v2rayez.ios")) private var licenseValidationUrl = ""
+    @AppStorage("licenseAccountId", store: UserDefaults(suiteName: "group.app.v2rayez.ios")) private var licenseAccountId = ""
+    @AppStorage("licenseDeviceLabel", store: UserDefaults(suiteName: "group.app.v2rayez.ios")) private var licenseDeviceLabel = "iOS device"
+    @AppStorage("licensePublicKeyPem", store: UserDefaults(suiteName: "group.app.v2rayez.ios")) private var licensePublicKeyPem = ""
+    @AppStorage("licenseAllowOfflineGrace", store: UserDefaults(suiteName: "group.app.v2rayez.ios")) private var licenseAllowOfflineGrace = true
+    @AppStorage("licenseLastResult", store: UserDefaults(suiteName: "group.app.v2rayez.ios")) private var licenseLastResult = "not_validated"
+    @AppStorage("licenseLastReason", store: UserDefaults(suiteName: "group.app.v2rayez.ios")) private var licenseLastReason = ""
 
-    @AppStorage("aiEngineEnabled") private var aiEngineEnabled = true
-    @AppStorage("aiAutoFallbackToLocal") private var aiAutoFallbackToLocal = true
-    @AppStorage("aiSelectedProviderId") private var aiSelectedProviderId = "local-aether"
-    @AppStorage("aiLocalModel") private var aiLocalModel = "aether-anti-dpi-local"
+    @AppStorage("aiEngineEnabled", store: UserDefaults(suiteName: "group.app.v2rayez.ios")) private var aiEngineEnabled = true
+    @AppStorage("aiAutoFallbackToLocal", store: UserDefaults(suiteName: "group.app.v2rayez.ios")) private var aiAutoFallbackToLocal = true
+    @AppStorage("aiSelectedProviderId", store: UserDefaults(suiteName: "group.app.v2rayez.ios")) private var aiSelectedProviderId = "local-v2rayez"
+    @AppStorage("aiLocalModel", store: UserDefaults(suiteName: "group.app.v2rayez.ios")) private var aiLocalModel = "v2rayez-anti-dpi-local"
 
     @State private var licenseSerialInput = ""
     @State private var licenseStatusText = "No serial validated"

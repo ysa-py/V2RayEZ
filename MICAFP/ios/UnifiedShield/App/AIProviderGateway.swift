@@ -16,13 +16,13 @@ struct AIProviderDefinition: Codable, Identifiable, Equatable {
     var timeoutMs: Int
 
     static let local = AIProviderDefinition(
-        id: "local-aether",
+        id: "local-v2rayez",
         name: "V2RayEZ Local AI",
         providerType: "local",
         enabled: true,
-        baseUrl: "local://aether",
+        baseUrl: "local://v2rayez",
         endpoint: "",
-        model: "aether-anti-dpi-local",
+        model: "v2rayez-anti-dpi-local",
         apiKeyAlias: "",
         headersJson: "{}",
         requestTemplate: "",
@@ -44,7 +44,7 @@ struct AIProviderResult: Codable, Equatable {
 final class AIProviderGateway {
     static let shared = AIProviderGateway()
 
-    private let defaults = UserDefaults.standard
+    private let defaults = UserDefaults(suiteName: "group.app.v2rayez.ios") ?? .standard
     private let service = "com.v2rayez.universal.ai"
     private let providersKey = "aiProviders"
     private let selectedKey = "aiSelectedProviderId"
@@ -64,7 +64,8 @@ final class AIProviderGateway {
     }
 
     func selectedProvider() -> AIProviderDefinition {
-        let selected = defaults.string(forKey: selectedKey) ?? "local-aether"
+        let selected = defaults.string(forKey: selectedKey) ?? "local-v2rayez"
+        if selected == "local-aether" { return .local }
         return providers().first(where: { $0.id == selected }) ?? providers().first ?? .local
     }
 
@@ -251,24 +252,26 @@ final class AIProviderGateway {
 
     private func keychainSet(_ value: String, account: String) {
         keychainDelete(account: account)
-        let query: [String: Any] = [
+        var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
             kSecValueData as String: Data(value.utf8)
         ]
+        applyKeychainAccessGroup(&query)
         SecItemAdd(query as CFDictionary, nil)
     }
 
     private func keychainGet(account: String) -> String? {
-        let query: [String: Any] = [
+        var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne
         ]
+        applyKeychainAccessGroup(&query)
         var item: CFTypeRef?
         guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
               let data = item as? Data else { return nil }
@@ -276,12 +279,20 @@ final class AIProviderGateway {
     }
 
     private func keychainDelete(account: String) {
-        let query: [String: Any] = [
+        var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account
         ]
+        applyKeychainAccessGroup(&query)
         SecItemDelete(query as CFDictionary)
+    }
+
+    private func applyKeychainAccessGroup(_ query: inout [String: Any]) {
+        guard let group = Bundle.main.object(forInfoDictionaryKey: "V2RayEZKeychainAccessGroup") as? String,
+              !group.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              !group.contains("$(") else { return }
+        query[kSecAttrAccessGroup as String] = group
     }
 }
 
