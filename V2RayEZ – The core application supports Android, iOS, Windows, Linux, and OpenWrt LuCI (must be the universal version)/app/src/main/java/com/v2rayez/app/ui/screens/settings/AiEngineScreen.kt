@@ -326,7 +326,7 @@ private fun ProviderCard(
                     Spacer(Modifier.width(4.dp))
                     Text(stringResource(R.string.action_edit))
                 }
-                if (provider.id != "local-aether") {
+                if (provider.id !in setOf("local-v2rayez", "local-aether")) {
                     TextButton(onClick = onDelete) {
                         androidx.compose.material3.Icon(Icons.Filled.Delete, contentDescription = null)
                         Spacer(Modifier.width(4.dp))

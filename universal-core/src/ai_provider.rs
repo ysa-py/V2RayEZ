@@ -186,7 +186,7 @@ pub fn extract_response_text(json: &Value, configured_path: Option<&str>) -> AIR
 
 pub fn local_fallback(reason: impl Into<String>) -> LocalAIFallback {
     LocalAIFallback {
-        mode: "local-micafp-ai".to_string(),
+        mode: "local-v2rayez-ai".to_string(),
         reason: reason.into(),
         engines: vec![
             "dpi_classifier".to_string(),

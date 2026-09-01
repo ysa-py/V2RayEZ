@@ -191,11 +191,11 @@ o.default = "1"
 o.rmempty = false
 
 o = s:option(Value, "ai_selected_provider", translate("Selected provider ID"))
-o.default = "local-aether"
+o.default = "local-v2rayez"
 o.rmempty = false
 
 o = s:option(Value, "ai_local_model", translate("Local model/policy"))
-o.default = "aether-anti-dpi-local"
+o.default = "v2rayez-anti-dpi-local"
 o.rmempty = false
 
 o = s:option(Button, "ai_test_selected", translate("Test selected provider"))
@@ -235,7 +235,7 @@ o = s:option(Value, "endpoint", translate("Endpoint"))
 o.rmempty = true
 
 o = s:option(Value, "model", translate("Model"))
-o.default = "aether-anti-dpi-local"
+o.default = "v2rayez-anti-dpi-local"
 o.rmempty = true
 
 o = s:option(Value, "api_key_alias", translate("API key alias"), translate("Secret is read from /etc/unifiedshield/ai-secrets/<alias>.secret"))

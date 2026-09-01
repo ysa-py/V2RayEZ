@@ -150,7 +150,7 @@ function action_status()
         license_reason = uci_get("unifiedshield", "default", "license_last_reason") or "",
         license_expires_at = uci_get("unifiedshield", "default", "license_expires_at") or "",
         ai_enabled = uci_get("unifiedshield", "default", "ai_engine_enabled") == "1",
-        ai_selected_provider = uci_get("unifiedshield", "default", "ai_selected_provider") or "local-aether",
+        ai_selected_provider = uci_get("unifiedshield", "default", "ai_selected_provider") or "local-v2rayez",
         ai_last_result = uci_get("unifiedshield", "default", "ai_last_result") or "not_tested"
     }
 

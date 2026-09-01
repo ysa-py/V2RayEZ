@@ -32,7 +32,7 @@ data class AiGatewayResult(
 /**
  * No-code Android AI Provider Gateway. It executes user-defined HTTP provider configs, resolves
  * API keys by alias from [SecureStringStore], redacts secrets from errors, and falls back to the
- * local Aether/V2RayEZ anti-DPI policy when network/provider calls are blocked.
+ * local V2RayEZ anti-DPI policy when network/provider calls are blocked.
  */
 @Singleton
 class AndroidAiProviderGateway @Inject constructor(
@@ -58,7 +58,8 @@ class AndroidAiProviderGateway @Inject constructor(
         withContext(Dispatchers.IO) {
             if (!config.enabled) return@withContext localFallback(prompt)
             val providers = config.providers.filter { it.enabled }
-            val selected = providers.firstOrNull { it.id == config.selectedProviderId }
+            val selectedId = canonicalProviderId(config.selectedProviderId)
+            val selected = providers.firstOrNull { canonicalProviderId(it.id) == selectedId }
             val ordered = listOfNotNull(selected) + providers.filter { it.id != selected?.id && !it.local }
             for (provider in ordered) {
                 if (provider.local) continue
@@ -201,6 +202,9 @@ class AndroidAiProviderGateway @Inject constructor(
         }?.takeIf { it.isNotBlank() }
     }
 
+    private fun canonicalProviderId(providerId: String): String =
+        if (providerId == "local-aether") "local-v2rayez" else providerId
+
     private fun localFallback(prompt: String, provider: AiProviderConfig? = null): AiGatewayResult {
         val mode = when {
             prompt.contains("sni", ignoreCase = true) -> "Prefer randomized SNI padding, TLS fragmentation, and conservative fake-SNI rotation."
@@ -210,7 +214,7 @@ class AndroidAiProviderGateway @Inject constructor(
         }
         return AiGatewayResult(
             success = true,
-            providerId = provider?.id ?: "local-aether",
+            providerId = provider?.id?.let(::canonicalProviderId) ?: "local-v2rayez",
             providerName = provider?.name ?: "V2RayEZ Local AI",
             source = "local_fallback",
             text = mode

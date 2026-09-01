@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
         success: false,
         error: error instanceof Error ? error.message : 'AI provider test failed',
         localFallback: {
-          mode: 'local-micafp-ai',
+          mode: 'local-v2rayez-ai',
           reason: 'provider_config_or_probe_error',
           dependencyFreeCoreNetworking: true,
         },

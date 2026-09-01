@@ -32,13 +32,22 @@ local function read_file(path)
     return data:gsub("%s+$", "")
 end
 
+local function canonical_provider_id(value)
+    value = tostring(value or "")
+    if value == "local-aether" or value == "local_aether" then
+        return "local-v2rayez"
+    end
+    return value
+end
+
 local function selected_provider()
-    local selected = get("ai_selected_provider", "local-aether")
+    local selected = canonical_provider_id(get("ai_selected_provider", "local-v2rayez"))
     local fallback = nil
     uci:foreach(CONFIG, "ai_provider", function(section)
-        local id = section.id or section[".name"]
+        local section_name = canonical_provider_id(section[".name"])
+        local id = canonical_provider_id(section.id or section_name)
         if not fallback then fallback = section end
-        if id == selected or section[".name"] == selected:gsub("%-", "_") then
+        if id == selected or section_name == selected:gsub("%-", "_") then
             fallback = section
             return false
         end

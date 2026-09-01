@@ -1047,7 +1047,7 @@
     <string name="ai_engine_enable">فعال‌سازی موتور هوش مصنوعی</string>
     <string name="ai_engine_enable_sub">استفاده از ارائه‌دهندگان هوش مصنوعی برای تصمیم‌های ضد DPI</string>
     <string name="ai_engine_local_fallback">جایگزین داخلی خودکار</string>
-    <string name="ai_engine_local_fallback_sub">اگر APIهای بیرونی مسدود شدند، سیاست داخلی V2RayEZ/Aether استفاده شود</string>
+    <string name="ai_engine_local_fallback_sub">اگر APIهای بیرونی مسدود شدند، سیاست داخلی V2RayEZ استفاده شود</string>
     <string name="ai_engine_provider_name">نام ارائه‌دهنده</string>
     <string name="ai_engine_base_url">نشانی پایه</string>
     <string name="ai_engine_endpoint">مسیر اندپوینت</string>

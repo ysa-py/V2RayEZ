@@ -1081,7 +1081,7 @@
     <string name="ai_engine_enable">Включить AI Engine</string>
     <string name="ai_engine_enable_sub">Использовать настроенные AI-провайдеры для анти-DPI решений</string>
     <string name="ai_engine_local_fallback">Автоматический локальный резерв</string>
-    <string name="ai_engine_local_fallback_sub">Если внешние API заблокированы, использовать внутреннюю политику V2RayEZ/Aether</string>
+    <string name="ai_engine_local_fallback_sub">Если внешние API заблокированы, использовать внутреннюю политику V2RayEZ</string>
     <string name="ai_engine_provider_name">Имя провайдера</string>
     <string name="ai_engine_base_url">Базовый URL</string>
     <string name="ai_engine_endpoint">Путь endpoint</string>

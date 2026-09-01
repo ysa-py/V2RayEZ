@@ -107,6 +107,12 @@ class LicenseViewModel @Inject constructor(
     }
 }
 
+private const val LOCAL_V2RAYEZ_PROVIDER_ID = "local-v2rayez"
+private const val LEGACY_LOCAL_AETHER_PROVIDER_ID = "local-aether"
+
+private fun canonicalProviderId(providerId: String): String =
+    if (providerId == LEGACY_LOCAL_AETHER_PROVIDER_ID) LOCAL_V2RAYEZ_PROVIDER_ID else providerId
+
 @HiltViewModel
 class AiEngineViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
@@ -136,21 +142,24 @@ class AiEngineViewModel @Inject constructor(
             }
             settingsRepository.update { settings ->
                 val current = settings.aiEngine
-                val providerId = provider.id.ifBlank { UUID.randomUUID().toString() }
-                val normalized = if (providerId == "local-aether") {
+                val rawProviderId = provider.id.ifBlank { UUID.randomUUID().toString() }
+                val providerId = canonicalProviderId(rawProviderId)
+                val normalized = if (providerId == LOCAL_V2RAYEZ_PROVIDER_ID) {
                     provider.copy(
-                        id = providerId,
+                        id = LOCAL_V2RAYEZ_PROVIDER_ID,
                         type = com.v2rayez.app.domain.model.AiProviderType.LOCAL,
                         enabled = true,
-                        baseUrl = "local://aether",
+                        baseUrl = "local://v2rayez",
                         endpoint = "",
+                        model = "v2rayez-anti-dpi-local",
                         apiKeyAlias = ""
                     )
                 } else {
                     provider.copy(id = providerId)
                 }
-                val updatedProviders = if (current.providers.any { it.id == providerId }) {
-                    current.providers.map { if (it.id == providerId) normalized else it }
+                val updatedProviders = if (current.providers.any { canonicalProviderId(it.id) == providerId }) {
+                    current.providers.map { if (canonicalProviderId(it.id) == providerId) normalized else it }
+                        .distinctBy { canonicalProviderId(it.id) }
                 } else {
                     current.providers + normalized
                 }
@@ -160,7 +169,7 @@ class AiEngineViewModel @Inject constructor(
     }
 
     fun removeProvider(providerId: String) {
-        if (providerId == "local-aether") return
+        if (canonicalProviderId(providerId) == LOCAL_V2RAYEZ_PROVIDER_ID) return
         viewModelScope.launch {
             settingsRepository.update { settings ->
                 val current = settings.aiEngine
@@ -168,8 +177,8 @@ class AiEngineViewModel @Inject constructor(
                 settings.copy(
                     aiEngine = current.copy(
                         providers = remaining,
-                        selectedProviderId = current.selectedProviderId.takeIf { id -> remaining.any { it.id == id } }
-                            ?: remaining.firstOrNull()?.id.orEmpty()
+                        selectedProviderId = canonicalProviderId(current.selectedProviderId).takeIf { id -> remaining.any { canonicalProviderId(it.id) == id } }
+                            ?: remaining.firstOrNull()?.id?.let(::canonicalProviderId).orEmpty()
                     )
                 )
             }

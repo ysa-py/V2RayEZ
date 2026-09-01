@@ -1083,7 +1083,7 @@
     <string name="ai_engine_enable">Enable AI Engine</string>
     <string name="ai_engine_enable_sub">Use configured AI providers for anti-DPI tuning decisions</string>
     <string name="ai_engine_local_fallback">Automatic local fallback</string>
-    <string name="ai_engine_local_fallback_sub">If external APIs are blocked, use the internal V2RayEZ/Aether policy</string>
+    <string name="ai_engine_local_fallback_sub">If external APIs are blocked, use the internal V2RayEZ policy</string>
     <string name="ai_engine_provider_name">Provider name</string>
     <string name="ai_engine_base_url">Base URL</string>
     <string name="ai_engine_endpoint">Endpoint path</string>

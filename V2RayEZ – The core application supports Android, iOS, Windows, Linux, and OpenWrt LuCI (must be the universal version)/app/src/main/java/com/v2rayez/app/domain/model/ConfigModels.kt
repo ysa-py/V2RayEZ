@@ -637,17 +637,17 @@ data class AiProviderConfig(
 @Serializable
 data class AiEngineConfig(
     val enabled: Boolean = true,
-    val selectedProviderId: String = "local-aether",
+    val selectedProviderId: String = "local-v2rayez",
     val autoFallbackToLocal: Boolean = true,
-    val localModel: String = "aether-anti-dpi-local",
+    val localModel: String = "v2rayez-anti-dpi-local",
     val providers: List<AiProviderConfig> = listOf(
         AiProviderConfig(
-            id = "local-aether",
+            id = "local-v2rayez",
             name = "V2RayEZ Local AI",
             type = AiProviderType.LOCAL,
             enabled = true,
-            baseUrl = "local://aether",
-            model = "aether-anti-dpi-local",
+            baseUrl = "local://v2rayez",
+            model = "v2rayez-anti-dpi-local",
             responsePath = "text"
         )
     ),

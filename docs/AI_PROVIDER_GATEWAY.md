@@ -155,13 +155,13 @@ Blocked/unreachable response:
     "retryable": true,
     "errorCode": "network_unreachable",
     "fallback": {
-      "mode": "local-micafp-ai",
+      "mode": "local-v2rayez-ai",
       "reason": "network_unreachable",
       "dependencyFreeCoreNetworking": true
     }
   },
   "localFallback": {
-    "mode": "local-micafp-ai",
+    "mode": "local-v2rayez-ai",
     "reason": "network_unreachable",
     "dependencyFreeCoreNetworking": true
   }
@@ -216,7 +216,7 @@ The Android base app now includes the first platform UI/client for the no-code A
 - `AppSettings.aiEngine` persists provider definitions, selected provider, local model name, fallback policy, and last test result.
 - API keys/secrets are stored by alias in Android-Keystore-backed encrypted preferences, not in DataStore/backups.
 - `Settings → AI Engine` lets users add/edit OpenAI-compatible, Anthropic, Gemini, generic HTTP, or local fallback providers without code changes. Each provider can define base URL, endpoint path, method family, model, header JSON, request template, response path, and API key alias.
-- `AndroidAiProviderGateway` executes configured providers, redacts secrets from errors, auto-detects common response shapes, and returns the local V2RayEZ/Aether anti-DPI fallback when external APIs are blocked or unreachable.
+- `AndroidAiProviderGateway` executes configured providers, redacts secrets from errors, auto-detects common response shapes, and returns the local V2RayEZ anti-DPI fallback when external APIs are blocked or unreachable.
 - `V2RayVpnService` invokes the AI advisor asynchronously when connectivity probes fail, so external API timeouts cannot block an otherwise usable tunnel. The advisor logs the selected external/local recommendation for follow-up adaptive routing work.
 
 ---
@@ -227,9 +227,9 @@ The V2RayEZ desktop/Tauri GUI now has matching no-code AI Provider Gateway wirin
 
 - `src-tauri/src/settings.rs` persists `aiEngine` provider definitions for local, OpenAI-compatible, Anthropic, Gemini, and generic HTTP providers. Settings validation rejects malformed provider IDs, bad URL syntax, invalid header JSON, and unsafe timeout values.
 - Settings UI includes provider ID/name/type/base URL/endpoint/model/API-key alias/header JSON/request template/response path fields so new providers can be added without code changes.
-- `src-tauri/src/ai_provider.rs` stores API secrets separately by alias through `src-tauri/src/secure_store.rs`, builds provider requests from either known provider families or the configured JSON template, extracts common response paths, redacts secrets from errors, and returns local V2RayEZ/Aether anti-DPI guidance when external APIs are blocked/unreachable.
+- `src-tauri/src/ai_provider.rs` stores API secrets separately by alias through `src-tauri/src/secure_store.rs`, builds provider requests from either known provider families or the configured JSON template, extracts common response paths, redacts secrets from errors, and returns local V2RayEZ anti-DPI guidance when external APIs are blocked/unreachable.
 - `src-tauri/src/secure_store.rs` encrypts secrets with Windows DPAPI on Windows and uses `0600` protected app-config files on Unix-like desktop targets until the Linux libsecret/keyring backend is added.
-- `connect()` logs non-blocking AI advisor output after Aether startup/probe failure; AI failures do not block an otherwise valid tunnel.
+- `connect()` logs non-blocking AI advisor output after V2RayEZ core startup/probe failure; AI failures do not block an otherwise valid tunnel.
 
 Desktop build note: this wiring passed frontend/static tests, but the Rust command layer has not been compiled because the sandbox lacks a Rust toolchain.
 
@@ -239,10 +239,10 @@ Desktop build note: this wiring passed frontend/static tests, but the Rust comma
 
 The MICAFP/OpenWrt package path now has additive AI Engine Gateway settings:
 
-- `/etc/config/unifiedshield` includes AI Engine toggles, selected provider ID, local fallback model, and a default `ai_provider` section for `local-aether`.
+- `/etc/config/unifiedshield` includes AI Engine toggles, selected provider ID, local fallback model, and a default `ai_provider` section for `local-v2rayez`.
 - LuCI CBI model `src/luci-app-unifiedshield/luasrc/model/cbi/unifiedshield/config.lua` lets router admins add OpenAI-compatible, Anthropic, Gemini, generic HTTP, or local providers without code changes.
 - Provider API keys are referenced by alias files under `/etc/unifiedshield/ai-secrets/<alias>.secret`; LuCI stores aliases only and does not echo secrets.
-- `/usr/libexec/unifiedshield/ai-provider-test.lua` tests the selected provider through `curl`, `uclient-fetch`, or `wget`, redacts secrets, and falls back to local V2RayEZ/Aether anti-DPI guidance when external APIs are blocked/unreachable.
+- `/usr/libexec/unifiedshield/ai-provider-test.lua` tests the selected provider through `curl`, `uclient-fetch`, or `wget`, redacts secrets, and falls back to local V2RayEZ anti-DPI guidance when external APIs are blocked/unreachable.
 
 OpenWrt build note: Lua syntax/runtime and router network tests are still pending because the sandbox lacks LuCI/Lua/OpenWrt SDK runtime.
 

@@ -1578,3 +1578,70 @@ Observed:
 Scope note:
 
 - This is a UI-surface wording cleanup only; donor networking capabilities and internal adapters are preserved.
+
+---
+
+## Milestone 30 canonical V2RayEZ AI identity defaults — 2026-09-02
+
+Commands:
+
+```bash
+npm test --prefix V2RayEZ-GUI
+node --check tools/v2rayez_identity_gate.mjs
+node tools/v2rayez_identity_gate.mjs
+node --check tools/ai_provider_gateway_selftest.mjs
+node tools/ai_provider_gateway_selftest.mjs
+npm run lint --prefix MICAFP/dashboard
+npm run build --prefix MICAFP/dashboard
+python3 - <<'PY'
+import xml.etree.ElementTree as ET
+for path in [
+'V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/app/src/main/res/values/strings.xml',
+'V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/app/src/main/res/values-fa/strings.xml',
+'V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/app/src/main/res/values-ru/strings.xml',
+]:
+    ET.parse(path)
+print('base Android AI string XML parse pass')
+PY
+python3 - <<'PY'
+from pathlib import Path
+active_paths = [
+    Path('MICAFP/dashboard/src/app/api/ai-engine/providers/test/route.ts'),
+    Path('universal-core/src/ai_provider.rs'),
+    Path('docs/AI_PROVIDER_GATEWAY.md'),
+    Path('MICAFP/openwrt/files/etc/config/unifiedshield'),
+    Path('MICAFP/openwrt/files/usr/libexec/unifiedshield/ai-provider-test.lua'),
+    Path('MICAFP/openwrt/src/luci-app-unifiedshield/luasrc/controller/unifiedshield.lua'),
+    Path('MICAFP/openwrt/src/luci-app-unifiedshield/luasrc/model/cbi/unifiedshield/config.lua'),
+    Path('V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/app/src/main/java/com/v2rayez/app/data/ai/AndroidAiProviderGateway.kt'),
+    Path('V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/app/src/main/java/com/v2rayez/app/domain/model/ConfigModels.kt'),
+    Path('V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/app/src/main/java/com/v2rayez/app/ui/screens/settings/AiEngineScreen.kt'),
+    Path('V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/app/src/main/java/com/v2rayez/app/ui/viewmodel/LicenseAiViewModels.kt'),
+    Path('V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/app/src/main/res/values/strings.xml'),
+    Path('V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/app/src/main/res/values-fa/strings.xml'),
+    Path('V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/app/src/main/res/values-ru/strings.xml'),
+]
+joined = '\n'.join(f'--- {p}\n{p.read_text()}' for p in active_paths)
+for required in ['local-v2rayez', 'local://v2rayez', 'v2rayez-anti-dpi-local', 'local-v2rayez-ai', 'internal V2RayEZ policy', 'سیاست داخلی V2RayEZ', 'внутреннюю политику V2RayEZ']:
+    assert required in joined, required
+for forbidden in ['local-micafp-ai', 'local://aether', 'aether-anti-dpi-local', 'V2RayEZ/Aether', 'Aether startup']:
+    hits = [str(p) for p in active_paths if forbidden in p.read_text()]
+    assert not hits, (forbidden, hits)
+print('ai_identity_static: PASS')
+PY
+git diff --check
+```
+
+Result: PASS.
+
+Observed:
+
+- V2RayEZ GUI frontend tests passed 14/14.
+- Runtime identity gate and AI gateway self-test passed.
+- Dashboard lint/build passed.
+- Base Android EN/FA/RU AI strings parse correctly and show internal V2RayEZ policy wording.
+- Shared Rust, dashboard, Android, OpenWrt, and docs now use V2RayEZ local AI defaults/fallback identity.
+
+Scope note:
+
+- Legacy `local-aether` references remain only in compatibility/migration code paths so existing persisted settings continue to work.
