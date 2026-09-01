@@ -1285,3 +1285,66 @@ Observed:
 Blocked locally:
 
 - Full native desktop compilation and installer/package generation remain blocked by missing Rust/Cargo and native Tauri dependencies.
+
+---
+
+## Milestone 24 browser extension license and AI provider controls — 2026-09-02
+
+Commands:
+
+```bash
+set -e
+npm run lint --prefix MICAFP/extensions/chrome
+npm run lint --prefix MICAFP/extensions/firefox
+npm run build --prefix MICAFP/extensions/chrome
+npm run build --prefix MICAFP/extensions/firefox
+python3 - <<'PY'
+import json
+from html.parser import HTMLParser
+from pathlib import Path
+class Parser(HTMLParser): pass
+for path in ['MICAFP/extensions/chrome/options/options.html','MICAFP/extensions/firefox/options/options.html','MICAFP/extensions/chrome/dist/options/options.html','MICAFP/extensions/firefox/dist/options/options.html']:
+    text = Path(path).read_text()
+    Parser().feed(text)
+    for needle in ['licenseSerial', 'licenseValidationUrl', 'aiProviderAlias', 'aiApiKey', 'local://v2rayez']:
+        assert needle in text, f'{path}: {needle}'
+for path in ['MICAFP/extensions/chrome/dist/manifest.json','MICAFP/extensions/firefox/dist/manifest.json']:
+    manifest = json.loads(Path(path).read_text())
+    assert manifest['name'] == 'V2RayEZ Universal'
+    assert manifest['version'] == '2.0.0'
+print('extension package options/manifests pass')
+PY
+python3 - <<'PY'
+from pathlib import Path
+checks = {
+'MICAFP/extensions/shared/protocol.ts':['SECRETS', 'licenseValidationUrl', 'aiProviderBaseUrl', 'local://v2rayez'],
+'MICAFP/extensions/chrome/background/service-worker.ts':['enforceLicense', 'license_expired', 'offline_grace_expired', 'browser-extension', 'api/licenses/validate'],
+'MICAFP/extensions/firefox/background/background.ts':['enforceLicense', 'license_expired', 'offline_grace_expired', 'browser-extension', 'api/licenses/validate'],
+'MICAFP/extensions/chrome/options/options.ts':['SECRET_PLACEHOLDER', 'licenseSerial', 'aiApiKey', 'safeAlias'],
+'MICAFP/extensions/firefox/options/options.ts':['SECRET_PLACEHOLDER', 'licenseSerial', 'aiApiKey', 'safeAlias'],
+}
+for path, needles in checks.items():
+    text = Path(path).read_text()
+    for needle in needles:
+        assert needle in text, f'{path}: {needle}'
+print('extension license/ai static checks pass')
+PY
+git diff --check
+```
+
+Result: PASS.
+
+Observed:
+
+- Chrome and Firefox extension source and generated ignored `dist` options pages expose V2RayEZ license and AI provider controls.
+- Extension secret values are stored under a separate secrets storage key and hidden with placeholders in the UI.
+- Chrome MV3 and Firefox MV2 background scripts preflight serial-mode proxy startup, update license metadata, and fail closed on expiry/grace cutoff.
+- Chrome/Firefox TypeScript lint and package builds passed.
+
+Expected warning:
+
+- Real WASM obfuscator artifact is missing; packaged empty WASM fallback remains deterministic.
+
+Blocked locally:
+
+- Browser runtime, real signed serial, and dashboard-backed online validation remain unavailable in this sandbox.

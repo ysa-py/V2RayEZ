@@ -8,6 +8,7 @@ export const StorageKeys = {
   CONFIG: 'unifiedshield_config',
   STATE: 'unifiedshield_state',
   STATS: 'unifiedshield_stats',
+  SECRETS: 'v2rayez_extension_secrets',
 } as const;
 
 /* ────────── Configuration ────────── */
@@ -37,6 +38,25 @@ export interface UnifiedShieldConfig {
   dpiBypassEnabled?: boolean;
   webrtcRelayEnabled?: boolean;
 
+  // License
+  licenseValidationUrl?: string;
+  licenseAccountId?: string;
+  licenseAllowOfflineGrace?: boolean;
+  licenseInstalled?: boolean;
+  licenseLastResult?: string;
+  licenseLastReason?: string;
+  licenseExpiresAt?: string;
+  licenseOfflineGraceUntil?: string;
+
+  // AI Provider Gateway
+  aiEngineEnabled?: boolean;
+  aiAutoFallbackToLocal?: boolean;
+  aiProviderAlias?: string;
+  aiProviderBaseUrl?: string;
+  aiProviderEndpoint?: string;
+  aiProviderModel?: string;
+  aiApiKeyInstalled?: boolean;
+
   // General
   autoStart: boolean;
   nativeAppEnabled: boolean;
@@ -56,6 +76,21 @@ export const DEFAULT_CONFIG: UnifiedShieldConfig = {
   dohBlocklist: [],
   dpiBypassEnabled: true,
   webrtcRelayEnabled: false,
+  licenseValidationUrl: '',
+  licenseAccountId: '',
+  licenseAllowOfflineGrace: true,
+  licenseInstalled: false,
+  licenseLastResult: 'not_validated',
+  licenseLastReason: '',
+  licenseExpiresAt: '',
+  licenseOfflineGraceUntil: '',
+  aiEngineEnabled: true,
+  aiAutoFallbackToLocal: true,
+  aiProviderAlias: 'local-v2rayez',
+  aiProviderBaseUrl: 'local://v2rayez',
+  aiProviderEndpoint: '',
+  aiProviderModel: 'v2rayez-anti-dpi-local',
+  aiApiKeyInstalled: false,
   autoStart: false,
   nativeAppEnabled: false,
   preferredMode: 'auto',

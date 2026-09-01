@@ -157,6 +157,81 @@
       </div>
     </section>
 
+
+    <!-- License Activation -->
+    <section class="section">
+      <h2 class="section-title">License Activation</h2>
+      <p class="help-text">Paste a signed V2RayEZ serial once. It is stored separately from exported settings and hidden after saving.</p>
+
+      <div class="form-group">
+        <label for="licenseSerial">Signed Serial / License Token</label>
+        <textarea id="licenseSerial" rows="3" placeholder="V2RayEZ-License compact token"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label for="licenseAccountId">Account ID</label>
+        <input type="text" id="licenseAccountId" placeholder="account or user id" />
+      </div>
+
+      <div class="form-group">
+        <label for="licenseValidationUrl">Validation Server URL</label>
+        <input type="text" id="licenseValidationUrl" placeholder="https://dashboard.example.com" />
+      </div>
+
+      <div class="form-group">
+        <div class="toggle-row">
+          <label for="licenseAllowOfflineGrace">Allow signed offline grace</label>
+          <input type="checkbox" id="licenseAllowOfflineGrace" />
+        </div>
+        <p class="help-text">The extension fails closed after a configured serial expires or grace metadata is exhausted.</p>
+      </div>
+    </section>
+
+    <!-- AI Provider Gateway -->
+    <section class="section">
+      <h2 class="section-title">AI Engine / API Providers</h2>
+      <p class="help-text">Add an external anti-DPI AI endpoint without code changes. V2RayEZ keeps local fallback enabled when APIs are blocked.</p>
+
+      <div class="form-group">
+        <div class="toggle-row">
+          <label for="aiEngineEnabled">Enable AI Engine</label>
+          <input type="checkbox" id="aiEngineEnabled" />
+        </div>
+      </div>
+
+      <div class="form-group">
+        <div class="toggle-row">
+          <label for="aiAutoFallbackToLocal">Automatic local fallback</label>
+          <input type="checkbox" id="aiAutoFallbackToLocal" />
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="aiProviderAlias">Provider Alias</label>
+        <input type="text" id="aiProviderAlias" placeholder="local-v2rayez" />
+      </div>
+
+      <div class="form-group">
+        <label for="aiProviderBaseUrl">Provider Base URL</label>
+        <input type="text" id="aiProviderBaseUrl" placeholder="local://v2rayez or https://api.example.com" />
+      </div>
+
+      <div class="form-group">
+        <label for="aiProviderEndpoint">Endpoint Path</label>
+        <input type="text" id="aiProviderEndpoint" placeholder="v1/chat/completions" />
+      </div>
+
+      <div class="form-group">
+        <label for="aiProviderModel">Model</label>
+        <input type="text" id="aiProviderModel" placeholder="v2rayez-anti-dpi-local" />
+      </div>
+
+      <div class="form-group">
+        <label for="aiApiKey">API Key / Secret</label>
+        <input type="password" id="aiApiKey" placeholder="Leave empty to keep stored key" />
+      </div>
+    </section>
+
     <!-- Advanced -->
     <section class="section">
       <h2 class="section-title">Advanced</h2>

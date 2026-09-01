@@ -1,5 +1,5 @@
 /**
- * UnifiedShield Options — Settings page logic
+ * V2RayEZ Options — Settings page logic
  */
 
 import type { UnifiedShieldConfig } from '../../shared/protocol';
@@ -26,11 +26,24 @@ const els = {
   nativeAppEnabled: document.getElementById('nativeAppEnabled') as HTMLInputElement,
   preferredMode: document.getElementById('preferredMode') as HTMLSelectElement,
   dohBlocklist: document.getElementById('dohBlocklist') as HTMLTextAreaElement,
+  licenseSerial: document.getElementById('licenseSerial') as HTMLTextAreaElement,
+  licenseAccountId: document.getElementById('licenseAccountId') as HTMLInputElement,
+  licenseValidationUrl: document.getElementById('licenseValidationUrl') as HTMLInputElement,
+  licenseAllowOfflineGrace: document.getElementById('licenseAllowOfflineGrace') as HTMLInputElement,
+  aiEngineEnabled: document.getElementById('aiEngineEnabled') as HTMLInputElement,
+  aiAutoFallbackToLocal: document.getElementById('aiAutoFallbackToLocal') as HTMLInputElement,
+  aiProviderAlias: document.getElementById('aiProviderAlias') as HTMLInputElement,
+  aiProviderBaseUrl: document.getElementById('aiProviderBaseUrl') as HTMLInputElement,
+  aiProviderEndpoint: document.getElementById('aiProviderEndpoint') as HTMLInputElement,
+  aiProviderModel: document.getElementById('aiProviderModel') as HTMLInputElement,
+  aiApiKey: document.getElementById('aiApiKey') as HTMLInputElement,
   saveBtn: document.getElementById('saveBtn') as HTMLButtonElement,
   resetBtn: document.getElementById('resetBtn') as HTMLButtonElement,
   statusBar: document.getElementById('statusBar') as HTMLDivElement,
   statusMessage: document.getElementById('statusMessage') as HTMLSpanElement,
 };
+
+const SECRET_PLACEHOLDER = '••••••••';
 
 const dohCheckboxes = document.querySelectorAll<HTMLInputElement>(
   'input[data-doh]'
@@ -71,6 +84,17 @@ function populateForm(config: UnifiedShieldConfig): void {
   els.nativeAppEnabled.checked = config.nativeAppEnabled;
   els.preferredMode.value = config.preferredMode ?? 'auto';
   els.dohBlocklist.value = (config.dohBlocklist ?? []).join('\n');
+  els.licenseSerial.value = config.licenseInstalled ? SECRET_PLACEHOLDER : '';
+  els.licenseAccountId.value = config.licenseAccountId ?? '';
+  els.licenseValidationUrl.value = config.licenseValidationUrl ?? '';
+  els.licenseAllowOfflineGrace.checked = config.licenseAllowOfflineGrace !== false;
+  els.aiEngineEnabled.checked = config.aiEngineEnabled !== false;
+  els.aiAutoFallbackToLocal.checked = config.aiAutoFallbackToLocal !== false;
+  els.aiProviderAlias.value = config.aiProviderAlias ?? 'local-v2rayez';
+  els.aiProviderBaseUrl.value = config.aiProviderBaseUrl ?? 'local://v2rayez';
+  els.aiProviderEndpoint.value = config.aiProviderEndpoint ?? '';
+  els.aiProviderModel.value = config.aiProviderModel ?? 'v2rayez-anti-dpi-local';
+  els.aiApiKey.value = config.aiApiKeyInstalled ? SECRET_PLACEHOLDER : '';
 
   // DoH server checkboxes
   const dohServers = config.dohServers ?? ['alidns', 'dnspod', 'byteplus'];
@@ -116,6 +140,17 @@ function extractConfig(): Partial<UnifiedShieldConfig> {
     nativeAppEnabled: els.nativeAppEnabled.checked,
     preferredMode: els.preferredMode.value as any,
     dohBlocklist,
+    licenseValidationUrl: els.licenseValidationUrl.value.trim(),
+    licenseAccountId: els.licenseAccountId.value.trim(),
+    licenseAllowOfflineGrace: els.licenseAllowOfflineGrace.checked,
+    licenseInstalled: els.licenseSerial.value.trim() === SECRET_PLACEHOLDER,
+    aiEngineEnabled: els.aiEngineEnabled.checked,
+    aiAutoFallbackToLocal: els.aiAutoFallbackToLocal.checked,
+    aiProviderAlias: safeAlias(els.aiProviderAlias.value) || 'local-v2rayez',
+    aiProviderBaseUrl: els.aiProviderBaseUrl.value.trim() || 'local://v2rayez',
+    aiProviderEndpoint: els.aiProviderEndpoint.value.trim(),
+    aiProviderModel: els.aiProviderModel.value.trim() || 'v2rayez-anti-dpi-local',
+    aiApiKeyInstalled: els.aiApiKey.value.trim() === SECRET_PLACEHOLDER,
   };
 }
 
@@ -126,9 +161,23 @@ async function handleSave(): Promise<void> {
 
   try {
     const partial = extractConfig();
-    const config: UnifiedShieldConfig = { ...DEFAULT_CONFIG, ...partial };
+    const current = await chrome.storage.local.get([StorageKeys.CONFIG, StorageKeys.SECRETS]);
+    const secrets = { ...(current[StorageKeys.SECRETS] ?? {}) } as Record<string, string>;
+    const serial = els.licenseSerial.value.trim();
+    const apiKey = els.aiApiKey.value.trim();
+    if (serial && serial !== SECRET_PLACEHOLDER) {
+      secrets.licenseSerial = serial;
+      partial.licenseInstalled = true;
+      els.licenseSerial.value = SECRET_PLACEHOLDER;
+    }
+    if (apiKey && apiKey !== SECRET_PLACEHOLDER) {
+      secrets.aiApiKey = apiKey;
+      partial.aiApiKeyInstalled = true;
+      els.aiApiKey.value = SECRET_PLACEHOLDER;
+    }
+    const config: UnifiedShieldConfig = { ...DEFAULT_CONFIG, ...(current[StorageKeys.CONFIG] ?? {}), ...partial };
 
-    await chrome.storage.local.set({ [StorageKeys.CONFIG]: config });
+    await chrome.storage.local.set({ [StorageKeys.CONFIG]: config, [StorageKeys.SECRETS]: secrets });
 
     // Notify service worker
     chrome.runtime.sendMessage({
@@ -147,7 +196,7 @@ async function handleSave(): Promise<void> {
 async function handleReset(): Promise<void> {
   if (!confirm('Reset all settings to defaults?')) return;
 
-  await chrome.storage.local.set({ [StorageKeys.CONFIG]: DEFAULT_CONFIG });
+  await chrome.storage.local.set({ [StorageKeys.CONFIG]: DEFAULT_CONFIG, [StorageKeys.SECRETS]: {} });
   populateForm(DEFAULT_CONFIG);
 
   chrome.runtime.sendMessage({
@@ -156,6 +205,12 @@ async function handleReset(): Promise<void> {
   });
 
   showStatus('Settings reset to defaults', 'success');
+}
+
+/* ────────── Secret-safe helpers ────────── */
+
+function safeAlias(value: string): string {
+  return value.trim().replace(/[^a-zA-Z0-9_-]/g, '');
 }
 
 /* ────────── Status ────────── */

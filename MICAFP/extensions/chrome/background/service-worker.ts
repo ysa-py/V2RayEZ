@@ -106,10 +106,89 @@ async function initModules(): Promise<void> {
   );
 }
 
+/* ────────────────────── license gate ────────────────────── */
+
+async function enforceLicense(): Promise<{ allowed: boolean; reason: string }> {
+  if (!config.licenseInstalled) return { allowed: true, reason: 'license_not_configured' };
+  const stored = await chrome.storage.local.get(StorageKeys.SECRETS);
+  const serial = String(stored[StorageKeys.SECRETS]?.licenseSerial ?? '').trim();
+  if (!serial) return denyLicense('license_secret_missing');
+
+  const cached = cachedLicenseDecision('preflight');
+  if (cached && !cached.allowed) return cached;
+
+  const accountId = (config.licenseAccountId ?? '').trim();
+  const validationUrl = (config.licenseValidationUrl ?? '').trim();
+  if (!accountId || !validationUrl) return cachedLicenseDecision('license_account_or_server_missing') ?? denyLicense('online_validation_required');
+
+  try {
+    const response = await fetch(licenseEndpoint(validationUrl), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify({
+        licenseKey: serial,
+        deviceId: `browser-extension:${chrome.runtime.id}`,
+        accountId,
+        platform: 'browser-extension',
+        appVersion: chrome.runtime.getManifest().version,
+        deviceLabel: `${chrome.runtime.getManifest().name} ${chrome.runtime.id}`,
+      }),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok || body.success !== true) return denyLicense(String(body.reason || 'license_denied'));
+    config.licenseLastResult = 'ALLOWED';
+    config.licenseLastReason = String(body.reason || 'valid');
+    config.licenseExpiresAt = String(body.expiresAt || '');
+    config.licenseOfflineGraceUntil = String(body.offlineGraceUntil || '');
+    await saveConfig();
+    return cachedLicenseDecision('server_valid') ?? { allowed: true, reason: config.licenseLastReason || 'valid' };
+  } catch (error) {
+    if (config.licenseAllowOfflineGrace !== false) {
+      return cachedLicenseDecision(`server_unreachable:${safeError(error)}`) ?? denyLicense('server_unreachable');
+    }
+    return denyLicense(`server_unreachable:${safeError(error)}`);
+  }
+}
+
+function cachedLicenseDecision(prefix: string): { allowed: boolean; reason: string } | null {
+  const expiresAt = Date.parse(config.licenseExpiresAt || '');
+  const graceUntil = Date.parse(config.licenseOfflineGraceUntil || '');
+  if (!Number.isFinite(expiresAt) || !Number.isFinite(graceUntil)) return null;
+  const now = Date.now();
+  if (now >= expiresAt) return denyLicense('license_expired');
+  if (now >= graceUntil) return denyLicense('offline_grace_expired');
+  return { allowed: true, reason: `${prefix}:using_cached_grace` };
+}
+
+function denyLicense(reason: string): { allowed: boolean; reason: string } {
+  config.licenseLastResult = 'DENIED';
+  config.licenseLastReason = reason;
+  return { allowed: false, reason };
+}
+
+function licenseEndpoint(raw: string): string {
+  const base = raw.trim().replace(/\/+$/, '');
+  return base.endsWith('/api/licenses/validate') ? base : `${base}/api/licenses/validate`;
+}
+
+function safeError(error: unknown): string {
+  return error instanceof Error && error.message ? error.message : String(error);
+}
+
 /* ────────────────────── proxy control ────────────────────── */
 
 async function startProxy(): Promise<void> {
   try {
+    const license = await enforceLicense();
+    if (!license.allowed) {
+      state.connected = false;
+      config.licenseLastResult = 'DENIED';
+      config.licenseLastReason = license.reason;
+      await saveConfig();
+      console.warn('[V2RayEZ] License gate denied proxy start:', license.reason);
+      return;
+    }
+
     // Try native SOCKS5 first
     if (config.socksEnabled) {
       await proxyManager.setProxy(config.socksHost, config.socksPort);
