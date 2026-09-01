@@ -1645,3 +1645,39 @@ Observed:
 Scope note:
 
 - Legacy `local-aether` references remain only in compatibility/migration code paths so existing persisted settings continue to work.
+
+---
+
+## Milestone 31 signed serial end-to-end self-test gate — 2026-09-02
+
+Commands:
+
+```bash
+node --check tools/license_crypto_selftest.mjs
+node tools/license_crypto_selftest.mjs
+node --check tools/license_serial_e2e_selftest.mjs
+node tools/license_serial_e2e_selftest.mjs
+node --check tools/ai_provider_gateway_selftest.mjs
+node tools/ai_provider_gateway_selftest.mjs
+python3 - <<'PY'
+from pathlib import Path
+text = Path('docs/ci/github-workflows/universal-source-gates.yml.sample').read_text()
+assert 'node tools/license_serial_e2e_selftest.mjs' in text
+assert text.index('node tools/license_crypto_selftest.mjs') < text.index('node tools/license_serial_e2e_selftest.mjs') < text.index('node tools/ai_provider_gateway_selftest.mjs')
+assert '\t' not in text
+print('license e2e workflow template check pass')
+PY
+git diff --check
+```
+
+Result: PASS.
+
+Observed:
+
+- Signed serial issue/validate/grace/hard-cutoff lifecycle self-test passed.
+- Forgery, account mismatch, device limit, device/platform mismatch, grace expiry, server-time rollback, expired license, and revoked license denial paths passed.
+- CI sample now includes the serial E2E self-test alongside license crypto and AI gateway self-tests.
+
+Scope note:
+
+- This is deterministic local E2E coverage using production crypto primitives and an in-memory validation model. Real deployed dashboard/API/native-device validation remains blocked by unavailable external runtime, devices, router, and native toolchains.
