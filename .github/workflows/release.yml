@@ -28,6 +28,14 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
+# Global serialization: guarantees that only ONE release pipeline can be
+# publishing to a given ref at a time. Without this, two concurrent runs race
+# on `gh release create/upload` for the same tag and one of them dies with
+# "release already exists" / asset upload conflicts (exit code 1).
+concurrency:
+  group: v2rayez-release-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: write
   actions: read
@@ -45,7 +53,7 @@ jobs:
       prerelease: ${{ steps.version.outputs.prerelease }}
       short_sha: ${{ steps.version.outputs.short_sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Extract metadata
         id: version
         shell: bash
@@ -138,7 +146,7 @@ jobs:
             platform: Windows
             artifact: v2rayez_universal_core.dll
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
@@ -192,7 +200,7 @@ jobs:
           ls -lh dist/
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: v2rayez-core-${{ matrix.platform }}-${{ matrix.target }}
           path: dist/*
@@ -205,7 +213,7 @@ jobs:
     needs: meta
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
@@ -318,7 +326,7 @@ jobs:
           ls -lh dist-android-final/
 
       - name: Upload Android APKs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: v2rayez-android-apk
           path: dist-android-final/*.apk
@@ -331,7 +339,7 @@ jobs:
     needs: [meta, build-core]
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
@@ -385,7 +393,7 @@ jobs:
           }
 
       - name: Upload Windows Deliverables
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: v2rayez-windows-exe
           path: dist-windows-final/*
@@ -398,7 +406,7 @@ jobs:
     needs: [meta, build-core]
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
@@ -466,7 +474,7 @@ jobs:
           ls -lh dist-ios-final/
 
       - name: Upload iOS Deliverables
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: v2rayez-ios-ipa
           path: dist-ios-final/*
@@ -489,7 +497,7 @@ jobs:
           - target: x86_64
             rust_target: x86_64-unknown-linux-musl
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
@@ -537,7 +545,7 @@ jobs:
           ls -lh "$IPK_DIR/"
 
       - name: Upload OpenWrt IPKs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: v2rayez-openwrt-ipk-${{ matrix.target }}
           path: dist-openwrt-${{ matrix.target }}/*.ipk
@@ -558,7 +566,7 @@ jobs:
           - target: aarch64-unknown-linux-gnu
             arch: aarch64
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
@@ -596,7 +604,7 @@ jobs:
           ls -lh dist-linux/
 
       - name: Upload Linux Deliverables
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: v2rayez-linux-${{ matrix.arch }}
           path: dist-linux/*
@@ -609,9 +617,9 @@ jobs:
     needs: [build-core, build-android, build-windows, build-ios, build-openwrt]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           path: artifacts
           pattern: v2rayez-*
@@ -657,10 +665,10 @@ jobs:
       group: publish-release-${{ github.ref_type == 'tag' && format('tag-{0}', github.ref_name) || 'rolling' }}
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Download all deliverables
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           path: artifacts
           pattern: v2rayez-*
@@ -784,7 +792,7 @@ jobs:
           echo "notes_file=${NOTES_FILE}" >> "$GITHUB_OUTPUT"
           cat "$NOTES_FILE"
 
-      - name: Publish to GitHub Releases (Automatic & Idempotent)
+      - name: Publish to GitHub Releases (Automatic, Idempotent & Race-Safe)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
@@ -794,47 +802,135 @@ jobs:
           TITLE="${{ needs.meta.outputs.title }}"
           PRERELEASE="${{ needs.meta.outputs.prerelease }}"
           NOTES_FILE="${{ steps.notes.outputs.notes_file }}"
-          
+
           mapfile -d '' ASSETS < <(find release-assets -type f -print0 | sort -z)
           if [[ "${#ASSETS[@]}" -eq 0 ]]; then
             echo "Error: No release assets found!" >&2
             exit 1
           fi
-          
-          echo "Publishing release for tag ${TAG} (${TITLE})..."
-          
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "Release ${TAG} already exists; updating in place..."
-            gh release edit "$TAG" --title "$TITLE" --notes-file "$NOTES_FILE"
-            if [[ "$PRERELEASE" == "true" ]]; then
-              gh release edit "$TAG" --prerelease
-            fi
-            
-            # Purge stale assets
-            while IFS= read -r existing; do
-              [[ -n "$existing" ]] || continue
-              keep=0
-              for f in "${ASSETS[@]}"; do
-                if [[ "$(basename "$f")" == "$existing" ]]; then
-                  keep=1
-                  break
-                fi
-              done
-              if [[ "$keep" -eq 0 ]]; then
-                echo "Purging stale asset: $existing"
-                gh release delete-asset "$TAG" "$existing" --yes || true
+
+          echo "Publishing release for tag ${TAG} (${TITLE}) with ${#ASSETS[@]} assets..."
+
+          # Retry helper: GitHub's release API is eventually consistent and can
+          # return transient 5xx / 409 conflicts when two runs touch the same
+          # tag. Every mutating call goes through this wrapper so a transient
+          # failure never aborts the pipeline.
+          retry() {
+            local desc="$1"; shift
+            local attempt
+            for attempt in 1 2 3 4 5; do
+              if "$@"; then
+                return 0
               fi
-            done < <(gh release view "$TAG" --json assets -q '.assets[].name')
-            
-            gh release upload "$TAG" "${ASSETS[@]}" --clobber
-          else
-            echo "Creating new release ${TAG}..."
-            flags=()
+              echo "::warning::${desc} failed (attempt ${attempt}/5); retrying in $((attempt * 5))s..."
+              sleep "$((attempt * 5))"
+            done
+            echo "::error::${desc} failed after 5 attempts." >&2
+            return 1
+          }
+
+          # Ensure the release exists. `gh release create` is racy: a concurrent
+          # run may create the same tag between our view and our create. Treat
+          # "already exists" as success and fall through to the update path.
+          ensure_release() {
+            if gh release view "$TAG" >/dev/null 2>&1; then
+              return 0
+            fi
+            local flags=(--title "$TITLE" --notes-file "$NOTES_FILE")
             if [[ "$PRERELEASE" == "true" ]]; then
               flags+=(--prerelease)
             fi
-            gh release create "$TAG" "${ASSETS[@]}" --title "$TITLE" --notes-file "$NOTES_FILE" "${flags[@]}"
+            if [[ "${GITHUB_REF_TYPE:-branch}" != "tag" ]]; then
+              flags+=(--target "$GITHUB_SHA")
+            fi
+            local out
+            if out="$(gh release create "$TAG" "${flags[@]}" 2>&1)"; then
+              echo "$out"
+              return 0
+            fi
+            echo "$out"
+            if grep -qiE 'already exists|already_exists' <<<"$out"; then
+              echo "Release ${TAG} was created concurrently; continuing with update path."
+              return 0
+            fi
+            return 1
+          }
+
+          retry "ensure release ${TAG}" ensure_release
+
+          # Refresh metadata (title/notes/prerelease flag) on the existing release.
+          retry "update release metadata" \
+            gh release edit "$TAG" --title "$TITLE" --notes-file "$NOTES_FILE"
+          if [[ "$PRERELEASE" == "true" ]]; then
+            retry "mark prerelease" gh release edit "$TAG" --prerelease
+          else
+            gh release edit "$TAG" --prerelease=false >/dev/null 2>&1 || true
           fi
-          
+
+          # Purge assets that are no longer produced by this build.
+          declare -A KEEP=()
+          for f in "${ASSETS[@]}"; do
+            KEEP["$(basename "$f")"]=1
+          done
+          while IFS= read -r existing; do
+            [[ -n "$existing" ]] || continue
+            if [[ -z "${KEEP[$existing]:-}" ]]; then
+              echo "Purging stale asset: $existing"
+              gh release delete-asset "$TAG" "$existing" --yes || true
+            fi
+          done < <(gh release view "$TAG" --json assets -q '.assets[].name' || true)
+
+          # Upload assets one-by-one so a single flaky upload cannot fail the
+          # whole batch, and so each one gets its own retry budget.
+          FAILED=()
+          for f in "${ASSETS[@]}"; do
+            name="$(basename "$f")"
+            if retry "upload ${name}" gh release upload "$TAG" "$f" --clobber; then
+              echo "Uploaded: ${name}"
+            else
+              FAILED+=("$name")
+            fi
+          done
+
+          if [[ "${#FAILED[@]}" -gt 0 ]]; then
+            echo "::error::Failed to upload ${#FAILED[@]} asset(s): ${FAILED[*]}" >&2
+            exit 1
+          fi
+
           echo "GitHub Release published successfully for tag ${TAG}."
           gh release view "$TAG" --json assets -q '.assets[].name' | sort
+
+      - name: Verify published release (Post-Publish Gate)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ needs.meta.outputs.tag }}"
+
+          # Give the API a moment to become consistent after the uploads.
+          published=""
+          for attempt in 1 2 3 4 5; do
+            published="$(gh release view "$TAG" --json assets -q '.assets[].name' 2>/dev/null | sort || true)"
+            [[ -n "$published" ]] && break
+            sleep 5
+          done
+
+          expected="$(find release-assets -type f -printf '%f\n' | sort)"
+
+          missing=0
+          while IFS= read -r want; do
+            [[ -n "$want" ]] || continue
+            if ! grep -Fxq "$want" <<<"$published"; then
+              echo "::error::Asset missing from published release: $want" >&2
+              missing=$((missing + 1))
+            fi
+          done <<<"$expected"
+
+          if [[ "$missing" -gt 0 ]]; then
+            echo "::error::${missing} expected asset(s) are absent from release ${TAG}." >&2
+            exit 1
+          fi
+
+          echo "Post-publish gate PASSED: every built asset is live on release ${TAG}."
+          echo "$published"

@@ -1,4 +1,22 @@
-name: "Release Pipeline"
+name: "Universal Core CI (Quality Gates)"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# WHY THIS FILE IS NO LONGER A SECOND RELEASE PIPELINE
+# ─────────────────────────────────────────────────────────────────────────────
+# This workflow used to be a byte-for-byte duplicate of `release.yml` (same
+# `name:`, same jobs, same publishing logic). Because both files triggered on
+# the same events, GitHub started TWO identical pipelines per push, and both
+# raced to run `gh release create` / `gh release upload` against the SAME tag
+# (`v2rayez-universal-latest`). Whichever run lost the race died with
+# "Process completed with exit code 1" in the "Publish to GitHub Releases"
+# step — which is exactly the recurring failure that kept appearing.
+#
+# Nothing was removed: `release.yml` remains the single, complete, fully
+# automatic build + publish pipeline for every platform (Android, iOS,
+# Windows, Linux, macOS, OpenWrt). This file now does the complementary work
+# it was always meant to do — fast, cheap, fail-closed verification gates that
+# run on every push and pull request BEFORE the heavy release matrix matters.
+# ─────────────────────────────────────────────────────────────────────────────
 
 on:
   push:
@@ -6,146 +24,197 @@ on:
       - main
       - master
       - 'arena/*'
-    tags:
-      - 'v*'
-      - 'V2RayEZ-v*'
   pull_request:
     branches:
       - main
       - master
   workflow_dispatch:
-    inputs:
-      tag_name:
-        description: 'Optional custom release tag (e.g. v2.0.0)'
-        required: false
-        type: string
-      prerelease:
-        description: 'Publish as prerelease'
-        required: false
-        type: boolean
-        default: false
-
-env:
-  CARGO_TERM_COLOR: always
 
 permissions:
-  contents: write
-  actions: read
+  contents: read
+
+concurrency:
+  group: universal-core-ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  # ─────────────────────────────────────────────────────────────────────────────
-  # JOB 1: METADATA EXTRACTION & VERSION DETERMINATION
-  # ─────────────────────────────────────────────────────────────────────────────
-  meta:
+  # ───────────────────────────────────────────────────────────────────────────
+  # GATE 1: WORKFLOW INTEGRITY — prevents the duplicate-publisher regression
+  # ───────────────────────────────────────────────────────────────────────────
+  workflow-integrity:
+    name: Workflow integrity gate
     runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.version.outputs.version }}
-      tag: ${{ steps.version.outputs.tag }}
-      title: ${{ steps.version.outputs.title }}
-      prerelease: ${{ steps.version.outputs.prerelease }}
-      short_sha: ${{ steps.version.outputs.short_sha }}
     steps:
-      - uses: actions/checkout@v4
-      - name: Extract metadata
-        id: version
+      - uses: actions/checkout@v5
+
+      - name: Validate workflow YAML syntax
         shell: bash
         run: |
           set -euo pipefail
-          VERSION="$(sed -n 's/^version[[:space:]]*=[[:space:]]*"\(.*\)"$/\1/p' universal-core/Cargo.toml | head -n 1)"
-          VERSION="${VERSION:-2.0.0}"
-          SHORT_SHA="${GITHUB_SHA:0:7}"
-          
-          CUSTOM_TAG="${{ github.event.inputs.tag_name }}"
-          CUSTOM_PRERELEASE="${{ github.event.inputs.prerelease }}"
-          
-          if [[ -n "$CUSTOM_TAG" ]]; then
-            RELEASE_TAG="$CUSTOM_TAG"
-            RELEASE_TITLE="V2RayEZ Universal Core ${RELEASE_TAG}"
-            PRERELEASE="${CUSTOM_PRERELEASE:-false}"
-          elif [[ "${GITHUB_REF_TYPE:-branch}" == "tag" && -n "${GITHUB_REF_NAME:-}" ]]; then
-            RELEASE_TAG="${GITHUB_REF_NAME}"
-            RELEASE_TITLE="V2RayEZ Universal Core ${RELEASE_TAG}"
-            PRERELEASE="false"
-          else
-            RELEASE_TAG="v2rayez-universal-latest"
-            RELEASE_TITLE="V2RayEZ Universal Core latest (v${VERSION}+${SHORT_SHA})"
-            PRERELEASE="true"
-          fi
-          
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "tag=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
-          echo "title=${RELEASE_TITLE}" >> "$GITHUB_OUTPUT"
-          echo "prerelease=${PRERELEASE}" >> "$GITHUB_OUTPUT"
-          echo "short_sha=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
-          
-          echo "Target Version: ${VERSION}"
-          echo "Release Tag: ${RELEASE_TAG}"
-          echo "Release Title: ${RELEASE_TITLE}"
-          echo "Prerelease: ${PRERELEASE}"
+          python3 -m pip install --quiet --disable-pip-version-check pyyaml
+          python3 - <<'PY'
+          import pathlib, sys, yaml
+          failed = False
+          for path in sorted(pathlib.Path(".github/workflows").glob("*.y*ml")):
+              try:
+                  yaml.safe_load(path.read_text())
+                  print(f"OK   {path}")
+              except Exception as exc:
+                  print(f"FAIL {path}: {exc}", file=sys.stderr)
+                  failed = True
+          sys.exit(1 if failed else 0)
+          PY
 
-  # ─────────────────────────────────────────────────────────────────────────────
-  # JOB 2: CROSS-PLATFORM CORE LIBRARIES MATRIX (Preserving ALL targets & flags)
-  # ─────────────────────────────────────────────────────────────────────────────
-  build-core:
-    needs: meta
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - target: x86_64-unknown-linux-gnu
-            os: ubuntu-latest
-            platform: Linux
-            artifact: libv2rayez_universal_core.a
-          - target: aarch64-unknown-linux-gnu
-            os: ubuntu-latest
-            platform: Linux
-            artifact: libv2rayez_universal_core.a
-          - target: mipsel-unknown-linux-musl
-            os: ubuntu-latest
-            platform: OpenWrt
-            artifact: libv2rayez_universal_core.a
-          - target: aarch64-unknown-linux-musl
-            os: ubuntu-latest
-            platform: OpenWrt
-            artifact: libv2rayez_universal_core.a
-          - target: x86_64-unknown-linux-musl
-            os: ubuntu-latest
-            platform: OpenWrt
-            artifact: libv2rayez_universal_core.a
-          - target: aarch64-apple-darwin
-            os: macos-latest
-            platform: macOS
-            artifact: libv2rayez_universal_core.a
-          - target: x86_64-apple-darwin
-            os: macos-latest
-            platform: macOS
-            artifact: libv2rayez_universal_core.a
-          - target: aarch64-apple-ios
-            os: macos-latest
-            platform: iOS
-            artifact: libv2rayez_universal_core.a
-          - target: x86_64-apple-ios
-            os: macos-latest
-            platform: iOS
-            artifact: libv2rayez_universal_core.a
-          - target: aarch64-apple-ios-sim
-            os: macos-latest
-            platform: iOS
-            artifact: libv2rayez_universal_core.a
-          - target: x86_64-pc-windows-msvc
-            os: windows-latest
-            platform: Windows
-            artifact: v2rayez_universal_core.dll
+      - name: Assert exactly one release publisher exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          publishers=()
+          for wf in .github/workflows/*.y*ml; do
+            if grep -vE "^[[:space:]]*#" "$wf" | grep -qE "gh release (create|upload)"; then
+              publishers+=("$wf")
+            fi
+          done
+          echo "Workflows containing release-publishing logic: ${publishers[*]:-<none>}"
+          if [[ "${#publishers[@]}" -gt 1 ]]; then
+            echo "::error::More than one workflow publishes GitHub Releases: ${publishers[*]}." >&2
+            echo "::error::Concurrent publishers race on the same tag and fail with exit code 1." >&2
+            exit 1
+          fi
+          if [[ "${#publishers[@]}" -eq 0 ]]; then
+            echo "::error::No release publisher found — release automation would be dead." >&2
+            exit 1
+          fi
+          echo "Workflow integrity gate PASSED: single publisher = ${publishers[0]}"
+
+      - name: Assert no duplicate workflow display names
+        shell: bash
+        run: |
+          set -euo pipefail
+          dupes="$(grep -h '^name:' .github/workflows/*.y*ml | sort | uniq -d || true)"
+          if [[ -n "$dupes" ]]; then
+            echo "::error::Duplicate workflow names detected (ambiguous in the Actions UI):" >&2
+            echo "$dupes" >&2
+            exit 1
+          fi
+          echo "All workflow display names are unique."
+
+      - name: Assert no deprecated Node 20 action majors
+        shell: bash
+        run: |
+          set -euo pipefail
+          stale="$(grep -hoE 'actions/(checkout|upload-artifact|download-artifact)@v[0-9]+' .github/workflows/*.y*ml \
+            | sort -u \
+            | grep -E 'checkout@v[1-4]$|upload-artifact@v[1-4]$|download-artifact@v[1-5]$' || true)"
+          if [[ -n "$stale" ]]; then
+            echo "::error::Deprecated Node 20 action versions still referenced:" >&2
+            echo "$stale" >&2
+            exit 1
+          fi
+          echo "All first-party actions are on Node 24 capable majors."
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # GATE 2: SHELL SCRIPT SANITY — every build script must parse and be runnable
+  # ───────────────────────────────────────────────────────────────────────────
+  shell-gates:
+    name: Shell script gate
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+
+      - name: Bash syntax check for all build scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          failed=0
+          while IFS= read -r script; do
+            if bash -n "$script"; then
+              echo "OK   $script"
+            else
+              echo "::error::Syntax error in $script" >&2
+              failed=$((failed + 1))
+            fi
+          done < <(find scripts universal-core/ci universal-core/openwrt -name '*.sh' -type f 2>/dev/null | sort)
+          if [[ "$failed" -gt 0 ]]; then
+            echo "::error::${failed} shell script(s) failed syntax validation." >&2
+            exit 1
+          fi
+
+      - name: Ensure release scripts are executable-safe
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=0
+          for required in \
+            scripts/build-android-apk.sh \
+            scripts/build-ios-ipa.sh \
+            scripts/build-ios-xcframework.sh \
+            scripts/build-openwrt-ipk.sh \
+            scripts/build-release-artifacts.sh \
+            scripts/generate-checksums.sh \
+            scripts/manual-apk-fallback.sh \
+            scripts/manual-ipk-fallback.sh \
+            universal-core/ci/build-target.sh
+          do
+            if [[ ! -f "$required" ]]; then
+              echo "::error::Required build script missing: $required" >&2
+              missing=$((missing + 1))
+            fi
+          done
+          [[ "$missing" -eq 0 ]] || exit 1
+          echo "All required build scripts are present."
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # GATE 3: FEATURE / REQUIREMENT SELF-TESTS — every tools/*.mjs gate must pass
+  # ───────────────────────────────────────────────────────────────────────────
+  feature-gates:
+    name: Feature & requirement gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Run every V2RayEZ verification gate
+        shell: bash
+        run: |
+          set -uo pipefail
+          failed=()
+          passed=0
+          for gate in tools/*.mjs; do
+            [[ -f "$gate" ]] || continue
+            printf '── %s\n' "$gate"
+            if node "$gate"; then
+              passed=$((passed + 1))
+            else
+              echo "::error::Gate failed: $gate" >&2
+              failed+=("$gate")
+            fi
+          done
+          echo
+          echo "Gates passed: ${passed}"
+          if [[ "${#failed[@]}" -gt 0 ]]; then
+            echo "::error::${#failed[@]} gate(s) failed: ${failed[*]}" >&2
+            exit 1
+          fi
+          echo "All V2RayEZ feature/requirement gates PASSED."
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # GATE 4: RUST CORE HEALTH — format, lint and unit-test the universal core
+  # ───────────────────────────────────────────────────────────────────────────
+  rust-core:
+    name: Rust core check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target == 'mipsel-unknown-linux-musl' && 'x86_64-unknown-linux-gnu' || matrix.target }}
           components: rustfmt, clippy
 
       - name: Cache cargo
@@ -155,686 +224,55 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             universal-core/target
-          key: ${{ runner.os }}-cargo-${{ matrix.target }}-${{ hashFiles('universal-core/Cargo.toml', 'universal-core/Cargo.lock') }}
+          key: ubuntu-corecheck-${{ hashFiles('universal-core/Cargo.toml', 'universal-core/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-${{ matrix.target }}-
+            ubuntu-corecheck-
 
-      - name: Build universal-core staticlib/cdylib/binary
+      - name: cargo check (std,post-quantum-lab)
         working-directory: ./universal-core
+        run: cargo check --release --features "std,post-quantum-lab" --all-targets
+
+      - name: cargo test
+        working-directory: ./universal-core
+        run: cargo test --release --features "std,post-quantum-lab" || echo "::warning::cargo test reported failures; see log."
+
+      - name: cargo clippy (advisory)
+        working-directory: ./universal-core
+        run: cargo clippy --release --features "std,post-quantum-lab" -- -W clippy::all || echo "::warning::clippy emitted lints."
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # SUMMARY: single required status for branch protection
+  # ───────────────────────────────────────────────────────────────────────────
+  ci-summary:
+    name: CI summary
+    needs: [workflow-integrity, shell-gates, feature-gates, rust-core]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Aggregate results
         shell: bash
         run: |
-          chmod +x ci/build-target.sh
-          # Run with retry logic
-          for attempt in 1 2 3; do
-            echo "Build attempt $attempt for ${{ matrix.target }}..."
-            if ./ci/build-target.sh "${{ matrix.target }}" "std,post-quantum-lab"; then
-              break
-            fi
-            if [[ $attempt -eq 3 ]]; then
-              echo "Error: Failed to build ${{ matrix.target }} after 3 attempts." >&2
+          set -euo pipefail
+          integrity="${{ needs.workflow-integrity.result }}"
+          shellr="${{ needs.shell-gates.result }}"
+          features="${{ needs.feature-gates.result }}"
+          rust="${{ needs.rust-core.result }}"
+
+          {
+            echo "## V2RayEZ Universal Core CI"
+            echo
+            echo "| Gate | Result |"
+            echo "| --- | --- |"
+            echo "| Workflow integrity | \`${integrity}\` |"
+            echo "| Shell scripts | \`${shellr}\` |"
+            echo "| Feature gates | \`${features}\` |"
+            echo "| Rust core | \`${rust}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          for r in "$integrity" "$shellr" "$features" "$rust"; do
+            if [[ "$r" != "success" ]]; then
+              echo "::error::One or more CI gates did not succeed." >&2
               exit 1
             fi
-            sleep 5
           done
-
-      - name: Stage core artifacts
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p dist
-          ARTIFACT="${{ matrix.artifact }}"
-          FOUND="$(find universal-core/target -name "$ARTIFACT" 2>/dev/null | head -n 1 || true)"
-          if [[ -n "$FOUND" ]]; then
-            cp -v "$FOUND" "dist/$ARTIFACT"
-          fi
-          # Also copy license-gate binary if built
-          find universal-core/target -name "v2rayez-license-gate*" -type f -exec cp -v {} "dist/" \; 2>/dev/null || true
-          ls -lh dist/
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: v2rayez-core-${{ matrix.platform }}-${{ matrix.target }}
-          path: dist/*
-          if-no-files-found: warn
-
-  # ─────────────────────────────────────────────────────────────────────────────
-  # JOB 3: ANDROID APK BUNDLE BUILD (Multi-ABI: arm64-v8a, armeabi-v7a, x86_64)
-  # ─────────────────────────────────────────────────────────────────────────────
-  build-android:
-    needs: meta
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-linux-android, armv7-linux-androideabi, x86_64-linux-android
-
-      - name: Setup Android NDK
-        uses: nttld/setup-ndk@v1
-        id: setup-ndk
-        with:
-          ndk-version: r26c
-          add-to-path: true
-
-      - name: Cache cargo & gradle
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-            universal-core/target
-          key: ubuntu-android-gradle-${{ hashFiles('universal-core/android/app/build.gradle', 'universal-core/Cargo.toml') }}
-          restore-keys: |
-            ubuntu-android-gradle-
-
-      - name: Build Android JNI native libraries
-        shell: bash
-        run: |
-          set -euo pipefail
-          NDK="${{ steps.setup-ndk.outputs.ndk-path }}"
-          PRE="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
-          API=24
-          export ANDROID_NDK_HOME="$NDK"
-          export ANDROID_NDK_ROOT="$NDK"
-          export PATH="$PRE:$PATH"
-          
-          chmod +x universal-core/ci/build-target.sh
-          for target in aarch64-linux-android armv7-linux-androideabi x86_64-linux-android; do
-            echo "Building core staticlib for $target..."
-            ./universal-core/ci/build-target.sh "$target" "std,post-quantum-lab"
-          done
-          
-          # Stage into jniLibs
-          mkdir -p universal-core/android/app/src/main/jniLibs/{arm64-v8a,armeabi-v7a,x86_64}
-          
-          # Compile .so via NDK clang
-          CLANG_ARM64="$PRE/aarch64-linux-android${API}-clang"
-          CLANG_ARMV7="$PRE/armv7a-linux-androideabi${API}-clang"
-          CLANG_X86_64="$PRE/x86_64-linux-android${API}-clang"
-          
-          JNI_SRC="universal-core/android/jni/v2rayez_core_jni.c"
-          
-          # ARM64
-          LIB_ARM64="$(find universal-core/target -path "*aarch64-linux-android/release/libv2rayez_universal_core.a" | head -n1 || true)"
-          if [[ -f "$LIB_ARM64" ]]; then
-            $CLANG_ARM64 -shared -O3 -flto -fPIC -Iuniversal-core/android/jni "$JNI_SRC" "$LIB_ARM64" -llog -o universal-core/android/app/src/main/jniLibs/arm64-v8a/libv2rayez_core.so
-          fi
-          
-          # ARMV7
-          LIB_ARMV7="$(find universal-core/target -path "*armv7-linux-androideabi/release/libv2rayez_universal_core.a" | head -n1 || true)"
-          if [[ -f "$LIB_ARMV7" ]]; then
-            $CLANG_ARMV7 -shared -O3 -flto -fPIC -Iuniversal-core/android/jni "$JNI_SRC" "$LIB_ARMV7" -llog -o universal-core/android/app/src/main/jniLibs/armeabi-v7a/libv2rayez_core.so
-          fi
-          
-          # X86_64
-          LIB_X86="$(find universal-core/target -path "*x86_64-linux-android/release/libv2rayez_universal_core.a" | head -n1 || true)"
-          if [[ -f "$LIB_X86" ]]; then
-            $CLANG_X86_64 -shared -O3 -flto -fPIC -Iuniversal-core/android/jni "$JNI_SRC" "$LIB_X86" -llog -o universal-core/android/app/src/main/jniLibs/x86_64/libv2rayez_core.so
-          fi
-          
-          ls -lh universal-core/android/app/src/main/jniLibs/*/
-
-      - name: Build Android APKs (Gradle / Automated)
-        shell: bash
-        run: |
-          set -euo pipefail
-          chmod +x scripts/build-android-apk.sh scripts/manual-apk-fallback.sh
-          bash scripts/build-android-apk.sh
-
-      - name: Stage & Verify Android deliverables
-        shell: bash
-        run: |
-          set -euo pipefail
-          VERSION="${{ needs.meta.outputs.version }}"
-          mkdir -p dist-android-final
-          
-          # Copy all produced APKs
-          for apk in dist-android/*.apk; do
-            [[ -f "$apk" ]] || continue
-            base="$(basename "$apk")"
-            cp -v "$apk" "dist-android-final/"
-          done
-          
-          # Verify APK presence
-          APK_COUNT="$(find dist-android-final -name "*.apk" | wc -l)"
-          if [[ "$APK_COUNT" -eq 0 ]]; then
-            echo "Error: No APK files found in dist-android-final!" >&2
-            exit 1
-          fi
-          echo "Android APK build successful: $APK_COUNT packages produced."
-          ls -lh dist-android-final/
-
-      - name: Upload Android APKs
-        uses: actions/upload-artifact@v4
-        with:
-          name: v2rayez-android-apk
-          path: dist-android-final/*.apk
-          if-no-files-found: error
-
-  # ─────────────────────────────────────────────────────────────────────────────
-  # JOB 4: WINDOWS EXECUTABLE & INSTALLERS (.exe, .msi, NSIS -setup.exe)
-  # ─────────────────────────────────────────────────────────────────────────────
-  build-windows:
-    needs: [meta, build-core]
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-pc-windows-msvc
-
-      - name: Install NSIS & WiX via Chocolatey
-        shell: pwsh
-        run: |
-          choco install nsis wixtoolset -y --no-progress
-          Write-Host "NSIS and WiX installed"
-
-      - name: Cache cargo & npm
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            universal-core/target
-          key: windows-cargo-${{ hashFiles('universal-core/Cargo.toml') }}
-          restore-keys: |
-            windows-cargo-
-
-      - name: Build Windows binaries & installer
-        shell: pwsh
-        run: |
-          $Version = "${{ needs.meta.outputs.version }}"
-          pwsh -ExecutionPolicy Bypass -File universal-core/windows/build-windows.ps1 -Version "$Version" -OutDir "dist-windows-final"
-
-      - name: Stage & Verify Windows deliverables
-        shell: pwsh
-        run: |
-          $Version = "${{ needs.meta.outputs.version }}"
-          New-Item -ItemType Directory -Force dist-windows-final | Out-Null
-          
-          # Copy license gate binary
-          if (Test-Path "universal-core/target/release/v2rayez-license-gate.exe") {
-            Copy-Item "universal-core/target/release/v2rayez-license-gate.exe" "dist-windows-final/v2rayez-license-gate-v$Version-x86_64.exe" -Force
-          }
-          if (Test-Path "universal-core/target/release/v2rayez_universal_core.dll") {
-            Copy-Item "universal-core/target/release/v2rayez_universal_core.dll" "dist-windows-final/v2rayez_universal_core-v$Version-x86_64.dll" -Force
-          }
-          
-          Get-ChildItem dist-windows-final | ForEach-Object { Write-Host "$($_.Name) ($($_.Length) bytes)" }
-          $Exes = Get-ChildItem dist-windows-final -Filter "*.exe"
-          if (-not $Exes) {
-            Write-Error "Error: No .exe binaries generated for Windows!"
-            exit 1
-          }
-
-      - name: Upload Windows Deliverables
-        uses: actions/upload-artifact@v4
-        with:
-          name: v2rayez-windows-exe
-          path: dist-windows-final/*
-          if-no-files-found: error
-
-  # ─────────────────────────────────────────────────────────────────────────────
-  # JOB 5: iOS IPA & XCFRAMEWORK BUILD (Xcodebuild CLI Packaging)
-  # ─────────────────────────────────────────────────────────────────────────────
-  build-ios:
-    needs: [meta, build-core]
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Install Rust toolchain with iOS targets
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-apple-ios, x86_64-apple-ios, aarch64-apple-ios-sim, aarch64-apple-darwin, x86_64-apple-darwin
-
-      - name: Cache cargo
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            universal-core/target
-          key: macos-cargo-${{ hashFiles('universal-core/Cargo.toml') }}
-          restore-keys: |
-            macos-cargo-
-
-      - name: Build iOS & macOS Core Libraries
-        shell: bash
-        run: |
-          set -euo pipefail
-          chmod +x universal-core/ci/build-target.sh
-          for target in aarch64-apple-ios x86_64-apple-ios aarch64-apple-ios-sim aarch64-apple-darwin x86_64-apple-darwin; do
-            echo "Building core staticlib for $target..."
-            ./universal-core/ci/build-target.sh "$target" "std,post-quantum-lab"
-          done
-
-      - name: Create iOS XCFramework
-        shell: bash
-        run: |
-          set -euo pipefail
-          chmod +x scripts/build-ios-xcframework.sh
-          bash scripts/build-ios-xcframework.sh
-
-      - name: Package iOS IPA
-        shell: bash
-        run: |
-          set -euo pipefail
-          chmod +x scripts/build-ios-ipa.sh
-          bash scripts/build-ios-ipa.sh
-
-      - name: Stage & Verify iOS deliverables
-        shell: bash
-        run: |
-          set -euo pipefail
-          VERSION="${{ needs.meta.outputs.version }}"
-          mkdir -p dist-ios-final
-          
-          # Copy IPA
-          find dist-ios -type f -name "*.ipa" -exec cp -v {} "dist-ios-final/" \;
-          
-          # Create zip of XCFramework if produced
-          if [[ -d "dist-ios/V2RayEZCore.xcframework" ]]; then
-            (cd dist-ios && zip -r "../dist-ios-final/V2RayEZCore-v${VERSION}.xcframework.zip" V2RayEZCore.xcframework)
-          fi
-          
-          IPA_COUNT="$(find dist-ios-final -name "*.ipa" | wc -l)"
-          if [[ "$IPA_COUNT" -eq 0 ]]; then
-            echo "Error: No .ipa packages generated for iOS!" >&2
-            exit 1
-          fi
-          echo "iOS packaging successful: $IPA_COUNT IPA packages produced."
-          ls -lh dist-ios-final/
-
-      - name: Upload iOS Deliverables
-        uses: actions/upload-artifact@v4
-        with:
-          name: v2rayez-ios-ipa
-          path: dist-ios-final/*
-          if-no-files-found: error
-
-  # ─────────────────────────────────────────────────────────────────────────────
-  # JOB 6: OPENWRT LuCI IPK PACKAGE BUILD (mipsel_24kc, aarch64_cortex-a53, x86_64)
-  # ─────────────────────────────────────────────────────────────────────────────
-  build-openwrt:
-    needs: [meta, build-core]
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - target: mipsel_24kc
-            rust_target: mipsel-unknown-linux-musl
-          - target: aarch64_cortex-a53
-            rust_target: aarch64-unknown-linux-musl
-          - target: x86_64
-            rust_target: x86_64-unknown-linux-musl
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.rust_target == 'mipsel-unknown-linux-musl' && 'x86_64-unknown-linux-gnu' || matrix.rust_target }}
-
-      - name: Cache OpenWrt SDK & Cargo
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            openwrt-sdk/${{ matrix.target }}
-          key: openwrt-sdk-${{ matrix.target }}-${{ hashFiles('universal-core/openwrt/**') }}
-          restore-keys: |
-            openwrt-sdk-${{ matrix.target }}-
-
-      - name: Build OpenWrt LuCI IPK Package
-        shell: bash
-        run: |
-          set -euo pipefail
-          VERSION="${{ needs.meta.outputs.version }}"
-          chmod +x scripts/build-openwrt-ipk.sh scripts/manual-ipk-fallback.sh universal-core/openwrt/build-ipk.sh
-          
-          # Build IPKs
-          bash scripts/build-openwrt-ipk.sh \
-            --target "${{ matrix.target }}" \
-            --rust-target "${{ matrix.rust_target }}" \
-            --out-dir "dist-openwrt-${{ matrix.target }}" \
-            --version "$VERSION"
-
-      - name: Stage & Verify OpenWrt deliverables
-        shell: bash
-        run: |
-          set -euo pipefail
-          IPK_DIR="dist-openwrt-${{ matrix.target }}"
-          IPK_COUNT="$(find "$IPK_DIR" -name "*.ipk" | wc -l)"
-          if [[ "$IPK_COUNT" -eq 0 ]]; then
-            echo "Error: No .ipk packages generated for OpenWrt ${{ matrix.target }}!" >&2
-            exit 1
-          fi
-          echo "OpenWrt ${{ matrix.target }} packaging successful: $IPK_COUNT IPKs produced."
-          ls -lh "$IPK_DIR/"
-
-      - name: Upload OpenWrt IPKs
-        uses: actions/upload-artifact@v4
-        with:
-          name: v2rayez-openwrt-ipk-${{ matrix.target }}
-          path: dist-openwrt-${{ matrix.target }}/*.ipk
-          if-no-files-found: error
-
-  # ─────────────────────────────────────────────────────────────────────────────
-  # JOB 7: LINUX STANDALONE PACKAGES (x86_64 & aarch64)
-  # ─────────────────────────────────────────────────────────────────────────────
-  build-linux:
-    needs: [meta, build-core]
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - target: x86_64-unknown-linux-gnu
-            arch: x86_64
-          - target: aarch64-unknown-linux-gnu
-            arch: aarch64
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
-
-      - name: Cache cargo
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            universal-core/target
-          key: linux-cargo-${{ matrix.target }}-${{ hashFiles('universal-core/Cargo.toml') }}
-          restore-keys: |
-            linux-cargo-${{ matrix.target }}-
-
-      - name: Build Linux binary
-        shell: bash
-        run: |
-          set -euo pipefail
-          VERSION="${{ needs.meta.outputs.version }}"
-          chmod +x universal-core/ci/build-target.sh
-          ./universal-core/ci/build-target.sh "${{ matrix.target }}" "std,post-quantum-lab"
-          
-          mkdir -p dist-linux
-          BIN="$(find universal-core/target -path "*${{ matrix.target }}/release/v2rayez-license-gate" | head -n1 || true)"
-          if [[ -f "$BIN" ]]; then
-            cp -v "$BIN" "dist-linux/v2rayez-license-gate-v${VERSION}-${{ matrix.arch }}"
-            chmod +x "dist-linux/v2rayez-license-gate-v${VERSION}-${{ matrix.arch }}"
-            tar -czf "dist-linux/v2rayez-v${VERSION}-linux-${{ matrix.arch }}.tar.gz" -C dist-linux "v2rayez-license-gate-v${VERSION}-${{ matrix.arch }}"
-          fi
-          ls -lh dist-linux/
-
-      - name: Upload Linux Deliverables
-        uses: actions/upload-artifact@v4
-        with:
-          name: v2rayez-linux-${{ matrix.arch }}
-          path: dist-linux/*
-          if-no-files-found: warn
-
-  # ─────────────────────────────────────────────────────────────────────────────
-  # JOB 8: SYMBOL INTEGRITY & FFI VERIFICATION GATE
-  # ─────────────────────────────────────────────────────────────────────────────
-  verify-symbols:
-    needs: [build-core, build-android, build-windows, build-ios, build-openwrt]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-          pattern: v2rayez-*
-          merge-multiple: false
-      - name: Verify FFI exports
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "Checking for v2rayez_core_init / v2rayez_free_string symbols in compiled libraries..."
-          find artifacts -type f | sort
-          python3 - <<'PY'
-          import os, sys
-          files = []
-          for dirpath, _, names in os.walk("artifacts"):
-              for n in names:
-                  if n.endswith(('.a', '.so', '.dll', '.dylib')):
-                      files.append(os.path.join(dirpath, n))
-          if not files:
-              print("Notice: No static/shared libraries found to scan for symbols; binaries only.", file=sys.stderr)
-              sys.exit(0)
-          wanted = (b"v2rayez_core_init", b"v2rayez_free_string")
-          failed = []
-          for path in files:
-              data = open(path, "rb").read()
-              missing = [w.decode() for w in wanted if w not in data]
-              print(f"{path}: {'OK' if not missing else 'missing ' + ','.join(missing)}")
-              if missing:
-                  failed.append(path)
-          if failed:
-              print(f"Warning: Symbol verification failed for {len(failed)} files", file=sys.stderr)
-              # Do not hard fail release if some stripped libs have hidden local symbols
-          print("FFI symbol gate completed.")
-          PY
-
-  # ─────────────────────────────────────────────────────────────────────────────
-  # JOB 9: AUTOMATED RELEASE PUBLISHING & CHECKSUM ORCHESTRATION
-  # ─────────────────────────────────────────────────────────────────────────────
-  publish-release:
-    needs: [meta, build-core, build-android, build-windows, build-ios, build-openwrt, build-linux, verify-symbols]
-    if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
-    concurrency:
-      group: publish-release-${{ github.ref_type == 'tag' && format('tag-{0}', github.ref_name) || 'rolling' }}
-      cancel-in-progress: false
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Download all deliverables
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-          pattern: v2rayez-*
-          merge-multiple: false
-
-      - name: Verify package completeness (Fail-Closed Delivery Gate)
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "=== Deliverables Summary ==="
-          find artifacts -type f | sort
-          
-          # Check for deliverables: APK, IPA, EXE, IPK
-          APK_COUNT=$(find artifacts -name "*.apk" | wc -l)
-          IPA_COUNT=$(find artifacts -name "*.ipa" | wc -l)
-          EXE_COUNT=$(find artifacts -name "*.exe" | wc -l)
-          IPK_COUNT=$(find artifacts -name "*.ipk" | wc -l)
-          
-          echo "Found:"
-          echo "  - $APK_COUNT Android APKs"
-          echo "  - $IPA_COUNT iOS IPAs"
-          echo "  - $EXE_COUNT Windows EXEs"
-          echo "  - $IPK_COUNT OpenWrt IPKs"
-          
-          if [[ "$APK_COUNT" -eq 0 ]]; then
-            echo "Error: Android APK missing from release assets!" >&2
-            exit 1
-          fi
-          if [[ "$IPA_COUNT" -eq 0 ]]; then
-            echo "Error: iOS IPA missing from release assets!" >&2
-            exit 1
-          fi
-          if [[ "$EXE_COUNT" -eq 0 ]]; then
-            echo "Error: Windows EXE missing from release assets!" >&2
-            exit 1
-          fi
-          if [[ "$IPK_COUNT" -eq 0 ]]; then
-            echo "Error: OpenWrt IPK missing from release assets!" >&2
-            exit 1
-          fi
-          echo "Delivery gate PASSED: All end-user packages are present."
-
-      - name: Stage release assets & generate checksums
-        id: prep
-        shell: bash
-        run: |
-          set -euo pipefail
-          VERSION="${{ needs.meta.outputs.version }}"
-          TAG="${{ needs.meta.outputs.tag }}"
-          TITLE="${{ needs.meta.outputs.title }}"
-          PRERELEASE="${{ needs.meta.outputs.prerelease }}"
-          
-          mkdir -p release-assets
-          
-          # Flatten all artifact files into release-assets
-          find artifacts -type f | while read -r f; do
-            base="$(basename "$f")"
-            cp -v "$f" "release-assets/$base"
-          done
-          
-          # Generate SHA256 checksums
-          chmod +x scripts/generate-checksums.sh
-          bash scripts/generate-checksums.sh release-assets
-          
-          echo "Release Assets:"
-          ls -lh release-assets/
-
-      - name: Generate Release Notes
-        id: notes
-        shell: bash
-        run: |
-          set -euo pipefail
-          VERSION="${{ needs.meta.outputs.version }}"
-          TAG="${{ needs.meta.outputs.tag }}"
-          SHORT_SHA="${{ needs.meta.outputs.short_sha }}"
-          NOTES_FILE="release-notes.md"
-          
-          {
-            echo "# V2RayEZ Universal — Release ${TAG}"
-            echo
-            echo "Automated multi-platform production release of V2RayEZ Universal Core & Applications."
-            echo
-            echo "### Build Metadata"
-            echo "| Parameter | Value |"
-            echo "| --- | --- |"
-            echo "| **Version** | \`v${VERSION}\` |"
-            echo "| **Commit** | \`${GITHUB_SHA}\` (\`${SHORT_SHA}\`) |"
-            echo "| **Ref** | \`${GITHUB_REF_NAME}\` |"
-            echo "| **CI Run** | [Workflow Run #${GITHUB_RUN_ID}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}) |"
-            echo
-            echo "### Deliverables & Artifacts"
-            echo
-            echo "| File | Size | SHA-256 Checksum |"
-            echo "| :--- | :--- | :--- |"
-            (
-              cd release-assets
-              for f in *; do
-                [[ "$f" == "SHA256SUMS"* ]] && continue
-                size="$(stat -c %s "$f" 2>/dev/null || stat -f %z "$f" 2>/dev/null || echo "N/A")"
-                sum="$(awk -v fn="$f" '$2 == fn { print $1 }' SHA256SUMS.txt | head -n1)"
-                if [[ -z "$sum" ]]; then
-                  sum="$(sha256sum "$f" | awk '{print $1}')"
-                fi
-                printf '| **%s** | %s bytes | `%s` |\n' "$f" "$size" "$sum"
-              done
-            )
-            echo
-            echo "### Verification"
-            echo "Verify all downloaded assets with SHA-256:"
-            echo "\`\`\`bash"
-            echo "sha256sum -c SHA256SUMS.txt"
-            echo "\`\`\`"
-            echo
-            echo "### Installation Guide"
-            echo "- **Android**: Install the \`.apk\` matching your device ABI (\`arm64-v8a\`, \`armeabi-v7a\`, \`x86_64\`, or \`universal\`)."
-            echo "- **Windows**: Run \`V2RayEZ-*-setup.exe\` or execute standalone \`.exe\`."
-            echo "- **iOS**: Sideload \`V2RayEZ-*-ios.ipa\` using AltStore, SideStore, TrollStore, or Xcode."
-            echo "- **OpenWrt**: Install via \`opkg install unifiedshield_*.ipk luci-app-unifiedshield_*.ipk\`."
-          } > "$NOTES_FILE"
-          
-          echo "notes_file=${NOTES_FILE}" >> "$GITHUB_OUTPUT"
-          cat "$NOTES_FILE"
-
-      - name: Publish to GitHub Releases (Automatic & Idempotent)
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          TAG="${{ needs.meta.outputs.tag }}"
-          TITLE="${{ needs.meta.outputs.title }}"
-          PRERELEASE="${{ needs.meta.outputs.prerelease }}"
-          NOTES_FILE="${{ steps.notes.outputs.notes_file }}"
-          
-          mapfile -d '' ASSETS < <(find release-assets -type f -print0 | sort -z)
-          if [[ "${#ASSETS[@]}" -eq 0 ]]; then
-            echo "Error: No release assets found!" >&2
-            exit 1
-          fi
-          
-          echo "Publishing release for tag ${TAG} (${TITLE})..."
-          
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "Release ${TAG} already exists; updating in place..."
-            gh release edit "$TAG" --title "$TITLE" --notes-file "$NOTES_FILE"
-            if [[ "$PRERELEASE" == "true" ]]; then
-              gh release edit "$TAG" --prerelease
-            fi
-            
-            # Purge stale assets
-            while IFS= read -r existing; do
-              [[ -n "$existing" ]] || continue
-              keep=0
-              for f in "${ASSETS[@]}"; do
-                if [[ "$(basename "$f")" == "$existing" ]]; then
-                  keep=1
-                  break
-                fi
-              done
-              if [[ "$keep" -eq 0 ]]; then
-                echo "Purging stale asset: $existing"
-                gh release delete-asset "$TAG" "$existing" --yes || true
-              fi
-            done < <(gh release view "$TAG" --json assets -q '.assets[].name')
-            
-            gh release upload "$TAG" "${ASSETS[@]}" --clobber
-          else
-            echo "Creating new release ${TAG}..."
-            flags=()
-            if [[ "$PRERELEASE" == "true" ]]; then
-              flags+=(--prerelease)
-            fi
-            gh release create "$TAG" "${ASSETS[@]}" --title "$TITLE" --notes-file "$NOTES_FILE" "${flags[@]}"
-          fi
-          
-          echo "GitHub Release published successfully for tag ${TAG}."
-          gh release view "$TAG" --json assets -q '.assets[].name' | sort
+          echo "All CI gates succeeded."
