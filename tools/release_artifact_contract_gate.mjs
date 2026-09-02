@@ -40,6 +40,14 @@ for (const forbidden of [
   assert.ok(!script.includes(forbidden), `${scriptPath} contains fake artifact marker: ${forbidden}`);
 }
 
+
+const extensionBuilderPath = 'MICAFP/extensions/scripts/build-extension.mjs';
+const extensionBuilder = readFileSync(extensionBuilderPath, 'utf8');
+assert.ok(extensionBuilder.includes('V2RAYEZ_ALLOW_EMPTY_EXTENSION_WASM'), `${extensionBuilderPath}: development-only WASM override missing`);
+assert.ok(extensionBuilder.includes('throw new Error('), `${extensionBuilderPath}: missing fail-closed WASM artifact error`);
+assert.ok(extensionBuilder.includes('release artifact builds do not set'), `${extensionBuilderPath}: WASM placeholder must be documented as non-release only`);
+assert.ok(!/writeFileSync\(wasmDestination, Buffer\.from\([^;]+\);\s*console\.warn\("Real WASM obfuscator artifact is missing/s.test(extensionBuilder), `${extensionBuilderPath}: unconditional empty WASM placeholder found`);
+
 const workflowPath = 'docs/ci/github-workflows/universal-source-gates.yml.sample';
 const workflow = readFileSync(workflowPath, 'utf8');
 assert.ok(workflow.includes('node tools/release_artifact_contract_gate.mjs'), `${workflowPath}: release artifact contract gate missing`);

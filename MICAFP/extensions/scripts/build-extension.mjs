@@ -133,10 +133,19 @@ function stageWasmPlaceholderOrArtifact() {
     return;
   }
 
-  // Valid empty WebAssembly module. Runtime loaders verify required exports and
-  // fall back cleanly when the real Rust/WASM obfuscator is not available.
-  writeFileSync(wasmDestination, Buffer.from([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]));
-  console.warn("Real WASM obfuscator artifact is missing; packaged an empty module so runtime fallback remains deterministic.");
+  if (process.env.V2RAYEZ_ALLOW_EMPTY_EXTENSION_WASM === "1") {
+    // Development-only fallback: a valid empty WebAssembly module lets UI/runtime
+    // fallback paths be exercised locally, but release artifact builds do not set
+    // this variable and therefore fail closed instead of packaging a placeholder.
+    writeFileSync(wasmDestination, Buffer.from([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]));
+    console.warn("Development-only empty WASM fallback packaged because V2RAYEZ_ALLOW_EMPTY_EXTENSION_WASM=1.");
+    return;
+  }
+
+  throw new Error(
+    "Real WASM obfuscator artifact is missing. Build MICAFP/extensions/wasm-obfuscator first, " +
+    "or set V2RAYEZ_ALLOW_EMPTY_EXTENSION_WASM=1 only for local development fallback tests.",
+  );
 }
 
 function assertRequiredFiles() {

@@ -2084,3 +2084,30 @@ Observed:
 - Dashboard AI provider normalization accepts UI-sent `providerType`.
 - Default request-template selection uses `type`/`providerType` before legacy provider/shape fields.
 - Self-test verifies a UI-style Gemini provider generates the Gemini `contents[].parts[].text` request body.
+
+---
+
+## Milestone 43 browser extension WASM artifact fail-closed release guard — 2026-09-02
+
+Commands:
+
+```bash
+node --check MICAFP/extensions/scripts/build-extension.mjs
+node --check tools/release_artifact_contract_gate.mjs
+node tools/release_artifact_contract_gate.mjs
+scripts/build-release-artifacts.sh --check
+node tools/v2rayez_identity_gate.mjs
+git diff --check
+```
+
+Result: PASS.
+
+Observed:
+
+- Browser-extension builds now require a real WASM obfuscator artifact by default.
+- The previous empty WebAssembly fallback is retained only behind `V2RAYEZ_ALLOW_EMPTY_EXTENSION_WASM=1` for local development fallback tests.
+- Universal release artifact checks still pass in contract mode and continue to forbid placeholder release artifacts.
+
+Blocker:
+
+- Real extension WASM generation still needs Rust/WASM tooling on a proper build runner.
