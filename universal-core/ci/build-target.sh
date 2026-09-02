@@ -74,39 +74,26 @@ case "$TARGET" in
     rustc "+$PIN_TC" --print target-list | grep mipsel || true
     WORK="$(mktemp -d)"
     cp -a "$ROOT"/. "$WORK"/
-    rm -f "$WORK/Cargo.lock"
-    python3 "$ROOT/ci/openwrt_pin_manifest.py" "$WORK/Cargo.toml" base64ct
     pushd "$WORK" >/dev/null
-    locked=0
-    for _ in 1 2 3 4 5 6 7 8; do
-      if cargo "+$PIN_TC" generate-lockfile >"$WORK/.lock.out" 2>"$WORK/.lock.err"; then
-        locked=1
-        break
-      fi
-      cat "$WORK/.lock.out" "$WORK/.lock.err" || true
-      crate="$(python3 -c '
-import re, pathlib
-err = pathlib.Path("'"$WORK"'/.lock.err").read_text()
-m = re.search(r"index\.crates\.io-[^/]+/([A-Za-z0-9_-]+)-[0-9][^/]*/Cargo\.toml", err)
-print(m.group(1) if m else "")
-')"
-      if [[ -z "$crate" ]]; then
-        echo "generate-lockfile failed without a parseable crate path"
-        exit 101
-      fi
-      echo "Pinning edition2024 crate $crate to a 2021 manifest"
-      python3 "$ROOT/ci/openwrt_pin_manifest.py" "$WORK/Cargo.toml" "$crate" || exit 101
-    done
-    if [[ "$locked" -ne 1 ]]; then
-      echo "could not produce a 1.77-compatible lockfile"
-      exit 101
-    fi
+    # Modern cargo can fetch edition2024 crates; rustc 1.77 still has MIPS.
+    cargo generate-lockfile
+    cargo vendor vendor
+    python3 "$ROOT/ci/openwrt_vendor_rewrite.py" "$WORK/vendor"
+    mkdir -p .cargo
+    cat > .cargo/config.toml <<'EOF'
+[source.crates-io]
+replace-with = "vendored-sources"
+[source.vendored-sources]
+directory = "vendor"
+EOF
+    rm -f Cargo.lock
+    cargo "+$PIN_TC" generate-lockfile --offline
     TRIPLE=mipsel-unknown-linux-musl
     if ! rustc "+$PIN_TC" --print target-list | grep -qx mipsel-unknown-linux-musl; then
       TRIPLE=mipsel-unknown-linux-gnu
     fi
-    echo "==== OpenWrt $PIN_TC $TRIPLE staticlib ===="
-    RUSTC_BOOTSTRAP=1 cargo "+$PIN_TC" rustc -Zbuild-std=std,panic_abort --lib --release \
+    echo "==== OpenWrt $PIN_TC $TRIPLE staticlib (vendored) ===="
+    RUSTC_BOOTSTRAP=1 cargo "+$PIN_TC" rustc --offline -Zbuild-std=std,panic_abort --lib --release \
       --target "$TRIPLE" --features "$FEATURES" -- --crate-type staticlib
     mkdir -p "$ROOT/target/$TRIPLE/release" "$ROOT/target/mipsel-unknown-linux-musl/release"
     find target -name 'libv2rayez_universal_core.a' -exec cp -v {} "$ROOT/target/$TRIPLE/release/" \;
