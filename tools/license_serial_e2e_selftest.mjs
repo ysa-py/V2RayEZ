@@ -63,8 +63,17 @@ function issueSerial({
   };
 }
 
-function validateSerial(db, { licenseKey, accountId, deviceId, platform = 'android', at = now }) {
+function validateSerial(db, { licenseKey, accountId, deviceId, platform = 'android', at = now, clientLastServerTime = null }) {
   const serverTime = at.toISOString();
+  if (clientLastServerTime) {
+    const clientLastServerTimeMs = Date.parse(clientLastServerTime);
+    if (Number.isNaN(clientLastServerTimeMs)) {
+      return { success: false, result: 'DENIED', reason: 'invalid_client_last_server_time', serverTime };
+    }
+    if (clientLastServerTimeMs > at.getTime() + 5 * 60 * 1000) {
+      return { success: false, result: 'DENIED', reason: 'server_time_rollback_detected', serverTime };
+    }
+  }
   let payload;
   try {
     payload = verifyLicenseKey(licenseKey, publicKeys);
@@ -206,6 +215,20 @@ assert.equal(repeatValidation.activationId, firstValidation.activationId);
 
 assert.equal(validateSerial(db, { licenseKey: issued.licenseKey, accountId: 'acct_alice', deviceId: 'device-b', platform: 'android' }).reason, 'device_limit_exceeded');
 assert.equal(validateSerial(db, { licenseKey: issued.licenseKey, accountId: 'acct_bob', deviceId: 'device-a', platform: 'android' }).reason, 'account_mismatch');
+assert.equal(validateSerial(db, {
+  licenseKey: issued.licenseKey,
+  accountId: 'acct_alice',
+  deviceId: 'device-a',
+  platform: 'android',
+  clientLastServerTime: later(10 * 60 * 1000),
+}).reason, 'server_time_rollback_detected');
+assert.equal(validateSerial(db, {
+  licenseKey: issued.licenseKey,
+  accountId: 'acct_alice',
+  deviceId: 'device-a',
+  platform: 'android',
+  clientLastServerTime: 'not-a-date',
+}).reason, 'invalid_client_last_server_time');
 
 const tamperedParts = issued.licenseKey.split('.');
 const tamperedPayload = JSON.parse(Buffer.from(base64urlDecode(tamperedParts[1])).toString('utf8'));

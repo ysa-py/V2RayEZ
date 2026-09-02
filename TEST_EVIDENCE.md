@@ -1894,3 +1894,38 @@ Observed:
 Scope note:
 
 - This is traceability synchronization only; native builds and real connectivity validation remain pending on proper toolchains/devices.
+
+---
+
+## Milestone 37 dashboard client server-time rollback guard — 2026-09-02
+
+Commands:
+
+```bash
+node --check tools/license_serial_e2e_selftest.mjs
+node tools/license_serial_e2e_selftest.mjs
+node --check tools/license_crypto_selftest.mjs
+node tools/license_crypto_selftest.mjs
+npm install --prefix MICAFP/dashboard
+npm run lint --prefix MICAFP/dashboard
+npm run build --prefix MICAFP/dashboard
+git diff --check
+```
+
+Result: PASS.
+
+Observed:
+
+- Dashboard license validation now rejects invalid `clientLastServerTime` values.
+- Dashboard license validation now rejects client last-seen server times more than five minutes ahead of the validation server with `server_time_rollback_detected`.
+- The signed serial E2E self-test covers both new denial paths.
+- Dashboard lint and production build passed after local dependency installation.
+
+Warnings:
+
+- `npm install --prefix MICAFP/dashboard` reported 9 vulnerabilities (4 moderate, 5 high).
+- The generated untracked `MICAFP/dashboard/package-lock.json` was removed and not committed.
+
+Scope note:
+
+- Real deployed multi-node/API clock-skew testing remains pending on an external environment.

@@ -202,6 +202,19 @@ export async function validateLicense(input: ValidateLicenseInput, requestMeta: 
   let activation: any = null;
 
   try {
+    const clientLastServerTimeRaw = input.clientLastServerTime?.trim();
+    if (clientLastServerTimeRaw) {
+      const clientLastServerTime = new Date(clientLastServerTimeRaw);
+      if (Number.isNaN(clientLastServerTime.getTime())) {
+        reason = 'invalid_client_last_server_time';
+        return { success: false, result, reason, serverTime };
+      }
+      if (clientLastServerTime.getTime() > now.getTime() + 5 * 60 * 1000) {
+        reason = 'server_time_rollback_detected';
+        return { success: false, result, reason, serverTime };
+      }
+    }
+
     parsedPayload = verifyLicenseKey(licenseKey, publicKeys) as LicensePayload;
     const verifiedPayload = parsedPayload;
     licenseRecord = await dashboardDb.license.findUnique({
