@@ -55,9 +55,10 @@ case "$TARGET" in
     ;;
 
   mipsel-unknown-linux-musl|mipsel-unknown-linux-gnu)
-    # OpenWrt: this crate's lockfile is v4 and deps need edition2024, so only
-    # current nightly/stable cargo can build it. Old 1.77/1.78 rustc is skipped
-    # on purpose (icu_collections / lockfile v4). Still emit the staticlib.
+    # OpenWrt mt7621 stays in CI. Current nightly LLVM dropped MIPS; current
+    # Cargo.lock v4 pulls edition2024 crates. rustc 1.77 still lists mipsel.
+    # Build a temp tree with a regenerated lockfile (url 2.4.x, no ICU) so the
+    # same sources compile to libv2rayez_universal_core.a — no feature removal.
     if [[ "$(uname -s)" == "Linux" ]]; then
       apt_install gcc-mipsel-linux-gnu binutils-mipsel-linux-gnu
       export CARGO_TARGET_MIPSEL_UNKNOWN_LINUX_MUSL_LINKER="${CARGO_TARGET_MIPSEL_UNKNOWN_LINUX_MUSL_LINKER:-mipsel-linux-gnu-gcc}"
@@ -66,33 +67,40 @@ case "$TARGET" in
       export CC_mipsel_unknown_linux_gnu="${CC_mipsel_unknown_linux_gnu:-mipsel-linux-gnu-gcc}"
       export AR_mipsel_unknown_linux_musl="${AR_mipsel_unknown_linux_musl:-mipsel-linux-gnu-ar}"
       export AR_mipsel_unknown_linux_gnu="${AR_mipsel_unknown_linux_gnu:-mipsel-linux-gnu-ar}"
-      export RUSTFLAGS="${RUSTFLAGS:-} -C target-feature=+crt-static -C linker=mipsel-linux-gnu-gcc -C ar=mipsel-linux-gnu-ar"
+      export RUSTFLAGS="${RUSTFLAGS:-} -C target-feature=+crt-static -C linker=mipsel-linux-gnu-gcc"
     fi
-    rustup toolchain install nightly --profile minimal --component rust-src
-    echo "nightly mipsel targets:"
-    rustc +nightly --print target-list | grep -E 'mipsel' || true
-    built=0
-    for triple in mipsel-unknown-linux-musl mipsel-unknown-linux-gnu; do
-      if rustc +nightly --print target-list | grep -qx "$triple"; then
-        echo "==== OpenWrt nightly builtin $triple ===="
-        if RUSTC_BOOTSTRAP=1 cargo +nightly rustc -Zbuild-std=std,panic_abort --lib --release \
-          --target "$triple" --features "$FEATURES" -- --crate-type staticlib; then
-          built=1
-          TARGET="$triple"
-          break
-        fi
-      fi
-    done
-    if [[ "$built" -eq 0 ]]; then
-      echo "==== OpenWrt custom JSON spec (-Zjson-target-spec) ===="
-      SPEC="$ROOT/ci/mipsel-unknown-linux-musl.json"
-      RUSTC_BOOTSTRAP=1 cargo +nightly rustc \
-        -Zbuild-std=std,panic_abort \
-        -Zjson-target-spec \
-        --lib --release \
-        --target "$SPEC" --features "$FEATURES" -- --crate-type staticlib
-      TARGET=mipsel-unknown-linux-musl
+    PIN_TC=1.77.0
+    rustup toolchain install "$PIN_TC" --profile minimal --component rust-src
+    rustc "+$PIN_TC" --print target-list | grep mipsel || true
+    WORK="$(mktemp -d)"
+    cp -a "$ROOT"/. "$WORK"/
+    rm -f "$WORK/Cargo.lock"
+    python3 - "$WORK/Cargo.toml" <<'PY'
+from pathlib import Path
+import sys
+p = Path(sys.argv[1])
+t = p.read_text()
+t = t.replace('url = "2"', 'url = "=2.4.1"')
+t = t.replace('uuid = { version = "1", features = ["v4", "serde"] }',
+              'uuid = { version = "=1.11.1", features = ["v4", "serde"] }')
+p.write_text(t)
+print("OpenWrt Cargo.toml pins:\n", p.read_text())
+PY
+    pushd "$WORK" >/dev/null
+    cargo "+$PIN_TC" generate-lockfile
+    TRIPLE=mipsel-unknown-linux-musl
+    if ! rustc "+$PIN_TC" --print target-list | grep -qx mipsel-unknown-linux-musl; then
+      TRIPLE=mipsel-unknown-linux-gnu
     fi
+    echo "==== OpenWrt $PIN_TC $TRIPLE staticlib ===="
+    RUSTC_BOOTSTRAP=1 cargo "+$PIN_TC" rustc -Zbuild-std=std,panic_abort --lib --release \
+      --target "$TRIPLE" --features "$FEATURES" -- --crate-type staticlib
+    mkdir -p "$ROOT/target/$TRIPLE/release" "$ROOT/target/mipsel-unknown-linux-musl/release"
+    find target -name 'libv2rayez_universal_core.a' -exec cp -v {} "$ROOT/target/$TRIPLE/release/" \;
+    cp -v "$ROOT/target/$TRIPLE/release/libv2rayez_universal_core.a" \
+      "$ROOT/target/mipsel-unknown-linux-musl/release/" 2>/dev/null || true
+    popd >/dev/null
+    TARGET="$TRIPLE"
     ;;
 
   aarch64-linux-android|armv7-linux-androideabi|x86_64-linux-android)
