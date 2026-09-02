@@ -2348,3 +2348,14 @@ Observed:
 - `node tools/runtime_license_watchdog_gate.mjs` — passed.
 - `node tools/v2rayez_identity_gate.mjs` — passed.
 - `git diff --check` — passed.
+
+## Milestone 53 — Browser Extension Native Host V2RayEZ Migration
+- `npm run lint --prefix MICAFP/extensions/chrome` — passed.
+- `npm run lint --prefix MICAFP/extensions/firefox` — passed.
+- `V2RAYEZ_ALLOW_EMPTY_EXTENSION_WASM=1 npm run build --prefix MICAFP/extensions/chrome` — passed; sandbox used the development-only empty WASM fallback.
+- `V2RAYEZ_ALLOW_EMPTY_EXTENSION_WASM=1 npm run build --prefix MICAFP/extensions/firefox` — passed; sandbox used the development-only empty WASM fallback.
+- `node tools/runtime_license_watchdog_gate.mjs` — passed with assertions for `com.v2rayez.native` primary host, `com.unifiedshield.native` fallback preservation, options UI wiring, runtime native sync, and no direct legacy-primary `connectNative` call.
+- `node tools/release_artifact_contract_gate.mjs` — passed.
+- `scripts/build-release-artifacts.sh --check` — passed.
+- `node tools/v2rayez_identity_gate.mjs` — passed.
+- `git diff --check` — passed.

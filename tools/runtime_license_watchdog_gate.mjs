@@ -66,6 +66,10 @@ assertContains(extensionProtocol, 'licensePublicKeyPem?: string;');
 assertContains(extensionProtocol, 'licenseDeviceHashSalt?: string;');
 assertContains(extensionProtocol, 'licenseLastServerTime?: string;');
 assertContains(extensionProtocol, 'licenseGraceServerTime?: string;');
+assertContains(extensionProtocol, 'nativeMessagingHost?: string;');
+assertContains(extensionProtocol, 'nativeMessagingHostFallbacks?: string[];');
+assertContains(extensionProtocol, "nativeMessagingHost: 'com.v2rayez.native'");
+assertContains(extensionProtocol, "nativeMessagingHostFallbacks: ['com.unifiedshield.native']");
 
 for (const path of [
   'MICAFP/extensions/chrome/background/service-worker.ts',
@@ -84,6 +88,12 @@ for (const path of [
   assertContains(path, 'hashDeviceId(`browser-extension:${');
   assertContains(path, "license_public_key_missing");
   assertContains(path, 'server_time_rollback_detected');
+  assertContains(path, "config.nativeMessagingHost || 'com.v2rayez.native'");
+  assertContains(path, "config.nativeMessagingHostFallbacks ?? ['com.unifiedshield.native']");
+  assertContains(path, 'syncNativeIntegration();');
+  assertContains(path, `dohResolver.updateConfig(config);
+        syncNativeIntegration();`);
+  assert.ok(!text(path).includes("connectNative('com.unifiedshield.native')"), `${path}: active runtime must not hard-code legacy native host as primary`);
 }
 
 for (const path of [
@@ -96,6 +106,8 @@ for (const path of [
   assertContains(path, 'Must match the dashboard license device salt');
   assertContains(path, 'id="licenseLastServerTime"');
   assertContains(path, 'Last trusted server time');
+  assertContains(path, 'id="nativeMessagingHost"');
+  assertContains(path, 'Default V2RayEZ host is used first');
 }
 
 for (const path of [
@@ -105,7 +117,10 @@ for (const path of [
   assertContains(path, 'licensePublicKeyPem: document.getElementById');
   assertContains(path, 'licenseDeviceHashSalt: document.getElementById');
   assertContains(path, 'licenseLastServerTime: document.getElementById');
+  assertContains(path, 'nativeMessagingHost: document.getElementById');
   assertContains(path, "config.licenseLastServerTime || 'Not validated yet'");
+  assertContains(path, "config.nativeMessagingHost ?? 'com.v2rayez.native'");
+  assertContains(path, "nativeMessagingHostFallbacks: ['com.unifiedshield.native']");
   assertContains(path, 'delete secrets.licenseGraceToken');
   assertContains(path, 'previousConfig.licensePublicKeyPem');
   assertContains(path, 'previousConfig.licenseDeviceHashSalt');

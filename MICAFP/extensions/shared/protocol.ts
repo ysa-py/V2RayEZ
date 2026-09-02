@@ -67,6 +67,8 @@ export interface UnifiedShieldConfig {
   // General
   autoStart: boolean;
   nativeAppEnabled: boolean;
+  nativeMessagingHost?: string;
+  nativeMessagingHostFallbacks?: string[];
   preferredMode: 'auto' | 'socks5' | 'webrtc' | 'direct';
 }
 
@@ -104,6 +106,8 @@ export const DEFAULT_CONFIG: UnifiedShieldConfig = {
   aiApiKeyInstalled: false,
   autoStart: false,
   nativeAppEnabled: false,
+  nativeMessagingHost: 'com.v2rayez.native',
+  nativeMessagingHostFallbacks: ['com.unifiedshield.native'],
   preferredMode: 'auto',
 };
 

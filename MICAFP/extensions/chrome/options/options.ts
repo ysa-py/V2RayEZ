@@ -24,6 +24,7 @@ const els = {
   webrtcRelayEnabled: document.getElementById('webrtcRelayEnabled') as HTMLInputElement,
   autoStart: document.getElementById('autoStart') as HTMLInputElement,
   nativeAppEnabled: document.getElementById('nativeAppEnabled') as HTMLInputElement,
+  nativeMessagingHost: document.getElementById('nativeMessagingHost') as HTMLInputElement,
   preferredMode: document.getElementById('preferredMode') as HTMLSelectElement,
   dohBlocklist: document.getElementById('dohBlocklist') as HTMLTextAreaElement,
   licenseSerial: document.getElementById('licenseSerial') as HTMLTextAreaElement,
@@ -86,6 +87,7 @@ function populateForm(config: UnifiedShieldConfig): void {
   els.webrtcRelayEnabled.checked = config.webrtcRelayEnabled ?? false;
   els.autoStart.checked = config.autoStart;
   els.nativeAppEnabled.checked = config.nativeAppEnabled;
+  els.nativeMessagingHost.value = config.nativeMessagingHost ?? 'com.v2rayez.native';
   els.preferredMode.value = config.preferredMode ?? 'auto';
   els.dohBlocklist.value = (config.dohBlocklist ?? []).join('\n');
   els.licenseSerial.value = config.licenseInstalled ? SECRET_PLACEHOLDER : '';
@@ -145,6 +147,8 @@ function extractConfig(): Partial<UnifiedShieldConfig> {
     webrtcRelayEnabled: els.webrtcRelayEnabled.checked,
     autoStart: els.autoStart.checked,
     nativeAppEnabled: els.nativeAppEnabled.checked,
+    nativeMessagingHost: els.nativeMessagingHost.value.trim() || 'com.v2rayez.native',
+    nativeMessagingHostFallbacks: ['com.unifiedshield.native'],
     preferredMode: els.preferredMode.value as any,
     dohBlocklist,
     licenseValidationUrl: els.licenseValidationUrl.value.trim(),

@@ -87,6 +87,8 @@ async function initModules(): Promise<void> {
     await startProxy();
   }
 
+  syncNativeIntegration();
+
   // Periodic checks
   api.alarms.create('isp-check', { periodInMinutes: 30 });
   api.alarms.onAlarm.addListener(async (alarm) => {
@@ -427,6 +429,7 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         pacGenerator.updateConfig(config);
         proxyManager.updateConfig(config);
         dohResolver.updateConfig(config);
+        syncNativeIntegration();
         if (state.connected) {
           await startProxy();
         }
@@ -474,31 +477,76 @@ api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 /* ────────────────────── native messaging ────────────────────── */
 
 let nativePort: any = null;
+let nativeHostInUse: string | null = null;
+let nativeHandshakeSeen = false;
 
-function connectNative(): void {
+function nativeHostCandidates(): string[] {
+  const primary = (config.nativeMessagingHost || 'com.v2rayez.native').trim() || 'com.v2rayez.native';
+  const fallbacks = config.nativeMessagingHostFallbacks ?? ['com.unifiedshield.native'];
+  return Array.from(new Set([primary, ...fallbacks.map((host: string) => host.trim()).filter(Boolean)]));
+}
+
+function syncNativeIntegration(): void {
+  if (!config.nativeAppEnabled) {
+    if (nativePort) {
+      nativePort.disconnect();
+      nativePort = null;
+    }
+    nativeHostInUse = null;
+    nativeHandshakeSeen = false;
+    return;
+  }
+
+  if (!nativePort) {
+    connectNative(nativeHostCandidates());
+  }
+}
+
+function connectNative(hosts = nativeHostCandidates()): void {
+  const [host, ...remainingHosts] = hosts;
+  if (!host) {
+    console.warn('[V2RayEZ-FF] Native app not available on configured or legacy host IDs');
+    return;
+  }
+
   try {
-    nativePort = api.runtime.connectNative('com.unifiedshield.native');
-    nativePort.onMessage.addListener((msg: any) => {
+    const port = api.runtime.connectNative(host);
+    nativePort = port;
+    nativeHostInUse = host;
+    nativeHandshakeSeen = false;
+    port.onMessage.addListener((msg: any) => {
+      nativeHandshakeSeen = true;
       if (msg.type === 'SOCKS_READY') {
         state.connected = true;
         state.mode = 'socks5';
         saveConfig();
       }
     });
-    nativePort.onDisconnect.addListener(() => {
+    port.onDisconnect.addListener(() => {
+      const shouldTryFallback = !nativeHandshakeSeen && remainingHosts.length > 0;
       nativePort = null;
+      nativeHostInUse = null;
+      nativeHandshakeSeen = false;
+      if (shouldTryFallback && config.nativeAppEnabled) {
+        connectNative(remainingHosts);
+        return;
+      }
       if (state.mode === 'socks5') {
         state.connected = false;
         saveConfig();
       }
     });
-  } catch {
-    console.warn('[V2RayEZ-FF] Native app not available');
+  } catch (err) {
+    nativePort = null;
+    nativeHostInUse = null;
+    nativeHandshakeSeen = false;
+    if (remainingHosts.length > 0) {
+      console.warn('[V2RayEZ-FF] Native host unavailable, trying compatibility fallback:', host, err);
+      connectNative(remainingHosts);
+      return;
+    }
+    console.warn('[V2RayEZ-FF] Native app not available:', err);
   }
-}
-
-if (config.nativeAppEnabled) {
-  connectNative();
 }
 
 console.log('[V2RayEZ-FF] Background script loaded');
