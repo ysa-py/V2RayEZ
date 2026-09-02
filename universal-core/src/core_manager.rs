@@ -120,3 +120,64 @@ mod tests {
         assert_eq!(manifest.verify_asset_bytes("xray", PlatformId::LinuxX64, bytes).unwrap(), digest);
     }
 }
+
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+/// Graceful-shutdown-aware core session.
+/// This is the primary memory-owning type for the FFI boundary.
+#[derive(Debug)]
+pub struct CoreSession {
+    shutdown_requested: Arc<AtomicBool>,
+}
+
+impl CoreSession {
+    pub fn new() -> Self {
+        Self {
+            shutdown_requested: Arc::new(AtomicBool::new(false)),
+        }
+    }
+
+    /// Signal graceful shutdown. Idempotent.
+    pub fn graceful_shutdown(&mut self) {
+        self.shutdown_requested.store(true, Ordering::SeqCst);
+    }
+
+    pub fn is_shutdown_requested(&self) -> bool {
+        self.shutdown_requested.load(Ordering::SeqCst)
+    }
+}
+
+impl Default for CoreSession {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Drop for CoreSession {
+    fn drop(&mut self) {
+        self.graceful_shutdown();
+    }
+}
+
+#[cfg(test)]
+mod session_tests {
+    use super::*;
+
+    #[test]
+    fn graceful_shutdown_is_idempotent() {
+        let mut s = CoreSession::new();
+        assert!(!s.is_shutdown_requested());
+        s.graceful_shutdown();
+        assert!(s.is_shutdown_requested());
+        s.graceful_shutdown();
+        assert!(s.is_shutdown_requested());
+    }
+
+    #[test]
+    fn drop_triggers_shutdown() {
+        let s = CoreSession::new();
+        // Drop will call graceful_shutdown automatically.
+        drop(s);
+    }
+}

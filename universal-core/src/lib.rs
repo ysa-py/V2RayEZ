@@ -8,18 +8,23 @@
 pub mod ai_provider;
 pub mod config;
 pub mod core_manager;
+pub mod ffi;
+pub mod ui_state;
 pub mod license;
 pub mod route_matrix;
 
 pub use ai_provider::{AIProviderConfig, AIProviderProbeResult, AIResponseShape};
 pub use config::{ProxyProfile, ProxyProtocol};
-pub use core_manager::{AddonManifest, AddonPackage, PlatformId};
+pub use core_manager::{AddonManifest, AddonPackage, CoreSession, PlatformId};
 pub use license::{LicenseDecision, LicenseVerifier, VerifiedLicense};
 pub use route_matrix::{
     build_route_matrix, final_abba_candidates, route_matrix_score, select_winner, RouteDnsPreset,
     RouteEdge, RouteFragmentPreset, RouteMatrixCandidate, RouteMatrixPhase, RouteMatrixResult,
     RouteMatrixSettingsOverride, RouteProbeSample, FINAL_ABBA_ORDER, ROUTE_MATRIX_MTU_PRESETS,
 };
+
+pub use ffi::{v2rayez_core_init, v2rayez_core_shutdown, v2rayez_core_status, v2rayez_core_start,
+    v2rayez_core_stop, v2rayez_license_verify, v2rayez_free_string};
 
 use serde::{Deserialize, Serialize};
 

@@ -1,0 +1,20 @@
+#!/bin/sh /etc/rc.common
+# OpenWrt init script for V2RayEZ universal core
+# Uses v2rayez-license-gate binary (built from universal-core) for local
+# Ed25519 verification and UCI persistence — zero logic duplication.
+
+START=99
+STOP=10
+USE_PROCD=1
+
+start_service() {
+    procd_open_instance
+    procd_set_param command /usr/bin/v2rayez-license-gate --mode enforce --license-file /etc/unifiedshield/license.token --public-key-file /etc/unifiedshield/license-public.pem --device-id $(cat /etc/unifiedshield/device.id 2>/dev/null || uci get v2rayez.default.device_id 2>/dev/null || echo "unknown") --platform openwrt --allow-offline-grace
+    procd_set_param respawn
+    procd_close_instance
+}
+
+stop_service() {
+    # Graceful shutdown handled by binary drop / signal handling
+    :
+}
