@@ -261,6 +261,20 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
+          # Emit the failing tests as GitHub annotations. Step summaries and raw
+          # logs are not always retrievable via the API, but annotations always
+          # are - this guarantees the exact assertion is diagnosable.
+          if [[ "$status" -ne 0 ]]; then
+            while IFS= read -r line; do
+              [[ -n "$line" ]] || continue
+              echo "::error::${line}"
+            done < <(grep -E "^thread .* panicked|^ *left:|^ *right:|assertion .* failed|^test .*FAILED|^error(\[|:)" /tmp/cargo-test.log | head -n 40)
+            while IFS= read -r line; do
+              [[ -n "$line" ]] || continue
+              echo "::error::FAILED TEST: ${line}"
+            done < <(sed -n '/^failures:$/,/^test result:/p' /tmp/cargo-test.log | grep -E '^    ' | head -n 40)
+          fi
+
           exit "$status"
 
       - name: Upload cargo test log
