@@ -265,7 +265,7 @@ function denyLicense(reason: string): { allowed: boolean; reason: string } {
 
 function isHardCachedDenial(decision: { allowed: boolean; reason: string }): boolean {
   const reason = decision.reason.split(':')[0];
-  return ['license_expired', 'offline_grace_expired', 'server_time_rollback_detected'].includes(reason);
+  return ['license_expired', 'server_time_rollback_detected'].includes(reason);
 }
 
 function licenseEndpoint(raw: string): string {

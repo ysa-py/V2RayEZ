@@ -2314,3 +2314,24 @@ Observed:
 Blockers:
 
 - Real Chrome/Firefox release packages still need the real Rust/WASM obfuscator and browser runtime/store validation.
+
+---
+
+## Milestone 51 browser extension online recovery from expired grace — 2026-09-02
+
+Commands:
+
+```bash
+npm run lint --prefix MICAFP/extensions/chrome
+npm run lint --prefix MICAFP/extensions/firefox
+node tools/runtime_license_watchdog_gate.mjs
+git diff --check
+```
+
+Result: PASS.
+
+Observed:
+
+- Chrome/Firefox extension preflight hard-denial list now contains only `license_expired` and `server_time_rollback_detected`.
+- `offline_grace_expired` no longer blocks online validation when a validation server is configured, allowing valid users to refresh grace.
+- TypeScript validation passed for both extensions.
