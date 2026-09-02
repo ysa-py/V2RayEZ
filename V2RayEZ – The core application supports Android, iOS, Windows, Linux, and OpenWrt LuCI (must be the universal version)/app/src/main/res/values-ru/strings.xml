@@ -536,6 +536,12 @@
     <string name="logs_export">Экспорт</string>
     <string name="logs_export_chooser">Экспорт журналов</string>
     <string name="logs_clear">Очистить</string>
+    <string name="logs_privacy_cleanup">Экстренная приватность</string>
+    <string name="logs_privacy_cleanup_title">Экстренная очистка приватности</string>
+    <string name="logs_privacy_cleanup_body">Это остановит активный туннель V2RayEZ и удалит локальные журналы, историю трафика, кэш экспортированных журналов и сохранённые данные серийного номера/льготы на этом устройстве. Серверные журналы аудита не удаляются, и это не гарантия анонимности.</string>
+    <string name="logs_privacy_cleanup_confirm">Очистить локальные следы</string>
+    <string name="logs_privacy_cleanup_done">Локальные следы V2RayEZ очищены.</string>
+    <string name="logs_privacy_cleanup_partial">Очистка приватности завершилась с предупреждениями; проверьте оставшиеся журналы.</string>
     <string name="logs_auto_scroll">Автопрокрутка</string>
     <string name="logs_search_hint">Поиск в журнале…</string>
     <string name="logs_empty">Записей пока нет.</string>

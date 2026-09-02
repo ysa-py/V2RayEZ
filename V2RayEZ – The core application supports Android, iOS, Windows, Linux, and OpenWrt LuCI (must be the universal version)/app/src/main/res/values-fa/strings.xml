@@ -518,6 +518,12 @@
     <string name="logs_export">خروجی</string>
     <string name="logs_export_chooser">خروجی گرفتن از گزارش‌ها</string>
     <string name="logs_clear">پاک کردن</string>
+    <string name="logs_privacy_cleanup">حریم اضطراری</string>
+    <string name="logs_privacy_cleanup_title">پاک‌سازی اضطراری حریم خصوصی</string>
+    <string name="logs_privacy_cleanup_body">این کار تونل فعال V2RayEZ را متوقف می‌کند و لاگ‌های محلی، تاریخچه ترافیک، کش خروجی لاگ و داده‌های سریال/مهلت ذخیره‌شده روی همین دستگاه را پاک می‌کند. رکوردهای سمت سرور را حذف نمی‌کند و تضمین ناشناس‌ماندن نیست.</string>
+    <string name="logs_privacy_cleanup_confirm">پاک‌سازی ردپاهای محلی</string>
+    <string name="logs_privacy_cleanup_done">ردپاهای محلی V2RayEZ پاک شد.</string>
+    <string name="logs_privacy_cleanup_partial">پاک‌سازی حریم خصوصی با هشدار تمام شد؛ لاگ‌های باقی‌مانده را بررسی کنید.</string>
     <string name="logs_auto_scroll">پیمایش خودکار</string>
     <string name="logs_search_hint">جستجو در گزارش‌ها…</string>
     <string name="logs_empty">هنوز هیچ رویدادی ثبت نشده است.</string>

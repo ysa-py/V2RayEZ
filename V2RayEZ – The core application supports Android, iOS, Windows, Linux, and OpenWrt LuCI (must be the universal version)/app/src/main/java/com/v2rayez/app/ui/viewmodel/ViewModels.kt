@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import com.v2rayez.app.R
+import com.v2rayez.app.data.mock.MockEmergencyPrivacyCleanup
 import com.v2rayez.app.data.mock.MockLogRepository
 import com.v2rayez.app.data.mock.MockServerRepository
 import com.v2rayez.app.data.mock.MockSettingsRepository
@@ -38,7 +39,9 @@ import com.v2rayez.app.domain.model.ThroughputSample
 import com.v2rayez.app.domain.model.TopServer
 import com.v2rayez.app.domain.model.TrafficPoint
 import com.v2rayez.app.domain.model.UsageSlice
+import com.v2rayez.app.domain.repository.EmergencyPrivacyCleanup
 import com.v2rayez.app.domain.repository.LogRepository
+import com.v2rayez.app.domain.repository.PrivacyCleanupResult
 import com.v2rayez.app.domain.repository.ServerRepository
 import com.v2rayez.app.domain.repository.SettingsRepository
 import com.v2rayez.app.domain.repository.StatsRepository
@@ -1390,18 +1393,28 @@ private fun com.v2rayez.app.data.analytics.BugReportResult.statusToken(): String
     is com.v2rayez.app.data.analytics.BugReportResult.Failed -> "report_failed"
 }
 
+private fun PrivacyCleanupResult.statusToken(): String =
+    if (success) "privacy_cleanup_ok:${cleared.size}" else "privacy_cleanup_partial:${cleared.size}:${errors.size}"
+
 @HiltViewModel
 class LogsViewModel @Inject constructor(
     private val repo: LogRepository,
-    private val bugReports: com.v2rayez.app.data.analytics.BugReporter
+    private val bugReports: com.v2rayez.app.data.analytics.BugReporter,
+    private val privacyCleanup: EmergencyPrivacyCleanup
 ) : ViewModel() {
-    constructor() : this(MockLogRepository(), com.v2rayez.app.data.analytics.MockBugReporter())
+    constructor() : this(
+        MockLogRepository(),
+        com.v2rayez.app.data.analytics.MockBugReporter(),
+        MockEmergencyPrivacyCleanup()
+    )
 
     private val query = MutableStateFlow("")
     private val level = MutableStateFlow<LogLevel?>(null)
     private val autoScroll = MutableStateFlow(true)
     private val _reportStatus = MutableStateFlow<String?>(null)
     val reportStatus: StateFlow<String?> = _reportStatus
+    private val _privacyCleanupStatus = MutableStateFlow<String?>(null)
+    val privacyCleanupStatus: StateFlow<String?> = _privacyCleanupStatus
 
     val state: StateFlow<LogsUiState> =
         combine(
@@ -1424,11 +1437,16 @@ class LogsViewModel @Inject constructor(
     fun setAutoScroll(enabled: Boolean) = autoScroll.update { enabled }
     fun clear() = repo.clear()
     fun clearReportStatus() { _reportStatus.value = null }
+    fun clearPrivacyCleanupStatus() { _privacyCleanupStatus.value = null }
 
     suspend fun export(): java.io.File? = repo.exportToFile()
 
     fun reportBug() = viewModelScope.launch {
         _reportStatus.value = bugReports.send().statusToken()
+    }
+
+    fun emergencyPrivacyCleanup() = viewModelScope.launch {
+        _privacyCleanupStatus.value = privacyCleanup.wipeLocalTraces().statusToken()
     }
 }
 

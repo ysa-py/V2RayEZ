@@ -538,6 +538,12 @@
     <string name="logs_export">Export</string>
     <string name="logs_export_chooser">Export logs</string>
     <string name="logs_clear">Clear</string>
+    <string name="logs_privacy_cleanup">Emergency privacy</string>
+    <string name="logs_privacy_cleanup_title">Emergency privacy cleanup</string>
+    <string name="logs_privacy_cleanup_body">This stops the active V2RayEZ tunnel and clears local logs, traffic history, exported log cache, and stored serial/grace data on this device. It does not delete server-side audit records and it is not an anonymity guarantee.</string>
+    <string name="logs_privacy_cleanup_confirm">Wipe local traces</string>
+    <string name="logs_privacy_cleanup_done">Local V2RayEZ traces were cleared.</string>
+    <string name="logs_privacy_cleanup_partial">Privacy cleanup finished with warnings; check remaining logs.</string>
     <string name="logs_auto_scroll">Auto Scroll</string>
     <string name="logs_search_hint">Search logs…</string>
     <string name="logs_empty">No log entries yet.</string>

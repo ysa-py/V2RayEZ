@@ -145,6 +145,22 @@ interface LogRepository {
     suspend fun exportToFile(): File?
 }
 
+/** Result of the device-owner emergency privacy cleanup flow. */
+data class PrivacyCleanupResult(
+    val cleared: List<String> = emptyList(),
+    val errors: List<String> = emptyList()
+) {
+    val success: Boolean get() = errors.isEmpty()
+}
+
+/**
+ * Defensive, local-only trace cleanup for the device owner. Implementations must not contact
+ * third-party systems and must not claim anonymity; they only clear V2RayEZ-local state.
+ */
+interface EmergencyPrivacyCleanup {
+    suspend fun wipeLocalTraces(): PrivacyCleanupResult
+}
+
 interface SettingsRepository {
     fun settings(): Flow<AppSettings>
     suspend fun current(): AppSettings
