@@ -4,7 +4,7 @@
     "V2RayEZ base": {
       "path": "V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)",
       "exists": true,
-      "file_count": 309,
+      "file_count": 310,
       "top_level_dirs": [
         ".github",
         "app",

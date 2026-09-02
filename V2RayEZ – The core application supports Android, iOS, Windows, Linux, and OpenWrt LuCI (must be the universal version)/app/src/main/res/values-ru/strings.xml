@@ -346,6 +346,13 @@
     <string name="core_manager_sub">Скачать версии и выбрать активный бинарник</string>
     <string name="core_default_title">Прокси-ядро</string>
     <string name="core_default_sub">Движок по умолчанию для серверов «Как в приложении»</string>
+    <string name="core_carrier_profile_title">Автопрофиль оператора</string>
+    <string name="core_carrier_profile_sub">Auto определяет текущего иранского оператора и применяет сохранённый порядок предпочтений MICAFP/UAC, не перезаписывая выбор отдельных серверов.</string>
+    <string name="core_carrier_auto_on">Авто</string>
+    <string name="core_carrier_auto_off">Вручную</string>
+    <string name="core_carrier_detected">Определённый оператор: %1$s</string>
+    <string name="core_carrier_recommended">Рекомендуемый порядок: %1$s</string>
+    <string name="core_named_inventory_title">Именованный список VPN-ядер</string>
     <string name="core_bundled_label">В комплекте: %1$s</string>
     <string name="core_active_version">Активно: %1$s</string>
     <string name="core_version_bundled">В комплекте</string>

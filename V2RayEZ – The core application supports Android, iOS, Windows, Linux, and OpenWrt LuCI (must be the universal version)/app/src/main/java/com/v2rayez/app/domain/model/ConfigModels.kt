@@ -761,6 +761,8 @@ data class AppSettings(
     val aiEngine: AiEngineConfig = AiEngineConfig(),
     /** Global default proxy core when a server uses [CorePreference.SYSTEM]. */
     val defaultCore: ProxyCoreType = ProxyCoreType.XRAY,
+    /** Auto-pick the best runtime family from the current carrier profile when a server follows app default. */
+    val carrierCoreAutoEnabled: Boolean = true,
     /**
      * Selected installed version per core (`bundled` or a downloaded tag like `v1.13.14`).
      * Missing keys mean bundled.

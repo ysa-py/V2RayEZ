@@ -332,6 +332,13 @@
     <string name="core_manager_sub">دانلود نسخه و انتخاب باینری فعال</string>
     <string name="core_default_title">هسته پروکسی</string>
     <string name="core_default_sub">موتور پیش‌فرض برای سرورهای «پیش‌فرض برنامه»</string>
+    <string name="core_carrier_profile_title">پروفایل خودکار اپراتور</string>
+    <string name="core_carrier_profile_sub">حالت Auto اپراتور ایرانی فعلی را تشخیص می‌دهد و ترتیب هسته‌های ترجیحی MICAFP/UAC را بدون بازنویسی انتخاب‌های هر سرور اعمال می‌کند.</string>
+    <string name="core_carrier_auto_on">خودکار</string>
+    <string name="core_carrier_auto_off">دستی</string>
+    <string name="core_carrier_detected">اپراتور تشخیص‌داده‌شده: %1$s</string>
+    <string name="core_carrier_recommended">ترتیب پیشنهادی: %1$s</string>
+    <string name="core_named_inventory_title">فهرست هسته‌های VPN نام‌دار</string>
     <string name="core_bundled_label">همراه: %1$s</string>
     <string name="core_active_version">فعال: %1$s</string>
     <string name="core_version_bundled">همراه</string>

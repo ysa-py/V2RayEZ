@@ -75,16 +75,16 @@ Legend:
 
 | Requirement line | Target home | Status |
 |---|---|---|
-| hiddify-core v4.1.0 | universal core manager/engines | SOURCE-PRESENT |
+| hiddify-core v4.1.0 | universal core manager/engines; Android named inventory | PARTIAL/MERGED inventory M64; native binary proof pending |
 | GFW-knocker/Xray-core v25.8.3-mahsa-r1 | universal core manager/engines | SOURCE-PRESENT |
 | sing-box v1.14.0-alpha.25 | universal core manager/engines | SOURCE-PRESENT; checksum pinning incomplete |
 | AmneziaVPN awg-go 4.8.15.4 | universal core manager/engines | SOURCE-PRESENT |
 | DefyxVPN v5.2.8 | universal core manager/engines | SOURCE-PRESENT |
 | MoaV v1.7.7 | universal core manager/engines | SOURCE-PRESENT |
 | Lantern v7.9.0 | universal core manager/engines | SOURCE-PRESENT |
-| MahsaNG core v26.3.31-mahsa-r1 | universal core manager/engines | SOURCE-PRESENT |
+| MahsaNG core v26.3.31-mahsa-r1 | universal core manager/engines; Android named inventory | PARTIAL/MERGED inventory M64; native binary proof pending |
 | Psiphon GFW-knocker fork | universal core manager/engines | SOURCE-PRESENT / PARTIAL |
-| Carrier-specific preferences for MCI/IranCell/Shatel/Asiatek/Rightel | ISP/carrier profile config | PARTIAL / needs full runtime selector |
+| Carrier-specific preferences for MCI/IranCell/Shatel/Asiatek/Rightel | Android `AndroidCarrierCoreSelector.kt`, Core Manager, future shared core profile config | PARTIAL/MERGED M64 for Android auto selection; cross-platform runtime proof remains |
 | Shadow connections under 2s | dashboard/orchestrator/core manager | SOURCE-PRESENT / not runtime-proven |
 | Security audit suite | dashboard + Android diagnostics | PARTIAL |
 | DPI signatures and dedicated bypass paths | dashboard + configs + Android diagnostics | PARTIAL |
@@ -105,7 +105,7 @@ Legend:
 | UCB multi-armed-bandit selector | MICAFP AI | SOURCE-PRESENT |
 | UAC adaptive connection fingerprint/champion/backup/cooldown | Android `AndroidAdaptiveRouteMemory.kt` | PARTIAL / MERGED M61 |
 | UAC exhaustive Route Speed Test matrix | Android/UAC donor target | SOURCE-PRESENT / not fully merged |
-| UAC Windows per-carrier profile isolation + Auto | Windows/profile selector | SOURCE-PRESENT / not fully merged |
+| UAC Windows per-carrier profile isolation + Auto | Android carrier auto selector now; Windows/profile selector still pending | PARTIAL/MERGED M64 on Android |
 
 ## 2.4 AI provider gateway
 

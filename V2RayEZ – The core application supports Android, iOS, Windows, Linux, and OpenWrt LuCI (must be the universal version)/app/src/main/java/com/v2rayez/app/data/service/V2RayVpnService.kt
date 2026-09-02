@@ -16,6 +16,7 @@ import com.v2rayez.app.MainActivity
 import com.v2rayez.app.R
 import com.v2rayez.app.data.core.ClashConfigBuilder
 import com.v2rayez.app.data.core.ConfigBuilder
+import com.v2rayez.app.data.core.AndroidCarrierCoreSelector
 import com.v2rayez.app.data.core.CoreBinaryManager
 import com.v2rayez.app.data.core.CoreResolver
 import com.v2rayez.app.data.core.GeoAssetManager
@@ -238,6 +239,7 @@ class V2RayVpnService : VpnService() {
     @Inject lateinit var settingsRepository: SettingsRepository
     @Inject lateinit var licenseRepository: AndroidLicenseRepository
     @Inject lateinit var aiProviderGateway: AndroidAiProviderGateway
+    @Inject lateinit var carrierCoreSelector: AndroidCarrierCoreSelector
     @Inject lateinit var adaptiveRoutes: AdaptiveRouteMemory
     @Inject lateinit var logRepository: LogRepository
     @Inject lateinit var sessionDao: SessionDao
@@ -564,6 +566,14 @@ class V2RayVpnService : VpnService() {
                 } else {
                     ProxyCoreType.SING_BOX
                 }
+            }
+            val carrierDecision = carrierCoreSelector.chooseCore(server, settings, coreType)
+            if (carrierDecision.selectedCore != coreType) {
+                log(
+                    LogLevel.INFO,
+                    "Carrier profile ${carrierDecision.reason} selected ${carrierDecision.selectedCore.label} instead of ${coreType.label}"
+                )
+                coreType = carrierDecision.selectedCore
             }
             if (settings.tor.enabled && coreType != ProxyCoreType.XRAY) {
                 log(LogLevel.WARNING, getString(R.string.vpn_tor_forces_xray, coreType.label))

@@ -348,6 +348,13 @@
     <string name="core_manager_sub">Download versions and pick the active binary</string>
     <string name="core_default_title">Proxy core</string>
     <string name="core_default_sub">Default engine for servers set to “App default”</string>
+    <string name="core_carrier_profile_title">Carrier auto profile</string>
+    <string name="core_carrier_profile_sub">Auto mode detects the current Iranian carrier and applies the preserved MICAFP/UAC preferred core order without overwriting per-server choices.</string>
+    <string name="core_carrier_auto_on">Auto</string>
+    <string name="core_carrier_auto_off">Manual</string>
+    <string name="core_carrier_detected">Detected carrier: %1$s</string>
+    <string name="core_carrier_recommended">Recommended order: %1$s</string>
+    <string name="core_named_inventory_title">Named VPN core inventory</string>
     <string name="core_bundled_label">Bundled: %1$s</string>
     <string name="core_active_version">Active: %1$s</string>
     <string name="core_version_bundled">Bundled</string>

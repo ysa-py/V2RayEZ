@@ -7,6 +7,8 @@ import com.v2rayez.app.R
 import com.v2rayez.app.data.analytics.FirebaseTelemetry
 import com.v2rayez.app.data.core.AddonPackId
 import com.v2rayez.app.data.core.AddonPackManager
+import com.v2rayez.app.data.core.AndroidCarrierCoreSelector
+import com.v2rayez.app.data.core.V2RayEzNamedCoreInventory
 import com.v2rayez.app.data.core.CoreBinaryManager
 import com.v2rayez.app.data.core.DownloadQueueItem
 import com.v2rayez.app.data.core.GeoAssetManager
@@ -47,6 +49,7 @@ class CoreManagerViewModel @Inject constructor(
     private val logs: LogRepository,
     private val packInstalls: PackInstallCoordinator,
     private val firebaseTelemetry: FirebaseTelemetry,
+    private val carrierCoreSelector: AndroidCarrierCoreSelector,
     @ApplicationContext private val appContext: Context
 ) : ViewModel() {
 
@@ -94,6 +97,22 @@ class CoreManagerViewModel @Inject constructor(
     fun setDefaultCore(type: ProxyCoreType) = viewModelScope.launch {
         settings.update { it.copy(defaultCore = type) }
     }
+
+    fun setCarrierCoreAuto(enabled: Boolean) = viewModelScope.launch {
+        settings.update { it.copy(carrierCoreAutoEnabled = enabled) }
+    }
+
+    fun detectedCarrierLabel(): String =
+        carrierCoreSelector.detectCarrier()?.label ?: "Auto-detect pending / not Iranian carrier"
+
+    fun carrierPreferenceSummary(): String {
+        val prefs = carrierCoreSelector.currentPreferences()
+        return if (prefs.isEmpty()) "No carrier-specific preference is active. Manual/default core is used."
+        else prefs.joinToString(" → ") { "${it.displayName} ${it.version}" }
+    }
+
+    fun namedCoreInventoryLines(): List<String> =
+        V2RayEzNamedCoreInventory.cores.map { it.inventoryLine }
 
     fun selectVersion(type: ProxyCoreType, version: String) = viewModelScope.launch {
         settings.update {
