@@ -1,0 +1,145 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+def getVersionName = {
+    def cargoToml = file("../../Cargo.toml")
+    if (cargoToml.exists()) {
+        def matcher = cargoToml.text =~ /version\s*=\s*"([^"]+)"/
+        if (matcher.find()) {
+            return matcher.group(1)
+        }
+    }
+    return "2.0.0"
+}
+
+android {
+    namespace 'com.v2rayez.core'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "com.v2rayez.core"
+        minSdk 26
+        targetSdk 35
+        versionCode 200
+        versionName getVersionName()
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        ndk {
+            abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64'
+        }
+    }
+
+    splits {
+        abi {
+            enable true
+            reset()
+            include 'arm64-v8a', 'armeabi-v7a', 'x86_64'
+            universalApk true
+        }
+    }
+
+    signingConfigs {
+        debug {
+            // Debug keystore for CI (auto-generated)
+            storeFile file("${System.getProperty('user.home')}/.android/debug.keystore")
+            storePassword "android"
+            keyAlias "androiddebugkey"
+            keyPassword "android"
+        }
+        release {
+            // If release keystore provided via env, use it; otherwise use debug for CI
+            def keystorePath = System.getenv('ANDROID_KEYSTORE_PATH')
+            def keystorePass = System.getenv('ANDROID_KEYSTORE_PASSWORD')
+            def keyAliasName = System.getenv('ANDROID_KEY_ALIAS')
+            def keyPass = System.getenv('ANDROID_KEY_PASSWORD')
+            if (keystorePath && keystorePass && keyAliasName && keyPass) {
+                storeFile file(keystorePath)
+                storePassword keystorePass
+                keyAlias keyAliasName
+                keyPassword keyPass
+            } else {
+                // Fallback to debug keystore for CI builds (still produces valid APK)
+                storeFile file("${System.getProperty('user.home')}/.android/debug.keystore")
+                storePassword "android"
+                keyAlias "androiddebugkey"
+                keyPassword "android"
+            }
+        }
+    }
+
+    buildTypes {
+        debug {
+            minifyEnabled false
+            signingConfig signingConfigs.debug
+            jniDebuggable true
+        }
+        release {
+            minifyEnabled true
+            shrinkResources false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+
+    packaging {
+        jniLibs {
+            useLegacyPackaging true
+        }
+        resources {
+            excludes += '/META-INF/{AL2.0,LGPL2.1}'
+        }
+    }
+
+    buildFeatures {
+        viewBinding true
+        buildConfig true
+    }
+
+    externalNativeBuild {
+        cmake {
+            path file("../../android/jni/CMakeLists.txt")
+            version "3.22.1"
+        }
+    }
+
+    lint {
+        abortOnError false
+        checkReleaseBuilds false
+    }
+}
+
+dependencies {
+    implementation 'androidx.core:core:1.15.0'
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'com.google.android.material:material:1.12.0'
+    implementation 'androidx.lifecycle:lifecycle-viewmodel:2.9.1'
+    implementation 'androidx.lifecycle:lifecycle-livedata:2.9.1'
+}
+
+def abiVersionCodes = ['armeabi-v7a': 1, 'arm64-v8a': 2, 'x86_64': 3]
+android.applicationVariants.all { variant ->
+    variant.outputs.each { output ->
+        def abi = output.getFilter(com.android.build.OutputFile.ABI)
+        def baseAbiCode = abiVersionCodes.get(abi, 0)
+        if (baseAbiCode != null) {
+            output.versionCodeOverride = android.defaultConfig.versionCode + baseAbiCode
+        }
+        // Rename APK to include ABI
+        def version = android.defaultConfig.versionName
+        if (abi != null) {
+            output.outputFileName = "V2RayEZ-${version}-${abi}.apk"
+        } else {
+            output.outputFileName = "V2RayEZ-${version}-universal.apk"
+        }
+    }
+}
