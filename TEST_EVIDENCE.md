@@ -1966,3 +1966,37 @@ Observed:
 Blockers:
 
 - `cargo`, `rustc`, Gradle/JDK, Xcode, and a target OpenWrt SDK are unavailable locally, so native/mobile/router compile and package generation remain pending on proper runners.
+
+---
+
+## Milestone 39 OpenWrt LuCI visible V2RayEZ identity guard — 2026-09-02
+
+Commands:
+
+```bash
+node --check tools/v2rayez_identity_gate.mjs
+node tools/v2rayez_identity_gate.mjs
+node --check tools/runtime_license_watchdog_gate.mjs
+node tools/runtime_license_watchdog_gate.mjs
+node --check tools/openwrt_packaging_gate.mjs
+node tools/openwrt_packaging_gate.mjs
+MICAFP/scripts/package-openwrt.sh --check
+bash -n MICAFP/openwrt/files/usr/libexec/unifiedshield/license-gate.sh
+npm run lint --prefix MICAFP/dashboard
+npm run build --prefix MICAFP/dashboard
+git diff --check
+```
+
+Result: PASS.
+
+Observed:
+
+- OpenWrt LuCI menu/model/API message surfaces now present V2RayEZ identity.
+- The donor implementation value `aether` is still preserved internally, but its LuCI label is now generic: Adaptive Rust Core.
+- `license_last_server_time` is exposed as `Last trusted server time` in LuCI and included in status JSON.
+- The identity gate now checks OpenWrt LuCI visible strings for forbidden donor GUI/product labels.
+
+Blockers:
+
+- `lua`/`luac` are unavailable locally.
+- Real LuCI rendering and router validation remain pending on an OpenWrt target.

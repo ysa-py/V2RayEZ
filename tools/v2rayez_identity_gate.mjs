@@ -51,11 +51,41 @@ for (const root of runtimeRoots) {
   scan(root);
 }
 
+
+const openwrtLuciUiFiles = [
+  'MICAFP/openwrt/src/luci-app-unifiedshield/Makefile',
+  'MICAFP/openwrt/src/luci-app-unifiedshield/luasrc/controller/unifiedshield.lua',
+  'MICAFP/openwrt/src/luci-app-unifiedshield/luasrc/model/cbi/unifiedshield.lua',
+  'MICAFP/openwrt/src/luci-app-unifiedshield/luasrc/model/cbi/unifiedshield/config.lua',
+  'MICAFP/openwrt/src/luci-app-unifiedshield/luasrc/model/unifiedshield.lua',
+];
+
+const openwrtVisibleForbidden = [
+  /LUCI_TITLE:=.*UnifiedShield/,
+  /_\([^\n]*UnifiedShield/,
+  /translate\([^\n]*UnifiedShield/,
+  /message\s*=.*UnifiedShield/,
+  /translate\([^\n]*Aether/i,
+  /_\([^\n]*Aether/i,
+];
+
+for (const file of openwrtLuciUiFiles) {
+  const lines = readFileSync(file, 'utf8').split(/\r?\n/);
+  lines.forEach((line, index) => {
+    for (const pattern of openwrtVisibleForbidden) {
+      if (pattern.test(line)) {
+        failures += 1;
+        console.error(`${file}:${index + 1}: forbidden OpenWrt visible donor identity: ${line.trim()}`);
+      }
+    }
+  });
+}
+
 if (failures > 0) {
   console.error(`V2RayEZ identity gate failed: ${failures} forbidden legacy GUI reference(s) found.`);
   process.exit(1);
 }
-console.log('v2rayez_identity_gate: PASS — runtime UI surfaces do not expose AetherGUI/Aethon/Firstham identity.');
+console.log('v2rayez_identity_gate: PASS — runtime UI surfaces keep V2RayEZ identity and do not expose forbidden donor GUI identity.');
 
 function scan(path) {
   let stat;

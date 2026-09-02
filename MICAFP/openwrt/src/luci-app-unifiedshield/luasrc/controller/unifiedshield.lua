@@ -14,7 +14,7 @@ function index()
     local page = entry(
         {"admin", "services", "unifiedshield"},
         alias("admin", "services", "unifiedshield", "status"),
-        _("UnifiedShield VPN"),
+        _("V2RayEZ Universal"),
         60
     )
     page.dependent = true
@@ -149,6 +149,7 @@ function action_status()
         license_result = uci_get("unifiedshield", "default", "license_last_result") or "not_validated",
         license_reason = uci_get("unifiedshield", "default", "license_last_reason") or "",
         license_expires_at = uci_get("unifiedshield", "default", "license_expires_at") or "",
+        license_last_server_time = uci_get("unifiedshield", "default", "license_last_server_time") or "",
         ai_enabled = uci_get("unifiedshield", "default", "ai_engine_enabled") == "1",
         ai_selected_provider = uci_get("unifiedshield", "default", "ai_selected_provider") or "local-v2rayez",
         ai_last_result = uci_get("unifiedshield", "default", "ai_last_result") or "not_tested"
@@ -210,7 +211,7 @@ function action_api_start()
     luci.http.prepare_content("application/json")
     luci.http.write_json({
         success = success,
-        message = success and "UnifiedShield started" or "UnifiedShield failed to start",
+        message = success and "V2RayEZ started" or "V2RayEZ failed to start",
         output = output
     })
 end
@@ -222,7 +223,7 @@ function action_api_stop()
     luci.http.prepare_content("application/json")
     luci.http.write_json({
         success = success,
-        message = success and "UnifiedShield stopped" or "UnifiedShield is still running"
+        message = success and "V2RayEZ stopped" or "V2RayEZ is still running"
     })
 end
 
@@ -233,7 +234,7 @@ function action_api_restart()
     luci.http.prepare_content("application/json")
     luci.http.write_json({
         success = success,
-        message = success and "UnifiedShield restarted" or "UnifiedShield restart failed",
+        message = success and "V2RayEZ restarted" or "V2RayEZ restart failed",
         output = output
     })
 end
