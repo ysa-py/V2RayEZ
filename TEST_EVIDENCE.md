@@ -2200,3 +2200,24 @@ Observed:
 - Chrome/Firefox extension preflight still fails closed for hard cached-grace cutoff reasons: `license_expired`, `offline_grace_expired`, and `server_time_rollback_detected`.
 - Recoverable cached-grace problems no longer block a configured online validation attempt.
 - TypeScript validation passed for both extensions.
+
+---
+
+## Milestone 47 browser extension grace token rotation safety — 2026-09-02
+
+Commands:
+
+```bash
+npm run lint --prefix MICAFP/extensions/chrome
+npm run lint --prefix MICAFP/extensions/firefox
+node tools/runtime_license_watchdog_gate.mjs
+git diff --check
+```
+
+Result: PASS.
+
+Observed:
+
+- Chrome/Firefox options save now clears `licenseGraceToken` when a new serial is installed.
+- Chrome/Firefox options save now clears cached grace when account ID, validation URL, or public key PEM changes.
+- TypeScript validation passed for both extensions.

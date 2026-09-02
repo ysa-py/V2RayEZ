@@ -97,6 +97,8 @@ for (const path of [
   assertContains(path, 'licensePublicKeyPem: document.getElementById');
   assertContains(path, 'licenseLastServerTime: document.getElementById');
   assertContains(path, "config.licenseLastServerTime || 'Not validated yet'");
+  assertContains(path, 'delete secrets.licenseGraceToken');
+  assertContains(path, 'previousConfig.licensePublicKeyPem');
 }
 
 const openwrtGate = 'MICAFP/openwrt/files/usr/libexec/unifiedshield/license-gate.sh';

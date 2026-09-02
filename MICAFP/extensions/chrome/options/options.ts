@@ -168,13 +168,26 @@ async function handleSave(): Promise<void> {
   try {
     const partial = extractConfig();
     const current = await chrome.storage.local.get([StorageKeys.CONFIG, StorageKeys.LEGACY_CONFIG, StorageKeys.SECRETS]);
+    const previousConfig = (current[StorageKeys.CONFIG] ?? current[StorageKeys.LEGACY_CONFIG] ?? DEFAULT_CONFIG) as UnifiedShieldConfig;
     const secrets = { ...(current[StorageKeys.SECRETS] ?? {}) } as Record<string, string>;
     const serial = els.licenseSerial.value.trim();
     const apiKey = els.aiApiKey.value.trim();
     if (serial && serial !== SECRET_PLACEHOLDER) {
       secrets.licenseSerial = serial;
+      delete secrets.licenseGraceToken;
       partial.licenseInstalled = true;
+      partial.licenseOfflineGraceUntil = '';
+      partial.licenseGraceServerTime = '';
       els.licenseSerial.value = SECRET_PLACEHOLDER;
+    }
+    if (
+      partial.licenseAccountId !== previousConfig.licenseAccountId ||
+      partial.licensePublicKeyPem !== previousConfig.licensePublicKeyPem ||
+      partial.licenseValidationUrl !== previousConfig.licenseValidationUrl
+    ) {
+      delete secrets.licenseGraceToken;
+      partial.licenseOfflineGraceUntil = '';
+      partial.licenseGraceServerTime = '';
     }
     if (apiKey && apiKey !== SECRET_PLACEHOLDER) {
       secrets.aiApiKey = apiKey;
