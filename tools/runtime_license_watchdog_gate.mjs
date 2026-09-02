@@ -74,6 +74,7 @@ for (const path of [
   assertContains(path, 'config.licenseLastServerTime = serverTime;');
   assertContains(path, 'config.licenseGraceServerTime = String(gracePayload.serverTime || serverTime ||');
   assertContains(path, 'using_signed_grace');
+  assertContains(path, 'isHardCachedDenial(cached)');
   assertContains(path, 'verifyGraceToken(graceToken, publicKeyPem)');
   assertContains(path, "license_public_key_missing");
   assertContains(path, 'server_time_rollback_detected');

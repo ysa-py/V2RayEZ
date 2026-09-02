@@ -118,7 +118,7 @@ async function enforceLicense(): Promise<{ allowed: boolean; reason: string }> {
   if (!serial) return denyLicense('license_secret_missing');
 
   const cached = await cachedLicenseDecision('preflight', secrets.licenseGraceToken);
-  if (cached && !cached.allowed) return cached;
+  if (cached && !cached.allowed && isHardCachedDenial(cached)) return cached;
 
   const accountId = (config.licenseAccountId ?? '').trim();
   const validationUrl = (config.licenseValidationUrl ?? '').trim();
@@ -201,6 +201,11 @@ function denyLicense(reason: string): { allowed: boolean; reason: string } {
   config.licenseLastResult = 'DENIED';
   config.licenseLastReason = reason;
   return { allowed: false, reason };
+}
+
+function isHardCachedDenial(decision: { allowed: boolean; reason: string }): boolean {
+  const reason = decision.reason.split(':')[0];
+  return ['license_expired', 'offline_grace_expired', 'server_time_rollback_detected'].includes(reason);
 }
 
 function licenseEndpoint(raw: string): string {

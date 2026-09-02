@@ -2179,3 +2179,24 @@ Observed:
 Blockers:
 
 - Real extension release packages still require the actual WASM obfuscator artifact and browser-store validation.
+
+---
+
+## Milestone 46 browser extension grace recovery policy — 2026-09-02
+
+Commands:
+
+```bash
+npm run lint --prefix MICAFP/extensions/chrome
+npm run lint --prefix MICAFP/extensions/firefox
+node tools/runtime_license_watchdog_gate.mjs
+git diff --check
+```
+
+Result: PASS.
+
+Observed:
+
+- Chrome/Firefox extension preflight still fails closed for hard cached-grace cutoff reasons: `license_expired`, `offline_grace_expired`, and `server_time_rollback_detected`.
+- Recoverable cached-grace problems no longer block a configured online validation attempt.
+- TypeScript validation passed for both extensions.
