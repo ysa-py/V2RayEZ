@@ -2,49 +2,59 @@ name: Universal-Core Cross-Compilation
 
 on:
   push:
-    branches: [main, arena/01a06260-v2rayez]
+    branches: [main, arena/01a06260-v2rayez, arena/01a062c9-v2rayez]
   pull_request:
     branches: [main]
   workflow_dispatch:
 
 jobs:
   build-core:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
           # Linux native / embedded
           - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
             platform: Linux
             artifact: libv2rayez_universal_core.a
           - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
             platform: Linux
             artifact: libv2rayez_universal_core.a
           - target: mipsel-unknown-linux-musl
+            os: ubuntu-latest
             platform: OpenWrt
             artifact: libv2rayez_universal_core.a
-          # Android
+          # Android (NDK clang)
           - target: aarch64-linux-android
+            os: ubuntu-latest
             platform: Android
             artifact: libv2rayez_universal_core.a
           - target: armv7-linux-androideabi
+            os: ubuntu-latest
             platform: Android
             artifact: libv2rayez_universal_core.a
           - target: x86_64-linux-android
+            os: ubuntu-latest
             platform: Android
             artifact: libv2rayez_universal_core.a
-          # Apple / iOS / macOS
+          # Apple / iOS / macOS — real SDK + linker on macOS runners
           - target: aarch64-apple-darwin
+            os: macos-latest
             platform: Apple
             artifact: libv2rayez_universal_core.a
           - target: x86_64-apple-darwin
+            os: macos-latest
             platform: Apple
             artifact: libv2rayez_universal_core.a
-          # Windows
+          # Windows MSVC on Windows runners
           - target: x86_64-pc-windows-msvc
+            os: windows-latest
             platform: Windows
-            artifact: libv2rayez_universal_core.dll
+            artifact: v2rayez_universal_core.dll
+
     steps:
       - uses: actions/checkout@v4
         with:
@@ -53,7 +63,9 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
+          # mipsel-unknown-linux-musl is not always on rustup stable; the
+          # build script installs nightly+build-std or gnu fallback.
+          targets: ${{ matrix.target == 'mipsel-unknown-linux-musl' && 'x86_64-unknown-linux-gnu' || matrix.target }}
           components: rustfmt, clippy
 
       - name: Cache cargo
@@ -62,26 +74,52 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ matrix.target }}-${{ hashFiles('universal-core/Cargo.toml') }}
+            universal-core/target
+          key: ${{ runner.os }}-cargo-${{ matrix.target }}-${{ hashFiles('universal-core/Cargo.toml', 'universal-core/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-${{ matrix.target }}-
 
+      - name: Install Android NDK
+        if: runner.os == 'Linux' && contains(matrix.target, 'android')
+        uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: r27c
+          add-to-path: false
+
       - name: Build universal-core staticlib/cdylib
         working-directory: ./universal-core
+        env:
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+          ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
+        shell: bash
         run: |
-          cargo build --target ${{ matrix.target }} --release \
-            --features "std,post-quantum-lab"  # LTO + strip from [profile.release]
+          chmod +x ci/build-target.sh
+          ./ci/build-target.sh "${{ matrix.target }}" "std,post-quantum-lab"
 
       - name: Verify stripped artifact (LTO/minimal size)
+        shell: bash
         run: |
-          ls -lh universal-core/target/${{ matrix.target }}/release/${{ matrix.artifact }} || true
+          set -euo pipefail
+          ARTIFACT="${{ matrix.artifact }}"
+          SEARCH="universal-core/target"
+          FOUND="$(find "$SEARCH" -name "$ARTIFACT" 2>/dev/null | head -n 1 || true)"
+          if [[ -z "$FOUND" ]]; then
+            echo "Artifact $ARTIFACT not found under $SEARCH"
+            find "$SEARCH" -maxdepth 4 -type f | head -n 80
+            exit 1
+          fi
+          ls -lh "$FOUND"
+          echo "CORE_ARTIFACT=$FOUND" >> "$GITHUB_ENV"
+          mkdir -p dist
+          cp "$FOUND" "dist/$ARTIFACT"
           echo "Expected minimal binary due to release profile settings"
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: v2rayez-universal-core-${{ matrix.platform }}-${{ matrix.target }}
-          path: universal-core/target/${{ matrix.target }}/release/${{ matrix.artifact }}
+          path: dist/${{ matrix.artifact }}
           if-no-files-found: error
 
   # Validation step: ensure FFI boundary symbols are present in produced artifacts
@@ -95,10 +133,31 @@ jobs:
         with:
           path: artifacts
           pattern: v2rayez-universal-core-*
-          merge-multiple: true
+          merge-multiple: false
       - name: Verify FFI exports
         run: |
+          set -euo pipefail
           echo "Checking for v2rayez_core_init / v2rayez_free_string symbols..."
-          # For Linux staticlib: nm -D or nm should show symbols
-          # Placeholder for symbol-check script once toolchain runs
-          echo "Symbol verification deferred to native build environment (rustc/cargo)."
+          find artifacts -type f | sort
+          python3 - <<'PY'
+          import os, subprocess, sys
+          root = "artifacts"
+          files = []
+          for dirpath, _, names in os.walk(root):
+              for n in names:
+                  files.append(os.path.join(dirpath, n))
+          if not files:
+              print("no artifacts downloaded", file=sys.stderr)
+              sys.exit(1)
+          wanted = (b"v2rayez_core_init", b"v2rayez_free_string")
+          failed = []
+          for path in files:
+              data = open(path, "rb").read()
+              missing = [w.decode() for w in wanted if w not in data]
+              print(f"{path}: {'OK' if not missing else 'missing ' + ','.join(missing)}")
+              if missing:
+                  failed.append(path)
+          if failed:
+              sys.exit(1)
+          print("FFI symbol strings present in all artifacts.")
+          PY
