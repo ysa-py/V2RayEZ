@@ -31,7 +31,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: universal-core-ci-${{ github.ref }}
@@ -274,42 +274,13 @@ jobs:
               echo "::error::FAILED TEST: ${line}"
             done < <(sed -n '/^failures:$/,/^test result:/p' /tmp/cargo-test.log | grep -E '^    ' | head -n 40)
 
-            # Unconditional fallback: the tail of the log always contains the
-            # real cause (compile error, panic, or harness failure).
-            echo "::group::cargo test tail"
-            tail -n 80 /tmp/cargo-test.log
-            echo "::endgroup::"
-            while IFS= read -r line; do
-              [[ -n "$line" ]] || continue
-              echo "::error::${line}"
-            done < <(tail -n 40 /tmp/cargo-test.log)
           fi
 
           exit "$status"
 
-      - name: Report cargo test failure as commit comment
-        if: failure()
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
-        run: |
-          set -uo pipefail
-          # Strip ANSI colour and keep only the harness output (everything from
-          # the first "running N tests"), which is where failures are reported.
-          sed -r 's/\x1b\[[0-9;]*[A-Za-z]//g' /tmp/cargo-test.log 2>/dev/null \
-            | sed -n '/^running [0-9]/,$p' > /tmp/test-results.txt || true
-          if [[ ! -s /tmp/test-results.txt ]]; then
-            sed -r 's/\x1b\[[0-9;]*[A-Za-z]//g' /tmp/cargo-test.log 2>/dev/null | tail -n 150 > /tmp/test-results.txt || true
-          fi
-          body="$(printf '### cargo test failure (run %s)\n\n```\n%s\n```\n' \
-            "$GITHUB_RUN_ID" "$(head -c 60000 /tmp/test-results.txt 2>/dev/null || echo 'no log captured')")"
-          jq -n --arg b "$body" '{body:$b}' > /tmp/comment.json
-          gh api -X POST "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/comments" \
-            --input /tmp/comment.json >/dev/null 2>&1 || true
-
       - name: Upload cargo test log
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: cargo-test-log
           path: /tmp/cargo-test.log

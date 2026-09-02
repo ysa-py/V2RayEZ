@@ -200,7 +200,7 @@ jobs:
           ls -lh dist/
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: v2rayez-core-${{ matrix.platform }}-${{ matrix.target }}
           path: dist/*
@@ -326,7 +326,7 @@ jobs:
           ls -lh dist-android-final/
 
       - name: Upload Android APKs
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: v2rayez-android-apk
           path: dist-android-final/*.apk
@@ -393,7 +393,7 @@ jobs:
           }
 
       - name: Upload Windows Deliverables
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: v2rayez-windows-exe
           path: dist-windows-final/*
@@ -474,7 +474,7 @@ jobs:
           ls -lh dist-ios-final/
 
       - name: Upload iOS Deliverables
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: v2rayez-ios-ipa
           path: dist-ios-final/*
@@ -545,7 +545,7 @@ jobs:
           ls -lh "$IPK_DIR/"
 
       - name: Upload OpenWrt IPKs
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: v2rayez-openwrt-ipk-${{ matrix.target }}
           path: dist-openwrt-${{ matrix.target }}/*.ipk
@@ -604,7 +604,7 @@ jobs:
           ls -lh dist-linux/
 
       - name: Upload Linux Deliverables
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: v2rayez-linux-${{ matrix.arch }}
           path: dist-linux/*
