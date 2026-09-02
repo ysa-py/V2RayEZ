@@ -157,7 +157,7 @@ jobs:
           components: rustfmt, clippy
 
       - name: Cache cargo
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -236,7 +236,7 @@ jobs:
           add-to-path: true
 
       - name: Cache cargo & gradle
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -355,7 +355,7 @@ jobs:
           Write-Host "NSIS and WiX installed"
 
       - name: Cache cargo & npm
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -416,7 +416,7 @@ jobs:
           targets: aarch64-apple-ios, x86_64-apple-ios, aarch64-apple-ios-sim, aarch64-apple-darwin, x86_64-apple-darwin
 
       - name: Cache cargo
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -507,7 +507,7 @@ jobs:
           targets: ${{ matrix.rust_target == 'mipsel-unknown-linux-musl' && 'x86_64-unknown-linux-gnu' || matrix.rust_target }}
 
       - name: Cache OpenWrt SDK & Cargo
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -576,7 +576,7 @@ jobs:
           targets: ${{ matrix.target }}
 
       - name: Cache cargo
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry

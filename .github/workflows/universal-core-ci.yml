@@ -218,7 +218,7 @@ jobs:
           components: rustfmt, clippy
 
       - name: Cache cargo
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -232,9 +232,22 @@ jobs:
         working-directory: ./universal-core
         run: cargo check --release --features "std,post-quantum-lab" --all-targets
 
-      - name: cargo test
+      # NOTE: tests run in the dev profile on purpose. The release profile sets
+      # `panic = "abort"` + `lto = true`, which is correct for shipped artifacts
+      # but breaks/distorts the libtest harness (it needs unwinding to report
+      # assertion failures). Running tests unoptimized is both faster and
+      # actually able to report which assertion failed.
+      - name: cargo test (fail-closed)
         working-directory: ./universal-core
-        run: cargo test --release --features "std,post-quantum-lab" || echo "::warning::cargo test reported failures; see log."
+        run: |
+          set -euo pipefail
+          cargo test --features "std,post-quantum-lab" --all-targets 2>&1 | tee /tmp/cargo-test.log
+          {
+            echo "### Rust core tests"
+            echo '```'
+            grep -E "^test result:|^running |^test .* \.\.\." /tmp/cargo-test.log || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: cargo clippy (advisory)
         working-directory: ./universal-core
