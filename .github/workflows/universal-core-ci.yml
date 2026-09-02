@@ -23,6 +23,7 @@ jobs:
             os: ubuntu-latest
             platform: Linux
             artifact: libv2rayez_universal_core.a
+            ndk: false
           - target: mipsel-unknown-linux-musl
             os: ubuntu-latest
             platform: OpenWrt
@@ -32,14 +33,17 @@ jobs:
             os: ubuntu-latest
             platform: Android
             artifact: libv2rayez_universal_core.a
+            ndk: true
           - target: armv7-linux-androideabi
             os: ubuntu-latest
             platform: Android
             artifact: libv2rayez_universal_core.a
+            ndk: true
           - target: x86_64-linux-android
             os: ubuntu-latest
             platform: Android
             artifact: libv2rayez_universal_core.a
+            ndk: true
           # Apple / iOS / macOS — real SDK + linker on macOS runners
           - target: aarch64-apple-darwin
             os: macos-latest
