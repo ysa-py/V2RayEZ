@@ -2062,3 +2062,25 @@ Observed:
 Scope note:
 
 - Real external AI provider API tests remain pending on live credentials/network availability.
+
+---
+
+## Milestone 42 AI provider type template alignment — 2026-09-02
+
+Commands:
+
+```bash
+node --check MICAFP/dashboard/src/lib/ai-provider-gateway.mjs
+node --check tools/ai_provider_gateway_selftest.mjs
+node tools/ai_provider_gateway_selftest.mjs
+npm run lint --prefix MICAFP/dashboard
+git diff --check
+```
+
+Result: PASS.
+
+Observed:
+
+- Dashboard AI provider normalization accepts UI-sent `providerType`.
+- Default request-template selection uses `type`/`providerType` before legacy provider/shape fields.
+- Self-test verifies a UI-style Gemini provider generates the Gemini `contents[].parts[].text` request body.
