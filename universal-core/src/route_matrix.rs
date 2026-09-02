@@ -241,10 +241,19 @@ pub fn build_route_matrix(edges: &[RouteEdge], max_edges: usize) -> Vec<RouteMat
         .into_iter()
         .take(max_edges.max(1))
         .flat_map(|edge| {
-            RouteDnsPreset::ALL.into_iter().flat_map(move |dns| {
-                RouteFragmentPreset::ALL.into_iter().flat_map(move |fragment| {
-                    ROUTE_MATRIX_MTU_PRESETS.into_iter().map(move |mtu| RouteMatrixCandidate::new(edge.clone(), dns, fragment, mtu))
-                })
+            RouteDnsPreset::ALL.into_iter().flat_map({
+                let edge = edge.clone();
+                move |dns| {
+                    RouteFragmentPreset::ALL.into_iter().flat_map({
+                        let edge = edge.clone();
+                        move |fragment| {
+                            ROUTE_MATRIX_MTU_PRESETS.into_iter().map({
+                                let edge = edge.clone();
+                                move |mtu| RouteMatrixCandidate::new(edge.clone(), dns, fragment, mtu)
+                            })
+                        }
+                    })
+                }
             })
         })
         .collect()
