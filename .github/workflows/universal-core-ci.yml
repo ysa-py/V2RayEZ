@@ -273,6 +273,16 @@ jobs:
               [[ -n "$line" ]] || continue
               echo "::error::FAILED TEST: ${line}"
             done < <(sed -n '/^failures:$/,/^test result:/p' /tmp/cargo-test.log | grep -E '^    ' | head -n 40)
+
+            # Unconditional fallback: the tail of the log always contains the
+            # real cause (compile error, panic, or harness failure).
+            echo "::group::cargo test tail"
+            tail -n 80 /tmp/cargo-test.log
+            echo "::endgroup::"
+            while IFS= read -r line; do
+              [[ -n "$line" ]] || continue
+              echo "::error::${line}"
+            done < <(tail -n 40 /tmp/cargo-test.log)
           fi
 
           exit "$status"
