@@ -1,0 +1,48 @@
+#!/usr/bin/env node
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+
+const scriptPath = 'scripts/build-release-artifacts.sh';
+const script = readFileSync(scriptPath, 'utf8');
+
+for (const required of [
+  'BASE_ANDROID_DIR=',
+  'GUI_DIR=',
+  'IOS_DIR=',
+  'OPENWRT_PACKAGE_SCRIPT=',
+  'ARTIFACT_DIR=',
+  '--target all|android|ios|windows|linux|openwrt|dashboard|extensions',
+  'release_artifact_contract: PASS',
+  'never creates placeholder APK/IPA/EXE/IPK files',
+  './gradlew :app:assembleRelease',
+  'copy_matches "$ARTIFACT_DIR/android"',
+  '*.apk',
+  'xcodebuild -exportArchive',
+  '*.ipa',
+  'npm run build:windows',
+  '*.exe',
+  'npm run build:linux',
+  '*.deb',
+  '*.rpm',
+  '*.AppImage',
+  '"$OPENWRT_PACKAGE_SCRIPT" --out-dir "$ARTIFACT_DIR/openwrt"',
+  '*unifiedshield*.ipk',
+  'SHA256SUMS.txt',
+]) {
+  assert.ok(script.includes(required), `${scriptPath} missing ${required}`);
+}
+
+for (const forbidden of [
+  'touch "$ARTIFACT_DIR',
+  'echo "placeholder"',
+  'FAKE_',
+]) {
+  assert.ok(!script.includes(forbidden), `${scriptPath} contains fake artifact marker: ${forbidden}`);
+}
+
+const workflowPath = 'docs/ci/github-workflows/universal-source-gates.yml.sample';
+const workflow = readFileSync(workflowPath, 'utf8');
+assert.ok(workflow.includes('node tools/release_artifact_contract_gate.mjs'), `${workflowPath}: release artifact contract gate missing`);
+assert.ok(workflow.includes('scripts/build-release-artifacts.sh --check'), `${workflowPath}: release artifact --check missing`);
+
+console.log('release_artifact_contract_gate: PASS');

@@ -1814,3 +1814,43 @@ Observed:
 Blocked locally:
 
 - Real `.ipk` generation remains blocked because no target-specific OpenWrt SDK/toolchain is installed in the sandbox.
+
+---
+
+## Milestone 35 universal release artifact build contract — 2026-09-02
+
+Commands:
+
+```bash
+bash -n scripts/build-release-artifacts.sh
+scripts/build-release-artifacts.sh --check
+node --check tools/release_artifact_contract_gate.mjs
+node tools/release_artifact_contract_gate.mjs
+node --check tools/openwrt_packaging_gate.mjs
+node tools/openwrt_packaging_gate.mjs
+MICAFP/scripts/package-openwrt.sh --check
+node --check tools/android_ai_settings_migration_gate.mjs
+node tools/android_ai_settings_migration_gate.mjs
+node --check tools/runtime_license_watchdog_gate.mjs
+node tools/runtime_license_watchdog_gate.mjs
+node --check tools/license_serial_e2e_selftest.mjs
+node tools/license_serial_e2e_selftest.mjs
+node --check tools/v2rayez_identity_gate.mjs
+node tools/v2rayez_identity_gate.mjs
+npm test --prefix V2RayEZ-GUI
+git diff --check
+```
+
+Result: PASS.
+
+Observed:
+
+- `scripts/build-release-artifacts.sh --check` validates the artifact build contract without requiring toolchains.
+- The contract covers Android `.apk`, iOS `.ipa`, Windows `.exe`, Linux `.deb`/`.rpm`/`.AppImage`, OpenWrt `.ipk`, dashboard tarball, browser-extension tarballs, and `SHA256SUMS.txt`.
+- The script uses real platform build commands and fails if required toolchains/outputs are missing; no placeholder artifact generation is permitted.
+- New release artifact contract gate passed and is referenced by the CI sample.
+- V2RayEZ GUI frontend tests passed 14/14.
+
+Blocked locally:
+
+- Actual artifact generation is still blocked by missing Java/Android SDK, Rust/Tauri, Xcode/signing, Windows builder, OpenWrt SDK, and real target devices.

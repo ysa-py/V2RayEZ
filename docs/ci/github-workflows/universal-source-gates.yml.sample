@@ -96,6 +96,11 @@ jobs:
           node tools/openwrt_packaging_gate.mjs
           MICAFP/scripts/package-openwrt.sh --check
 
+      - name: Assert release artifact build contract
+        run: |
+          node tools/release_artifact_contract_gate.mjs
+          scripts/build-release-artifacts.sh --check
+
       - name: Run shared license and AI Provider Gateway self-tests
         run: |
           node tools/license_crypto_selftest.mjs
