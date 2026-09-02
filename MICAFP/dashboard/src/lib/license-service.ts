@@ -400,6 +400,41 @@ export async function revokeLicense(input: { licenseId?: string; licenseKey?: st
   });
 }
 
+export async function revokeDeviceActivation(input: { activationId?: string; licenseId?: string; deviceIdHash?: string; reason?: string }) {
+  const dashboardDb = db as DashboardDb;
+  const reason = input.reason || 'operator_device_revoke';
+  const now = new Date();
+  const activation = input.activationId
+    ? await dashboardDb.deviceActivation.findUnique({ where: { id: input.activationId }, include: { license: true } })
+    : input.licenseId && input.deviceIdHash
+      ? await dashboardDb.deviceActivation.findFirst({
+          where: { licenseId: input.licenseId, deviceIdHash: input.deviceIdHash },
+          include: { license: true },
+        })
+      : null;
+
+  if (!activation) {
+    throw new Error('activationId or licenseId+deviceIdHash is required and must match an activation');
+  }
+
+  const metadata = activation.metadata && typeof activation.metadata === 'object'
+    ? { ...activation.metadata }
+    : {};
+
+  return dashboardDb.deviceActivation.update({
+    where: { id: activation.id },
+    data: {
+      revokedAt: now,
+      metadata: {
+        ...metadata,
+        revokedReason: reason,
+        revokedAt: now.toISOString(),
+      },
+    },
+    include: { license: true },
+  });
+}
+
 export async function renewLicense(input: { licenseId?: string; licenseKey?: string; expiresAt: string; metadata?: Record<string, unknown> }) {
   const dashboardDb = db as DashboardDb;
   const { privateKeyPem, keyId } = signingConfig();

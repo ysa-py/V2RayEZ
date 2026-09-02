@@ -2462,3 +2462,16 @@ Observed:
 - `bash 'V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/scripts/gates/string-key-parity.sh'` — passed with EN/FA/RU full string-key parity.
 - `git diff --check` — passed.
 - `bash ./gradlew :app:compileDebugKotlin` — blocked by sandbox Java/JDK absence: `JAVA_HOME is not set and no 'java' command could be found in your PATH.`
+
+## Milestone 62 — Per-Device License Revocation
+- `node tools/license_device_revoke_gate.mjs` — passed.
+- `node tools/android_license_admin_gate.mjs` — passed.
+- `node tools/android_license_revocation_poll_gate.mjs` — passed.
+- `node tools/runtime_license_watchdog_gate.mjs` — passed.
+- `node tools/release_artifact_contract_gate.mjs` — passed.
+- `scripts/build-release-artifacts.sh --check` — passed.
+- `npm run lint --prefix MICAFP/dashboard` — passed.
+- `npm run build --prefix MICAFP/dashboard` — passed; route manifest includes `/api/licenses/devices/revoke`.
+- License Admin XML parse for manifest/styles — passed.
+- `git diff --check` — passed.
+- `bash ./gradlew :license-admin:assembleDebug` — blocked by sandbox Java/JDK absence: `JAVA_HOME is not set and no 'java' command could be found in your PATH.`

@@ -63,6 +63,8 @@ public final class MainActivity extends Activity {
     private EditText offlineGraceHours;
     private EditText featuresCsv;
     private EditText licenseId;
+    private EditText activationId;
+    private EditText deviceIdHash;
     private EditText licenseKey;
     private EditText revokeReason;
     private TextView output;
@@ -122,13 +124,17 @@ public final class MainActivity extends Activity {
         root.addView(row(button("Issue serial", this::issue), button("Renew", this::renew)));
 
         root.addView(section("Instant revoke / client activation"));
+        activationId = field("Activation ID for device revoke", "act_...", InputType.TYPE_CLASS_TEXT);
+        deviceIdHash = field("Device hash for device revoke", "optional with License ID", InputType.TYPE_CLASS_TEXT);
         licenseKey = field("License key / serial", "eyJhbGciOiJFZERTQSIs...", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
         licenseKey.setMinLines(3);
         revokeReason = field("Revoke reason", "operator_revoke", InputType.TYPE_CLASS_TEXT);
+        root.addView(activationId);
+        root.addView(deviceIdHash);
         root.addView(licenseKey);
         root.addView(revokeReason);
-        root.addView(row(button("Revoke now", this::revoke), button("Validate serial", this::validateSerial)));
-        root.addView(button("Copy result", this::copyResult));
+        root.addView(row(button("Revoke license now", this::revoke), button("Revoke device now", this::revokeDevice)));
+        root.addView(row(button("Validate serial", this::validateSerial), button("Copy result", this::copyResult)));
 
         TextView note = text(
             "Hard cutoff note: revocation is immediate on the dashboard and on clients that can reach validation. Offline clients cannot receive an instant revoke packet; they stop at the next server validation or signed grace expiry.",
@@ -212,6 +218,8 @@ public final class MainActivity extends Activity {
         maxDevices.setText(prefs.getString("maxDevices", "1"));
         offlineGraceHours.setText(prefs.getString("offlineGraceHours", "72"));
         featuresCsv.setText(prefs.getString("featuresCsv", "vpn,dns-tunnel,ai-gateway"));
+        activationId.setText(prefs.getString("activationId", ""));
+        deviceIdHash.setText(prefs.getString("deviceIdHash", ""));
     }
 
     private void savePrefs() {
@@ -222,6 +230,8 @@ public final class MainActivity extends Activity {
             .putString("maxDevices", value(maxDevices))
             .putString("offlineGraceHours", value(offlineGraceHours))
             .putString("featuresCsv", value(featuresCsv))
+            .putString("activationId", value(activationId))
+            .putString("deviceIdHash", value(deviceIdHash))
             .apply();
         toast("Saved");
     }
@@ -260,6 +270,16 @@ public final class MainActivity extends Activity {
             .put("licenseKey", value(licenseKey))
             .put("reason", value(revokeReason).isEmpty() ? "operator_revoke" : value(revokeReason));
         call("POST", "/api/licenses/revoke", body, true, null);
+    }
+
+    private void revokeDevice() {
+        savePrefs();
+        JSONObject body = new JSONObject()
+            .put("activationId", value(activationId))
+            .put("licenseId", value(licenseId))
+            .put("deviceIdHash", value(deviceIdHash))
+            .put("reason", value(revokeReason).isEmpty() ? "operator_device_revoke" : value(revokeReason));
+        call("POST", "/api/licenses/devices/revoke", body, true, null);
     }
 
     private void validateSerial() {
@@ -311,10 +331,12 @@ public final class MainActivity extends Activity {
                     throw new IllegalStateException("Admin token is required for this endpoint");
                 }
                 if (!token.isEmpty()) conn.setRequestProperty("Authorization", "Bearer " + token);
-                conn.setDoOutput(true);
-                byte[] bytes = body.toString().getBytes(StandardCharsets.UTF_8);
-                try (OutputStream out = conn.getOutputStream()) {
-                    out.write(bytes);
+                if (!"GET".equals(method)) {
+                    conn.setDoOutput(true);
+                    byte[] bytes = body.toString().getBytes(StandardCharsets.UTF_8);
+                    try (OutputStream out = conn.getOutputStream()) {
+                        out.write(bytes);
+                    }
                 }
                 int code = conn.getResponseCode();
                 String response = readBody(conn, code);
@@ -341,14 +363,14 @@ public final class MainActivity extends Activity {
     }
 
     private String readBody(HttpURLConnection conn, int code) throws Exception {
-        BufferedReader reader = new BufferedReader(new InputStreamReader(
-            code >= 200 && code < 400 ? conn.getInputStream() : conn.getErrorStream(),
-            StandardCharsets.UTF_8
-        ));
-        StringBuilder sb = new StringBuilder();
-        String line;
-        while ((line = reader.readLine()) != null) sb.append(line).append('\n');
-        return sb.toString().trim();
+        InputStream stream = code >= 200 && code < 400 ? conn.getInputStream() : conn.getErrorStream();
+        if (stream == null) return "";
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+            StringBuilder sb = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) sb.append(line).append('\n');
+            return sb.toString().trim();
+        }
     }
 
     private void copyResult() {

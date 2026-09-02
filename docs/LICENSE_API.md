@@ -168,6 +168,37 @@ Side effects:
 
 ---
 
+
+## `POST /api/licenses/devices/revoke`
+
+Revokes one activated device without revoking the whole license. The next online validation from that device returns `device_revoked`; an active VPN client cuts off on its next configured license validation/watchdog poll.
+
+**Auth:** `ADMIN` / `OPERATOR` session or `LICENSE_ADMIN_TOKEN` bearer.
+
+Request by activation id:
+
+```json
+{ "activationId": "activation_id", "reason": "device_lost" }
+```
+
+Request by license id + device hash:
+
+```json
+{ "licenseId": "lic_id", "deviceIdHash": "base64url_sha256", "reason": "device_lost" }
+```
+
+Response:
+
+```json
+{ "success": true, "activation": { "id": "...", "revokedAt": "...", "licenseId": "..." } }
+```
+
+Behavior:
+
+- Updates `DeviceActivation.revokedAt` and stores a local metadata reason.
+- Writes `AuditLog` action `license.device.revoke`.
+- Does not mint a new serial and does not require the Android admin app to hold signing keys.
+
 ## `POST /api/licenses/renew`
 
 Extends/renews a license. Because expiry is part of the signed payload, renewal returns a new signed license key for the same license id.
@@ -331,6 +362,7 @@ Purpose:
 - Issues per-user signed serials through `POST /api/licenses/issue`.
 - Renews per-user expiry through `POST /api/licenses/renew` and returns the newly signed serial.
 - Revokes/deletes access through `POST /api/licenses/revoke` for immediate dashboard-side cutoff.
+- Revokes a single activated device through `POST /api/licenses/devices/revoke` without revoking the whole license.
 - Validates a serial through `POST /api/licenses/validate` for operator checks.
 - Keeps the signing private key exclusively on the dashboard/server; the Android admin app never mints or signs a license locally.
 - Keeps the admin bearer/session token in memory only; it is not saved in SharedPreferences.

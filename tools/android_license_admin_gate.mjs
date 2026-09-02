@@ -31,6 +31,7 @@ for (const endpoint of [
   '/api/licenses/renew',
   '/api/licenses/revoke',
   '/api/licenses/validate',
+  '/api/licenses/devices/revoke',
 ]) {
   assertContains(activity, endpoint);
 }
@@ -39,7 +40,11 @@ assertContains(activity, 'JSONObject body = new JSONObject()');
 assertContains(activity, '.put("expiresAt", value(expiresAt))');
 assertContains(activity, '.put("maxDevices", parseInt(value(maxDevices), 1))');
 assertContains(activity, '.put("offlineGraceHours", parseInt(value(offlineGraceHours), 72))');
-assertContains(activity, 'button("Revoke now", this::revoke)');
+assertContains(activity, 'button("Revoke license now", this::revoke)');
+assertContains(activity, 'button("Revoke device now", this::revokeDevice)');
+assertContains(activity, '.put("activationId", value(activationId))');
+assertContains(activity, '.put("deviceIdHash", value(deviceIdHash))');
+assertContains(activity, 'if (stream == null) return "";');
 assertContains(activity, 'Use HTTPS dashboard URL for admin operations');
 assertContains(activity, 'Admin token is intentionally session-only and is not saved on device.');
 assertContains(activity, 'revocation is immediate on the dashboard');
