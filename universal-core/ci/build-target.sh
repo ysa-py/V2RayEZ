@@ -75,19 +75,32 @@ case "$TARGET" in
     WORK="$(mktemp -d)"
     cp -a "$ROOT"/. "$WORK"/
     rm -f "$WORK/Cargo.lock"
-    python3 - "$WORK/Cargo.toml" <<'PY'
-from pathlib import Path
-import sys
-p = Path(sys.argv[1])
-t = p.read_text()
-t = t.replace('url = "2"', 'url = "=2.4.1"')
-t = t.replace('uuid = { version = "1", features = ["v4", "serde"] }',
-              'uuid = { version = "=1.11.1", features = ["v4", "serde"] }')
-p.write_text(t)
-print("OpenWrt Cargo.toml pins:\n", p.read_text())
-PY
+    python3 "$ROOT/ci/openwrt_pin_manifest.py" "$WORK/Cargo.toml" base64ct
     pushd "$WORK" >/dev/null
-    cargo "+$PIN_TC" generate-lockfile
+    locked=0
+    for _ in 1 2 3 4 5 6 7 8; do
+      if cargo "+$PIN_TC" generate-lockfile >"$WORK/.lock.out" 2>"$WORK/.lock.err"; then
+        locked=1
+        break
+      fi
+      cat "$WORK/.lock.out" "$WORK/.lock.err" || true
+      crate="$(python3 -c '
+import re, pathlib
+err = pathlib.Path("'"$WORK"'/.lock.err").read_text()
+m = re.search(r"index\.crates\.io-[^/]+/([A-Za-z0-9_-]+)-[0-9][^/]*/Cargo\.toml", err)
+print(m.group(1) if m else "")
+')"
+      if [[ -z "$crate" ]]; then
+        echo "generate-lockfile failed without a parseable crate path"
+        exit 101
+      fi
+      echo "Pinning edition2024 crate $crate to a 2021 manifest"
+      python3 "$ROOT/ci/openwrt_pin_manifest.py" "$WORK/Cargo.toml" "$crate" || exit 101
+    done
+    if [[ "$locked" -ne 1 ]]; then
+      echo "could not produce a 1.77-compatible lockfile"
+      exit 101
+    fi
     TRIPLE=mipsel-unknown-linux-musl
     if ! rustc "+$PIN_TC" --print target-list | grep -qx mipsel-unknown-linux-musl; then
       TRIPLE=mipsel-unknown-linux-gnu
