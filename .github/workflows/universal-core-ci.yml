@@ -240,14 +240,28 @@ jobs:
       - name: cargo test (fail-closed)
         working-directory: ./universal-core
         run: |
-          set -euo pipefail
-          cargo test --features "std,post-quantum-lab" --all-targets 2>&1 | tee /tmp/cargo-test.log
+          set -uo pipefail
+          cargo test --features "std,post-quantum-lab" --all-targets --no-fail-fast 2>&1 | tee /tmp/cargo-test.log
+          status="${PIPESTATUS[0]}"
+
+          # Always publish the outcome, especially on failure, so the exact
+          # failing assertion is visible without downloading raw job logs.
           {
             echo "### Rust core tests"
+            echo
             echo '```'
-            grep -E "^test result:|^running |^test .* \.\.\." /tmp/cargo-test.log || true
+            grep -E "^test result:|^running [0-9]|^---- .* stdout ----|^thread .* panicked|^ *left:|^ *right:|assertion|^test .* FAILED|^error(\[|:)" /tmp/cargo-test.log | head -n 200 || true
             echo '```'
+            echo
+            if [[ "$status" -ne 0 ]]; then
+              echo "#### Failed tests"
+              echo '```'
+              sed -n '/^failures:$/,/^test result:/p' /tmp/cargo-test.log | head -n 200 || true
+              echo '```'
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
+
+          exit "$status"
 
       - name: cargo clippy (advisory)
         working-directory: ./universal-core
