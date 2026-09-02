@@ -25,18 +25,22 @@ install_cross() {
   fi
 }
 
-build_cargo() {
-  local extra=()
+# Bash 3.2 (macOS) treats empty "${arr[@]}" as unbound under `set -u`.
+run_cargo_build() {
+  local triple="$1"
   if [[ "${USE_NIGHTLY_BUILD_STD:-0}" == "1" ]]; then
-    extra+=(+nightly -Zbuild-std=std,panic_abort)
+    cargo +nightly -Zbuild-std=std,panic_abort build --target "$triple" --release --features "$FEATURES"
+  elif [[ -n "${CARGO_TOOLCHAIN:-}" ]]; then
+    cargo "+${CARGO_TOOLCHAIN}" build --target "$triple" --release --features "$FEATURES"
+  else
+    cargo build --target "$triple" --release --features "$FEATURES"
   fi
-  cargo "${extra[@]}" build --target "$TARGET" --release --features "$FEATURES"
 }
 
 case "$TARGET" in
   x86_64-unknown-linux-gnu)
     rustup target add "$TARGET" || true
-    build_cargo
+    run_cargo_build "$TARGET"
     ;;
 
   aarch64-unknown-linux-gnu)
@@ -45,33 +49,42 @@ case "$TARGET" in
       apt_install gcc-aarch64-linux-gnu
       export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER="${CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER:-aarch64-linux-gnu-gcc}"
     fi
-    build_cargo
+    run_cargo_build "$TARGET"
     ;;
 
   mipsel-unknown-linux-musl|mipsel-unknown-linux-gnu)
-    # OpenWrt: prefer musl; fall back to gnu + static if rustup has no musl triple.
-    if rustup target add mipsel-unknown-linux-musl 2>/dev/null; then
-      TARGET=mipsel-unknown-linux-musl
-    elif rustup target add mipsel-unknown-linux-gnu 2>/dev/null; then
-      TARGET=mipsel-unknown-linux-gnu
-    else
-      rustup toolchain install nightly --component rust-src
-      rustup target add mipsel-unknown-linux-musl --toolchain nightly || true
-      export USE_NIGHTLY_BUILD_STD=1
-      TARGET=mipsel-unknown-linux-musl
-    fi
+    # OpenWrt stays in the matrix. Current stable rustc dropped MIPS rustup
+    # targets, so pin a toolchain that still ships mipsel, then fall back.
     if [[ "$(uname -s)" == "Linux" ]]; then
       apt_install gcc-mipsel-linux-gnu
       export CARGO_TARGET_MIPSEL_UNKNOWN_LINUX_MUSL_LINKER="${CARGO_TARGET_MIPSEL_UNKNOWN_LINUX_MUSL_LINKER:-mipsel-linux-gnu-gcc}"
       export CARGO_TARGET_MIPSEL_UNKNOWN_LINUX_GNU_LINKER="${CARGO_TARGET_MIPSEL_UNKNOWN_LINUX_GNU_LINKER:-mipsel-linux-gnu-gcc}"
-      export RUSTFLAGS="${RUSTFLAGS:-} -C target-feature=+crt-static"
+      export RUSTFLAGS="${RUSTFLAGS:-} -C target-feature=+crt-static -C linker=mipsel-linux-gnu-gcc"
     fi
-    if ! build_cargo; then
-      echo "direct mipsel build failed; retrying with cross"
-      install_cross
-      TARGET=mipsel-unknown-linux-gnu
-      rustup target add "$TARGET" || true
-      cross build --target "$TARGET" --release --features "$FEATURES"
+    built=0
+    for pin in 1.77.0 1.76.0 1.72.0; do
+      echo "Trying OpenWrt mipsel with rustc $pin"
+      rustup toolchain install "$pin" --profile minimal || continue
+      if rustup target add mipsel-unknown-linux-musl --toolchain "$pin"; then
+        CARGO_TOOLCHAIN="$pin" run_cargo_build mipsel-unknown-linux-musl && built=1 && TARGET=mipsel-unknown-linux-musl && break
+      fi
+      if rustup target add mipsel-unknown-linux-gnu --toolchain "$pin"; then
+        CARGO_TOOLCHAIN="$pin" run_cargo_build mipsel-unknown-linux-gnu && built=1 && TARGET=mipsel-unknown-linux-gnu && break
+      fi
+    done
+    if [[ "$built" -eq 0 ]]; then
+      echo "Pinned toolchains failed; trying nightly -Zbuild-std"
+      rustup toolchain install nightly --component rust-src || true
+      export USE_NIGHTLY_BUILD_STD=1
+      if ! run_cargo_build mipsel-unknown-linux-musl; then
+        echo "nightly musl failed; retrying with cross (gnu)"
+        install_cross
+        TARGET=mipsel-unknown-linux-gnu
+        rustup target add "$TARGET" || true
+        cross build --target "$TARGET" --release --features "$FEATURES"
+      else
+        TARGET=mipsel-unknown-linux-musl
+      fi
     fi
     ;;
 
@@ -103,7 +116,7 @@ case "$TARGET" in
           export AR_x86_64_linux_android="$PRE/llvm-ar"
           ;;
       esac
-      build_cargo
+      run_cargo_build "$TARGET"
     else
       echo "ANDROID_NDK_HOME unset; using cross"
       install_cross
@@ -112,31 +125,42 @@ case "$TARGET" in
     ;;
 
   aarch64-apple-darwin|x86_64-apple-darwin)
-    rustup target add "$TARGET"
-    if [[ "$(uname -s)" != "Darwin" ]]; then
-      echo "Apple targets must run on macOS runners (SDK/linker)." >&2
-      exit 1
-    fi
-    build_cargo
+    rustup target add "$TARGET" || true
+    uname_s="$(uname -s)"
+    case "$uname_s" in
+      Darwin|darwin) ;;
+      *)
+        echo "Apple targets must run on macOS runners (SDK/linker). uname=$uname_s" >&2
+        exit 1
+        ;;
+    esac
+    run_cargo_build "$TARGET"
     ;;
 
   x86_64-pc-windows-msvc)
-    rustup target add "$TARGET"
-    if [[ "$(uname -s)" == MINGW* || "$(uname -s)" == MSYS* || "$(uname -s)" == CYGWIN* || "$(uname -s)" == Windows* ]]; then
-      build_cargo
-    elif need_cmd cargo-xwin || cargo xwin --version >/dev/null 2>&1; then
-      cargo xwin build --target "$TARGET" --release --features "$FEATURES"
-    else
-      cargo install cargo-xwin --locked
-      cargo xwin build --target "$TARGET" --release --features "$FEATURES"
-    fi
+    rustup target add "$TARGET" || true
+    uname_s="$(uname -s)"
+    case "$uname_s" in
+      MINGW*|MSYS*|CYGWIN*|Windows*|windows*)
+        run_cargo_build "$TARGET"
+        ;;
+      *)
+        if cargo xwin --version >/dev/null 2>&1; then
+          cargo xwin build --target "$TARGET" --release --features "$FEATURES"
+        else
+          cargo install cargo-xwin --locked
+          cargo xwin build --target "$TARGET" --release --features "$FEATURES"
+        fi
+        ;;
+    esac
     ;;
 
   *)
     rustup target add "$TARGET" || true
-    build_cargo
+    run_cargo_build "$TARGET"
     ;;
 esac
 
 echo "Build finished for $TARGET"
-find target -name 'libv2rayez_universal_core.*' -o -name 'v2rayez_universal_core.dll' -o -name 'v2rayez_universal_core.lib' | head
+# Avoid SIGPIPE+pipefail false failure (find | head) on macOS bash 3.2.
+find target \( -name 'libv2rayez_universal_core.*' -o -name 'v2rayez_universal_core.dll' -o -name 'v2rayez_universal_core.lib' \) -print | sed -n '1,40p' || true
