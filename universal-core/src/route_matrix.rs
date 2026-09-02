@@ -261,7 +261,25 @@ pub fn build_route_matrix(edges: &[RouteEdge], max_edges: usize) -> Vec<RouteMat
 
 pub fn route_matrix_score(latency_ms: u32, jitter_ms: u32, throughput_mbps: f64, success_rate: f64, confidence: f64) -> f64 {
     let latency_score = if latency_ms > 0 { 2000.0 / latency_ms as f64 } else { 0.0 };
-    let jitter_score = if jitter_ms > 0 { 400.0 / jitter_ms as f64 } else { 100.0 };
+    // Jitter is a reciprocal term, so it explodes as jitter approaches zero.
+    // A single-sample probe always reports jitter_ms == 0 (there is no spread
+    // to measure), which previously awarded a flat 100.0 -> 7000 weighted
+    // points. That single term outweighed every other signal combined and let
+    // a 900 ms one-shot route outrank an 84 ms well-sampled route.
+    //
+    // Two separate corrections:
+    //  1. Cap the reciprocal at the value 1 ms of real jitter earns (400.0) so
+    //     the term stays bounded.
+    //  2. Treat *unmeasurable* jitter (jitter_ms == 0, i.e. fewer than two
+    //     latency samples) as NEUTRAL rather than perfect. Absence of evidence
+    //     is not evidence of a flawless link, and the sample-count component of
+    //     `confidence_for` is the correct place to express low sample counts.
+    const JITTER_NEUTRAL_SCORE: f64 = 50.0; // equivalent to ~8 ms measured jitter
+    let jitter_score = if jitter_ms > 0 {
+        (400.0 / jitter_ms as f64).min(400.0)
+    } else {
+        JITTER_NEUTRAL_SCORE
+    };
     let throughput_score = throughput_mbps.clamp(0.0, 50.0);
     success_rate.clamp(0.0, 1.0) * 450.0
         + latency_score * 90.0

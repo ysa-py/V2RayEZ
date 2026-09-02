@@ -115,7 +115,10 @@ impl CoreUIStateMachine {
     pub fn start_polling(&self) {
         if self.poll_handle.lock().unwrap().is_some() { return; }
         let handle_clone = self.handle.clone();
-        let state_clone = self.state.clone();
+        // Retained (prefixed to silence the unused-variable lint) so the poll
+        // thread can be extended to publish lifecycle transitions without
+        // re-plumbing the Arc. Nothing is removed.
+        let _state_clone = self.state.clone();
         let last_clone = self.last_status.clone();
         let interval = self.poll_interval_ms;
         let jh = thread::spawn(move || {

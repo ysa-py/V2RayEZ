@@ -23,13 +23,18 @@ mod handover_tests {
         assert!(!stop_resp.is_null());
         v2rayez_free_string(stop_resp);
 
-        // Drop old session only after stop (graceful shutdown via Drop)
-        v2rayez_core_shutdown(h1);
-
-        // Fresh handle for cellular interface (no reuse)
+        // Fresh handle for the cellular interface must be a *distinct*
+        // allocation while the Wi-Fi handle is still live. This comparison is
+        // only meaningful before h1 is freed: once h1 is deallocated the
+        // allocator is free to hand the very same address back for h2, which
+        // made the previous ordering (shutdown h1, then assert_ne!) a genuine
+        // false-failure. Allocate first, compare, then release both.
         let h2 = v2rayez_core_init();
         assert!(!h2.is_null());
-        assert_ne!(h1, h2);
+        assert_ne!(h1, h2, "concurrent sessions must not share one allocation");
+
+        // Drop old session only after stop (graceful shutdown via Drop)
+        v2rayez_core_shutdown(h1);
 
         let req2 = CString::new(r#"{"command":"Start","profile_id":"cellular"}"#).unwrap();
         let resp2 = v2rayez_core_start(h2, req2.as_ptr());

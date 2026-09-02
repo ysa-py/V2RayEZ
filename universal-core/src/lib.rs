@@ -13,6 +13,23 @@ pub mod ui_state;
 pub mod license;
 pub mod route_matrix;
 
+// Connectivity test suites live under `tests/connectivity/` but are written as
+// in-crate `#[cfg(test)] mod` blocks using `crate::...` paths. Cargo only
+// auto-compiles top-level files in `tests/`, so without these `#[path]`
+// declarations the suites were never built or executed. Including them here
+// keeps the files exactly where they are while making them real, running tests.
+#[cfg(test)]
+#[path = "../tests/connectivity/mtu_fragmentation.rs"]
+mod connectivity_mtu_fragmentation;
+
+#[cfg(test)]
+#[path = "../tests/connectivity/network_handover.rs"]
+mod connectivity_network_handover;
+
+#[cfg(test)]
+#[path = "../tests/connectivity/packet_loss_jitter.rs"]
+mod connectivity_packet_loss_jitter;
+
 pub use ai_provider::{AIProviderConfig, AIProviderProbeResult, AIResponseShape};
 pub use config::{ProxyProfile, ProxyProtocol};
 pub use core_manager::{AddonManifest, AddonPackage, CoreSession, PlatformId};
