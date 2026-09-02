@@ -55,10 +55,8 @@ case "$TARGET" in
     ;;
 
   mipsel-unknown-linux-musl|mipsel-unknown-linux-gnu)
-    # OpenWrt mt7621 stays in CI. Current nightly LLVM dropped MIPS; current
-    # Cargo.lock v4 pulls edition2024 crates. rustc 1.77 still lists mipsel.
-    # Build a temp tree with a regenerated lockfile (url 2.4.x, no ICU) so the
-    # same sources compile to libv2rayez_universal_core.a — no feature removal.
+    # OpenWrt mt7621: need rustc that both parses edition2024 crates AND still
+    # lists mipsel (1.85–~1.89). 1.77 cannot parse crates.io; nightly LLVM dropped MIPS.
     if [[ "$(uname -s)" == "Linux" ]]; then
       apt_install gcc-mipsel-linux-gnu binutils-mipsel-linux-gnu
       export CARGO_TARGET_MIPSEL_UNKNOWN_LINUX_MUSL_LINKER="${CARGO_TARGET_MIPSEL_UNKNOWN_LINUX_MUSL_LINKER:-mipsel-linux-gnu-gcc}"
@@ -69,37 +67,62 @@ case "$TARGET" in
       export AR_mipsel_unknown_linux_gnu="${AR_mipsel_unknown_linux_gnu:-mipsel-linux-gnu-ar}"
       export RUSTFLAGS="${RUSTFLAGS:-} -C target-feature=+crt-static -C linker=mipsel-linux-gnu-gcc"
     fi
-    PIN_TC=1.77.0
-    rustup toolchain install "$PIN_TC" --profile minimal --component rust-src
-    rustc "+$PIN_TC" --print target-list | grep mipsel || true
-    WORK="$(mktemp -d)"
-    cp -a "$ROOT"/. "$WORK"/
-    pushd "$WORK" >/dev/null
-    # Modern cargo can fetch edition2024 crates; rustc 1.77 still has MIPS.
-    cargo generate-lockfile
-    cargo vendor vendor
-    python3 "$ROOT/ci/openwrt_vendor_rewrite.py" "$WORK/vendor"
-    mkdir -p .cargo
-    cat > .cargo/config.toml <<'EOF'
+    PIN_TC=""
+    TRIPLE=mipsel-unknown-linux-musl
+    for tc in 1.89.0 1.88.0 1.87.0 1.86.0 1.85.0; do
+      echo "==== probe rustc $tc for mipsel ===="
+      if ! rustup toolchain install "$tc" --profile minimal --component rust-src; then
+        continue
+      fi
+      rustc "+$tc" --print target-list | grep mipsel || true
+      if rustc "+$tc" --print target-list | grep -qx mipsel-unknown-linux-musl; then
+        PIN_TC=$tc
+        TRIPLE=mipsel-unknown-linux-musl
+        break
+      fi
+      if rustc "+$tc" --print target-list | grep -qx mipsel-unknown-linux-gnu; then
+        PIN_TC=$tc
+        TRIPLE=mipsel-unknown-linux-gnu
+        break
+      fi
+    done
+    if [[ -z "$PIN_TC" ]]; then
+      echo "no 1.85+ rustc with mipsel; falling back to 1.77 + vendored edition rewrite"
+      PIN_TC=1.77.0
+      rustup toolchain install "$PIN_TC" --profile minimal --component rust-src
+      WORK="$(mktemp -d)"
+      cp -a "$ROOT"/. "$WORK"/
+      pushd "$WORK" >/dev/null
+      cargo generate-lockfile
+      cargo vendor vendor
+      python3 "$ROOT/ci/openwrt_vendor_rewrite.py" "$WORK/vendor"
+      mkdir -p .cargo
+      cat > .cargo/config.toml <<'EOF'
 [source.crates-io]
 replace-with = "vendored-sources"
 [source.vendored-sources]
 directory = "vendor"
 EOF
-    rm -f Cargo.lock
-    cargo "+$PIN_TC" generate-lockfile --offline
-    TRIPLE=mipsel-unknown-linux-musl
-    if ! rustc "+$PIN_TC" --print target-list | grep -qx mipsel-unknown-linux-musl; then
-      TRIPLE=mipsel-unknown-linux-gnu
+      rm -f Cargo.lock
+      cargo "+$PIN_TC" generate-lockfile --offline
+      if rustc "+$PIN_TC" --print target-list | grep -qx mipsel-unknown-linux-gnu; then
+        TRIPLE=mipsel-unknown-linux-gnu
+      fi
+    else
+      echo "==== OpenWrt using rustc $PIN_TC (edition2024 + mipsel) ===="
+      cargo "+$PIN_TC" generate-lockfile
+      pushd "$ROOT" >/dev/null
     fi
-    echo "==== OpenWrt $PIN_TC $TRIPLE staticlib (vendored) ===="
+    echo "==== OpenWrt $PIN_TC $TRIPLE staticlib ===="
     RUSTC_BOOTSTRAP=1 cargo "+$PIN_TC" rustc --offline -Zbuild-std=std,panic_abort --lib --release \
+      --target "$TRIPLE" --features "$FEATURES" -- --crate-type staticlib || \
+    RUSTC_BOOTSTRAP=1 cargo "+$PIN_TC" rustc -Zbuild-std=std,panic_abort --lib --release \
       --target "$TRIPLE" --features "$FEATURES" -- --crate-type staticlib
     mkdir -p "$ROOT/target/$TRIPLE/release" "$ROOT/target/mipsel-unknown-linux-musl/release"
     find target -name 'libv2rayez_universal_core.a' -exec cp -v {} "$ROOT/target/$TRIPLE/release/" \;
     cp -v "$ROOT/target/$TRIPLE/release/libv2rayez_universal_core.a" \
       "$ROOT/target/mipsel-unknown-linux-musl/release/" 2>/dev/null || true
-    popd >/dev/null
+    popd >/dev/null 2>/dev/null || true
     TARGET="$TRIPLE"
     ;;
 
