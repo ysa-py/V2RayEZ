@@ -10,6 +10,11 @@ on:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
+# Explicit write scope for GITHUB_TOKEN so the downstream publish-release job
+# can create/refresh GitHub Releases. Build jobs keep working exactly as before.
+permissions:
+  contents: write
+
 jobs:
   # Linux / OpenWrt / Apple / Windows — never install the Android NDK here.
   build-core:
@@ -222,3 +227,198 @@ jobs:
               sys.exit(1)
           print("FFI symbol strings present in all artifacts.")
           PY
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # RELEASE PUBLISHING — fully automatic, zero manual steps, idempotent.
+  #
+  # Runs only when the ENTIRE matrix succeeded: build-core (6 targets),
+  # build-android (3 targets) and the FFI symbol gate (verify-symbols).
+  # It then:
+  #   1. downloads every cross-compiled binary artifact,
+  #   2. fail-closed check that all 9 expected artifacts are present,
+  #   3. renames them to unique per-target release asset names (the 8 static
+  #      libs all share the file name libv2rayez_universal_core.a),
+  #   4. generates SHA256SUMS.txt (same convention as scripts/build-release-artifacts.sh),
+  #   5. publishes to GitHub Releases automatically:
+  #        - tag push (e.g. v1.2.3)        -> stable release at that exact tag
+  #        - branch push / workflow_dispatch -> rolling PRERELEASE at
+  #          v2rayez-universal-core-latest (refreshed in place; stale assets
+  #          purged so the release never accumulates duplicates)
+  # Skipped on pull_request events (GITHUB_TOKEN is read-only there), which
+  # keeps PR checks green without attempting an unauthorized publish.
+  # ─────────────────────────────────────────────────────────────────────────────
+  publish-release:
+    needs: [build-core, build-android, verify-symbols]
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    # Serialize concurrent runs (rapid pushes / tag+branch overlap) so the
+    # rolling release is never created twice at the same instant. The queued
+    # run takes the idempotent refresh path when it finally executes.
+    concurrency:
+      group: publish-release-${{ github.ref_type == 'tag' && format('tag-{0}', github.ref_name) || 'rolling' }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Download all cross-compiled artifacts
+        uses: actions/download-artifact@v7
+        with:
+          path: artifacts
+          pattern: v2rayez-universal-core-*
+          merge-multiple: false
+
+      - name: Fail closed unless every expected artifact is present
+        run: |
+          set -euo pipefail
+          find artifacts -type f | sort
+          expected=(
+            "v2rayez-universal-core-Linux-x86_64-unknown-linux-gnu"
+            "v2rayez-universal-core-Linux-aarch64-unknown-linux-gnu"
+            "v2rayez-universal-core-OpenWrt-mipsel-unknown-linux-musl"
+            "v2rayez-universal-core-Apple-aarch64-apple-darwin"
+            "v2rayez-universal-core-Apple-x86_64-apple-darwin"
+            "v2rayez-universal-core-Windows-x86_64-pc-windows-msvc"
+            "v2rayez-universal-core-Android-aarch64-linux-android"
+            "v2rayez-universal-core-Android-armv7-linux-androideabi"
+            "v2rayez-universal-core-Android-x86_64-linux-android"
+          )
+          missing=0
+          for e in "${expected[@]}"; do
+            if [[ ! -d "artifacts/$e" ]]; then
+              echo "missing expected artifact directory: $e" >&2
+              missing=1
+            fi
+          done
+          if [[ "$missing" -ne 0 ]]; then
+            echo "refusing to publish an incomplete release" >&2
+            exit 1
+          fi
+          total="$(find artifacts -type f | wc -l)"
+          echo "All ${#expected[@]} expected artifact directories present ($total binary files)."
+
+      - name: Prepare release assets (unique per-target names + SHA256SUMS)
+        id: prep
+        run: |
+          set -euo pipefail
+          # Single source of truth: the core crate manifest version.
+          VERSION="$(sed -n 's/^version[[:space:]]*=[[:space:]]*"\(.*\)"$/\1/p' universal-core/Cargo.toml | head -n 1)"
+          VERSION="${VERSION:-0.0.0}"
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+          if [[ "${GITHUB_REF_TYPE:-branch}" == "tag" && -n "${GITHUB_REF_NAME:-}" ]]; then
+            # Stable, versioned release at the pushed tag (e.g. v1.2.3).
+            RELEASE_TAG="${GITHUB_REF_NAME}"
+            RELEASE_TITLE="v2rayez-universal-core ${RELEASE_TAG}"
+            PRERELEASE="false"
+          else
+            # Rolling prerelease: the Releases section is always populated
+            # automatically after every fully green CI run.
+            RELEASE_TAG="v2rayez-universal-core-latest"
+            RELEASE_TITLE="v2rayez-universal-core latest (v${VERSION}+${SHORT_SHA})"
+            PRERELEASE="true"
+          fi
+          mkdir -p release-assets
+          for dir in artifacts/*/; do
+            [[ -d "$dir" ]] || continue
+            base="$(basename "$dir")"
+            for f in "$dir"*; do
+              [[ -f "$f" ]] || continue
+              ext="${f##*.}"
+              mv "$f" "release-assets/${base}-v${VERSION}.${ext}"
+            done
+          done
+          ( cd release-assets && sha256sum -- * > SHA256SUMS.txt )
+          echo "Prepared release assets for tag ${RELEASE_TAG} (v${VERSION}):"
+          ls -lh release-assets
+          {
+            echo "tag=${RELEASE_TAG}"
+            echo "title=${RELEASE_TITLE}"
+            echo "prerelease=${PRERELEASE}"
+            echo "version=${VERSION}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          set -euo pipefail
+          NOTES_FILE="release-notes.md"
+          VERSION="${{ steps.prep.outputs.version }}"
+          {
+            echo "## V2RayEZ Universal Core — cross-compiled binaries"
+            echo
+            echo "Fully automatic release: published as soon as \`build-core\` (Linux x86_64/aarch64 GNU, OpenWrt mipsel musl, Apple aarch64/x86_64, Windows x86_64 MSVC), \`build-android\` (arm64-v8a, armeabi-v7a, x86_64) and \`verify-symbols\` (FFI export gate) all pass. No manual steps."
+            echo
+            echo "| Metadata | Value |"
+            echo "| --- | --- |"
+            echo "| Commit | \`${GITHUB_SHA}\` |"
+            echo "| Ref | ${GITHUB_REF_NAME} |"
+            echo "| Core version | ${VERSION} |"
+            echo "| CI run | [${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}) |"
+            echo
+            echo "### Assets"
+            echo
+            echo "| Asset | Size (bytes) | SHA256 |"
+            echo "| --- | ---: | --- |"
+            (
+              cd release-assets
+              for f in *; do
+                [[ "$f" == "SHA256SUMS.txt" ]] && continue
+                size="$(stat -c %s "$f" 2>/dev/null || stat -f %z "$f")"
+                sum="$(awk -v fn="$f" '$2 == fn { print $1 }' SHA256SUMS.txt)"
+                printf '| %s | %s | `%s` |\n' "$f" "$size" "$sum"
+              done
+            )
+            echo
+            echo "Verify checksums with: \`sha256sum -c SHA256SUMS.txt\`"
+          } > "$NOTES_FILE"
+          echo "notes-file=${NOTES_FILE}" >> "${GITHUB_OUTPUT}"
+
+      - name: Publish to GitHub Releases (automatic + idempotent)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.prep.outputs.tag }}"
+          TITLE="${{ steps.prep.outputs.title }}"
+          PRERELEASE="${{ steps.prep.outputs.prerelease }}"
+          NOTES_FILE="${{ steps.notes.outputs.notes-file }}"
+          mapfile -d '' ASSETS < <(find release-assets -type f -print0 | sort -z)
+          if [[ "${#ASSETS[@]}" -eq 0 ]]; then
+            echo "no release assets found; refusing to publish an empty release" >&2
+            exit 1
+          fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            # Refresh path: rolling latest re-runs (or CI re-runs of a tag)
+            # update the existing release in place instead of erroring with
+            # "A release for tag ... already exists".
+            echo "Refreshing existing release ${TAG} ..."
+            gh release edit "$TAG" --title "$TITLE" --notes-file "$NOTES_FILE"
+            if [[ "$PRERELEASE" == "true" ]]; then
+              gh release edit "$TAG" --prerelease
+            fi
+            # Purge stale assets so the release never accumulates duplicates.
+            while IFS= read -r existing; do
+              [[ -n "$existing" ]] || continue
+              keep=0
+              for f in "${ASSETS[@]}"; do
+                if [[ "$(basename "$f")" == "$existing" ]]; then
+                  keep=1
+                  break
+                fi
+              done
+              if [[ "$keep" -eq 0 ]]; then
+                echo "Purging stale asset: $existing"
+                gh release delete-asset "$TAG" "$existing" --yes || true
+              fi
+            done < <(gh release view "$TAG" --json assets -q '.assets[].name')
+            gh release upload "$TAG" "${ASSETS[@]}" --clobber
+          else
+            # Fresh release: tag pushes create a stable release at the exact tag.
+            echo "Creating new release ${TAG} ..."
+            flags=()
+            if [[ "$PRERELEASE" == "true" ]]; then
+              flags+=(--prerelease)
+            fi
+            gh release create "$TAG" "${ASSETS[@]}" --title "$TITLE" --notes-file "$NOTES_FILE" "${flags[@]}"
+          fi
+          echo "Release ${TAG} now contains:"
+          gh release view "$TAG" --json assets -q '.assets[].name' | sort
