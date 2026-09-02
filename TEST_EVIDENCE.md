@@ -2547,3 +2547,10 @@ Observed:
 - `python3 tools/merge_inventory.py` — regenerated `MERGE_INVENTORY.json` for 8 sources and 27 feature probes.
 - `git diff --check` — passed.
 - `bash ./gradlew :app:compileDebugKotlin :license-admin:assembleDebug` — blocked by sandbox Java/JDK absence: `JAVA_HOME is not set and no 'java' command could be found in your PATH.`
+
+## Milestone 66 — Shared Rust Route Matrix Core Contract
+- `node tools/universal_route_matrix_core_gate.mjs` — passed.
+- `node tools/android_route_matrix_speed_test_gate.mjs` — passed.
+- `node tools/requirement_map_gate.mjs` — passed.
+- `git diff --check` — passed.
+- `cargo test --manifest-path universal-core/Cargo.toml` — blocked because this sandbox has no Rust toolchain: `cargo: command not found`.

@@ -9,11 +9,17 @@ pub mod ai_provider;
 pub mod config;
 pub mod core_manager;
 pub mod license;
+pub mod route_matrix;
 
 pub use ai_provider::{AIProviderConfig, AIProviderProbeResult, AIResponseShape};
 pub use config::{ProxyProfile, ProxyProtocol};
 pub use core_manager::{AddonManifest, AddonPackage, PlatformId};
 pub use license::{LicenseDecision, LicenseVerifier, VerifiedLicense};
+pub use route_matrix::{
+    build_route_matrix, final_abba_candidates, route_matrix_score, select_winner, RouteDnsPreset,
+    RouteEdge, RouteFragmentPreset, RouteMatrixCandidate, RouteMatrixPhase, RouteMatrixResult,
+    RouteMatrixSettingsOverride, RouteProbeSample, FINAL_ABBA_ORDER, ROUTE_MATRIX_MTU_PRESETS,
+};
 
 use serde::{Deserialize, Serialize};
 

@@ -38,6 +38,10 @@ The winner can be applied directly, which updates the same V2RayEZ settings used
 
 No donor UI is ported. The screen is a new V2RayEZ Compose screen under Tools, using existing V2RayEZ cards, typography, chips, colors, and back navigation.
 
+## Shared-core follow-up
+
+Milestone 66 moved the platform-neutral parts of this feature into `universal-core/src/route_matrix.rs`: candidate generation, DNS/fragment/MTU dimensions, A/B/B/A ordering, settings-override shape, score/confidence calculation, and winner selection. Android still performs the real local probes through `VpnController`; future desktop/iOS/Linux/OpenWrt/browser shells can bind to the same shared Rust contract instead of reimplementing matrix semantics.
+
 ## Limits still requiring real lab validation
 
 This milestone adds real source-level route matrix probing and settings application. It is not a substitute for real device tests on Iranian carrier networks, nor does this sandbox prove the generated APK can run the probes because Java/JDK and Android device/tooling are unavailable here.
