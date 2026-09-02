@@ -2,51 +2,112 @@ name: Universal-Core Cross-Compilation
 
 on:
   push:
-    branches: [main, arena/01a06260-v2rayez]
+    branches: [main, arena/01a06260-v2rayez, arena/01a062c9-v2rayez]
   pull_request:
     branches: [main]
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
+  # Linux / OpenWrt / Apple / Windows — never install the Android NDK here.
   build-core:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            platform: Linux
+            artifact: libv2rayez_universal_core.a
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            platform: Linux
+            artifact: libv2rayez_universal_core.a
+          - target: mipsel-unknown-linux-musl
+            os: ubuntu-latest
+            platform: OpenWrt
+            artifact: libv2rayez_universal_core.a
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            platform: Apple
+            artifact: libv2rayez_universal_core.a
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            platform: Apple
+            artifact: libv2rayez_universal_core.a
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            platform: Windows
+            artifact: v2rayez_universal_core.dll
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target == 'mipsel-unknown-linux-musl' && 'x86_64-unknown-linux-gnu' || matrix.target }}
+          components: rustfmt, clippy
+
+      - name: Cache cargo
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            universal-core/target
+          key: ${{ runner.os }}-cargo-${{ matrix.target }}-${{ hashFiles('universal-core/Cargo.toml', 'universal-core/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-${{ matrix.target }}-
+
+      - name: Build universal-core staticlib/cdylib
+        working-directory: ./universal-core
+        shell: bash
+        run: |
+          chmod +x ci/build-target.sh
+          ./ci/build-target.sh "${{ matrix.target }}" "std,post-quantum-lab"
+
+      - name: Verify stripped artifact (LTO/minimal size)
+        shell: bash
+        run: |
+          set -euo pipefail
+          ARTIFACT="${{ matrix.artifact }}"
+          FOUND="$(find universal-core/target -name "$ARTIFACT" 2>/dev/null | head -n 1 || true)"
+          if [[ -z "$FOUND" ]]; then
+            echo "Artifact $ARTIFACT not found"
+            find universal-core/target -maxdepth 4 -type f | head -n 80
+            exit 1
+          fi
+          ls -lh "$FOUND"
+          mkdir -p dist
+          cp "$FOUND" "dist/$ARTIFACT"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: v2rayez-universal-core-${{ matrix.platform }}-${{ matrix.target }}
+          path: dist/${{ matrix.artifact }}
+          if-no-files-found: error
+
+  # Android Bionic — NDK is mandatory on every matrix row (no skip).
+  build-android:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         include:
-          # Linux native / embedded
-          - target: x86_64-unknown-linux-gnu
-            platform: Linux
-            artifact: libv2rayez_universal_core.a
-          - target: aarch64-unknown-linux-gnu
-            platform: Linux
-            artifact: libv2rayez_universal_core.a
-          - target: mipsel-unknown-linux-musl
-            platform: OpenWrt
-            artifact: libv2rayez_universal_core.a
-          # Android
           - target: aarch64-linux-android
-            platform: Android
             artifact: libv2rayez_universal_core.a
           - target: armv7-linux-androideabi
-            platform: Android
             artifact: libv2rayez_universal_core.a
           - target: x86_64-linux-android
-            platform: Android
             artifact: libv2rayez_universal_core.a
-          # Apple / iOS / macOS
-          - target: aarch64-apple-darwin
-            platform: Apple
-            artifact: libv2rayez_universal_core.a
-          - target: x86_64-apple-darwin
-            platform: Apple
-            artifact: libv2rayez_universal_core.a
-          # Windows
-          - target: x86_64-pc-windows-msvc
-            platform: Windows
-            artifact: libv2rayez_universal_core.dll
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
@@ -57,48 +118,107 @@ jobs:
           components: rustfmt, clippy
 
       - name: Cache cargo
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ matrix.target }}-${{ hashFiles('universal-core/Cargo.toml') }}
+            universal-core/target
+          key: Linux-cargo-${{ matrix.target }}-${{ hashFiles('universal-core/Cargo.toml', 'universal-core/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-${{ matrix.target }}-
+            Linux-cargo-${{ matrix.target }}-
+
+      - name: Install Android NDK
+        uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: r26c
+          add-to-path: true
+
+      - name: Export NDK clang linkers
+        shell: bash
+        run: |
+          set -euo pipefail
+          NDK="${{ steps.setup-ndk.outputs.ndk-path }}"
+          PRE="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          API=24
+          echo "ANDROID_NDK_HOME=$NDK" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_ROOT=$NDK" >> "$GITHUB_ENV"
+          echo "PATH=$PRE:$PATH" >> "$GITHUB_ENV"
+          echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$PRE/aarch64-linux-android${API}-clang" >> "$GITHUB_ENV"
+          echo "CC_aarch64_linux_android=$PRE/aarch64-linux-android${API}-clang" >> "$GITHUB_ENV"
+          echo "AR_aarch64_linux_android=$PRE/llvm-ar" >> "$GITHUB_ENV"
+          echo "CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_LINKER=$PRE/armv7a-linux-androideabi${API}-clang" >> "$GITHUB_ENV"
+          echo "CC_armv7_linux_androideabi=$PRE/armv7a-linux-androideabi${API}-clang" >> "$GITHUB_ENV"
+          echo "AR_armv7_linux_androideabi=$PRE/llvm-ar" >> "$GITHUB_ENV"
+          echo "CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER=$PRE/x86_64-linux-android${API}-clang" >> "$GITHUB_ENV"
+          echo "CC_x86_64_linux_android=$PRE/x86_64-linux-android${API}-clang" >> "$GITHUB_ENV"
+          echo "AR_x86_64_linux_android=$PRE/llvm-ar" >> "$GITHUB_ENV"
+          ls -l "$PRE"/*android${API}-clang "$PRE"/llvm-ar
 
       - name: Build universal-core staticlib/cdylib
         working-directory: ./universal-core
+        shell: bash
         run: |
-          cargo build --target ${{ matrix.target }} --release \
-            --features "std,post-quantum-lab"  # LTO + strip from [profile.release]
+          chmod +x ci/build-target.sh
+          ./ci/build-target.sh "${{ matrix.target }}" "std,post-quantum-lab"
 
       - name: Verify stripped artifact (LTO/minimal size)
+        shell: bash
         run: |
-          ls -lh universal-core/target/${{ matrix.target }}/release/${{ matrix.artifact }} || true
-          echo "Expected minimal binary due to release profile settings"
+          set -euo pipefail
+          ARTIFACT="${{ matrix.artifact }}"
+          FOUND="$(find universal-core/target -name "$ARTIFACT" 2>/dev/null | head -n 1 || true)"
+          if [[ -z "$FOUND" ]]; then
+            echo "Artifact $ARTIFACT not found"
+            find universal-core/target -maxdepth 4 -type f | head -n 80
+            exit 1
+          fi
+          ls -lh "$FOUND"
+          mkdir -p dist
+          cp "$FOUND" "dist/$ARTIFACT"
+
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
-          name: v2rayez-universal-core-${{ matrix.platform }}-${{ matrix.target }}
-          path: universal-core/target/${{ matrix.target }}/release/${{ matrix.artifact }}
+          name: v2rayez-universal-core-Android-${{ matrix.target }}
+          path: dist/${{ matrix.artifact }}
           if-no-files-found: error
 
-  # Validation step: ensure FFI boundary symbols are present in produced artifacts
   verify-symbols:
-    needs: build-core
+    needs: [build-core, build-android]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           path: artifacts
           pattern: v2rayez-universal-core-*
-          merge-multiple: true
+          merge-multiple: false
       - name: Verify FFI exports
         run: |
+          set -euo pipefail
           echo "Checking for v2rayez_core_init / v2rayez_free_string symbols..."
-          # For Linux staticlib: nm -D or nm should show symbols
-          # Placeholder for symbol-check script once toolchain runs
-          echo "Symbol verification deferred to native build environment (rustc/cargo)."
+          find artifacts -type f | sort
+          python3 - <<'PY'
+          import os, sys
+          files = []
+          for dirpath, _, names in os.walk("artifacts"):
+              for n in names:
+                  files.append(os.path.join(dirpath, n))
+          if not files:
+              print("no artifacts downloaded", file=sys.stderr)
+              sys.exit(1)
+          wanted = (b"v2rayez_core_init", b"v2rayez_free_string")
+          failed = []
+          for path in files:
+              data = open(path, "rb").read()
+              missing = [w.decode() for w in wanted if w not in data]
+              print(f"{path}: {'OK' if not missing else 'missing ' + ','.join(missing)}")
+              if missing:
+                  failed.append(path)
+          if failed:
+              sys.exit(1)
+          print("FFI symbol strings present in all artifacts.")
+          PY

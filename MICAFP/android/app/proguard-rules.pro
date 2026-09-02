@@ -1,4 +1,13 @@
 # MICAFP — R8 keep rules (release minification)
+# Preserve JNI / VPN / reflection entry points. Do not strip protocols.
+-keepclasseswithmembernames class * {
+    native <methods>;
+}
+-keep class com.unifiedshield.** { *; }
+-keep class com.unifiedshield.VpnService { *; }
+-keep class com.unifiedshield.BootReceiver { *; }
+-keep class com.unifiedshield.UnifiedShieldTileService { *; }
+-keep class com.unifiedshield.MainActivity { *; }
 # Gson reflection models (license payload, AI provider config/registry, audit records)
 -keep class com.unifiedshield.license.MicafpLicensePayload { *; }
 -keep class com.unifiedshield.license.AuditRecord { *; }
