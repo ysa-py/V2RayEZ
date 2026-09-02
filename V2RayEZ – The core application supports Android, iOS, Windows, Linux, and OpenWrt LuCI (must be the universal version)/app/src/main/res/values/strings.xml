@@ -1070,6 +1070,7 @@
     <string name="license_reason_format">Reason: %1$s</string>
     <string name="license_expires_format">Expires: %1$s</string>
     <string name="license_grace_format">Offline grace until: %1$s</string>
+    <string name="license_server_time_format">Last trusted server time: %1$s</string>
     <string name="license_device_format">Device binding: %1$s…</string>
     <string name="license_serial_missing">No serial stored</string>
     <string name="license_serial_active">Active serial: %1$s</string>

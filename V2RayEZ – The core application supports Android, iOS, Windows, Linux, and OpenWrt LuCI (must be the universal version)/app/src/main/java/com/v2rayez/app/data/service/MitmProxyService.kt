@@ -200,7 +200,8 @@ class MitmProxyService : Service() {
                     lastReason = decision.reason,
                     lastValidatedAt = decision.checkedAt,
                     expiresAt = decision.expiresAt,
-                    offlineGraceUntil = decision.offlineGraceUntil
+                    offlineGraceUntil = decision.offlineGraceUntil,
+                    lastServerTime = decision.serverTime.ifBlank { it.license.lastServerTime }
                 )
             )
         }

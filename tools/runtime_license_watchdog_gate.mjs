@@ -36,11 +36,24 @@ const androidLicense = 'V2RayEZ – The core application supports Android, iOS, 
 assertContains(androidLicense, 'payload.put("clientLastServerTime", it)');
 assertContains(androidLicense, 'KEY_LAST_SERVER_TIME');
 assertContains(androidLicense, 'server_time_rollback_detected');
+assertContains(androidLicense, 'serverTime = serverTime');
+
+
+const androidLicenseScreen = 'V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/app/src/main/java/com/v2rayez/app/ui/screens/settings/LicenseScreen.kt';
+assertContains(androidLicenseScreen, 'lastServerTime = config.lastServerTime');
+assertContains(androidLicenseScreen, 'license_server_time_format');
+
+const androidConfigModel = 'V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/app/src/main/java/com/v2rayez/app/domain/model/ConfigModels.kt';
+assertContains(androidConfigModel, 'val lastServerTime: String = ""');
 
 const iosLicense = 'MICAFP/ios/UnifiedShield/App/LicenseManager.swift';
 assertContains(iosLicense, 'body["clientLastServerTime"] = lastServerTime');
 assertContains(iosLicense, 'defaults.set(serverTime, forKey: "licenseLastServerTime")');
 assertContains(iosLicense, 'server_time_rollback_detected');
+
+const iosSettings = 'MICAFP/ios/UnifiedShield/App/SettingsView.swift';
+assertContains(iosSettings, '@AppStorage("licenseLastServerTime"');
+assertContains(iosSettings, 'Last trusted server time');
 
 const iosExtensionLicense = 'MICAFP/ios/UnifiedShield/NetworkExtension/ExtensionLicenseGate.swift';
 assertContains(iosExtensionLicense, 'body["clientLastServerTime"] = lastServerTime');

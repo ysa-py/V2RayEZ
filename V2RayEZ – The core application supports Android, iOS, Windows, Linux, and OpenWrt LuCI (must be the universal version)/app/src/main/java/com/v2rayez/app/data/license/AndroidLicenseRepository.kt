@@ -37,6 +37,7 @@ data class LicenseValidationResult(
     val expiresAt: String = "",
     val remainingSeconds: Long = 0L,
     val offlineGraceUntil: String = "",
+    val serverTime: String = "",
     val checkedAt: Long = System.currentTimeMillis()
 ) {
     val expired: Boolean get() = reason == "license_expired" || reason == "offline_grace_expired"
@@ -130,8 +131,9 @@ class AndroidLicenseRepository @Inject constructor(
                     expiresAt = json.optString("expiresAt", "")
                 )
             }
-            json.optString("serverTime", "").takeIf { it.isNotBlank() }?.let { serverTime ->
-                prefs.edit().putString(KEY_LAST_SERVER_TIME, serverTime).apply()
+            val serverTime = json.optString("serverTime", "")
+            serverTime.takeIf { it.isNotBlank() }?.let { trustedServerTime ->
+                prefs.edit().putString(KEY_LAST_SERVER_TIME, trustedServerTime).apply()
             }
             val grace = json.optString("graceToken", "")
             if (grace.isNotBlank()) {
@@ -143,7 +145,8 @@ class AndroidLicenseRepository @Inject constructor(
                 source = LicenseDecisionSource.SERVER,
                 expiresAt = json.optString("expiresAt", ""),
                 remainingSeconds = json.optLong("remainingSeconds", 0L),
-                offlineGraceUntil = json.optString("offlineGraceUntil", "")
+                offlineGraceUntil = json.optString("offlineGraceUntil", ""),
+                serverTime = serverTime
             )
         }
     }
@@ -227,7 +230,8 @@ class AndroidLicenseRepository @Inject constructor(
             source = LicenseDecisionSource.OFFLINE_GRACE,
             expiresAt = payload.optString("expiresAt", licenseExpiresAt),
             remainingSeconds = graceExpiry.epochSecond - now.epochSecond,
-            offlineGraceUntil = graceUntil
+            offlineGraceUntil = graceUntil,
+            serverTime = payload.optString("serverTime", "")
         )
     }
 
@@ -314,7 +318,8 @@ class AndroidLicenseRepository @Inject constructor(
         source: LicenseDecisionSource,
         expiresAt: String,
         remainingSeconds: Long = 0L,
-        offlineGraceUntil: String = ""
+        offlineGraceUntil: String = "",
+        serverTime: String = ""
     ): LicenseValidationResult = LicenseValidationResult(
         allowed = true,
         result = "ALLOWED",
@@ -322,7 +327,8 @@ class AndroidLicenseRepository @Inject constructor(
         source = source,
         expiresAt = expiresAt,
         remainingSeconds = remainingSeconds.coerceAtLeast(0L),
-        offlineGraceUntil = offlineGraceUntil
+        offlineGraceUntil = offlineGraceUntil,
+        serverTime = serverTime
     )
 
     private fun deny(

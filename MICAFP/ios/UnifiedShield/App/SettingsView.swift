@@ -16,6 +16,7 @@ struct SettingsView: View {
     @AppStorage("licenseAllowOfflineGrace", store: UserDefaults(suiteName: "group.app.v2rayez.ios")) private var licenseAllowOfflineGrace = true
     @AppStorage("licenseLastResult", store: UserDefaults(suiteName: "group.app.v2rayez.ios")) private var licenseLastResult = "not_validated"
     @AppStorage("licenseLastReason", store: UserDefaults(suiteName: "group.app.v2rayez.ios")) private var licenseLastReason = ""
+    @AppStorage("licenseLastServerTime", store: UserDefaults(suiteName: "group.app.v2rayez.ios")) private var licenseLastServerTime = ""
 
     @AppStorage("aiEngineEnabled", store: UserDefaults(suiteName: "group.app.v2rayez.ios")) private var aiEngineEnabled = true
     @AppStorage("aiAutoFallbackToLocal", store: UserDefaults(suiteName: "group.app.v2rayez.ios")) private var aiAutoFallbackToLocal = true
@@ -78,6 +79,16 @@ struct SettingsView: View {
                         Text(licenseStatusText)
                             .foregroundColor(licenseLastResult == "ALLOWED" ? .green : .secondary)
                             .multilineTextAlignment(.trailing)
+                    }
+                    if !licenseLastServerTime.isEmpty {
+                        HStack {
+                            Text("Last trusted server time")
+                            Spacer()
+                            Text(licenseLastServerTime)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.trailing)
+                        }
                     }
                     TextField("Account ID", text: $licenseAccountId)
                         .textInputAutocapitalization(.never)

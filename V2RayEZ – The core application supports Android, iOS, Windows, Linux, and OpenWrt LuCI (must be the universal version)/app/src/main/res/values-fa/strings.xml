@@ -1034,6 +1034,7 @@
     <string name="license_reason_format">دلیل: %1$s</string>
     <string name="license_expires_format">انقضا: %1$s</string>
     <string name="license_grace_format">مهلت آفلاین تا: %1$s</string>
+    <string name="license_server_time_format">آخرین زمان معتبر سرور: %1$s</string>
     <string name="license_device_format">اتصال دستگاه: %1$s…</string>
     <string name="license_serial_missing">هیچ سریالی ذخیره نشده است</string>
     <string name="license_serial_active">سریال فعال: %1$s</string>

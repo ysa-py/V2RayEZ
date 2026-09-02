@@ -2000,3 +2000,34 @@ Blockers:
 
 - `lua`/`luac` are unavailable locally.
 - Real LuCI rendering and router validation remain pending on an OpenWrt target.
+
+---
+
+## Milestone 40 mobile license server-time observability — 2026-09-02
+
+Commands:
+
+```bash
+bash 'V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/scripts/gates/string-key-parity.sh'
+node --check tools/runtime_license_watchdog_gate.mjs
+node tools/runtime_license_watchdog_gate.mjs
+node tools/v2rayez_identity_gate.mjs
+npm test --prefix V2RayEZ-GUI
+npm run lint --prefix MICAFP/dashboard
+npm run build --prefix MICAFP/dashboard
+git diff --check
+```
+
+Result: PASS.
+
+Observed:
+
+- Android `LicenseValidationResult` carries trusted `serverTime` into persisted settings.
+- Android VPN/MITM/watchdog persistence preserves the previous trusted server time when a denial/local decision has no newer server time.
+- Android License screen displays `Last trusted server time` with EN/FA/RU string-key parity intact.
+- iOS Settings displays the shared `licenseLastServerTime` written by the app/extension license validators.
+- V2RayEZ GUI frontend regression suite stayed green at 14/14.
+
+Blockers:
+
+- Android and iOS compile/device checks still require real platform toolchains.

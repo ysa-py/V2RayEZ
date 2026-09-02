@@ -126,7 +126,8 @@ class RealVpnController @Inject constructor(
                         lastResult = decision.result,
                         lastReason = decision.reason,
                         expiresAt = decision.expiresAt,
-                        offlineGraceUntil = decision.offlineGraceUntil
+                        offlineGraceUntil = decision.offlineGraceUntil,
+                        lastServerTime = decision.serverTime.ifBlank { settings.license.lastServerTime }
                     )
                 )
             }

@@ -84,6 +84,7 @@ fun LicenseScreen(
                 lastReason = config.lastReason,
                 expiresAt = config.expiresAt,
                 graceUntil = config.offlineGraceUntil,
+                lastServerTime = config.lastServerTime,
                 redactedSerial = viewModel.redactedSerial,
                 devicePreview = viewModel.deviceIdPreview,
                 hasSerial = viewModel.hasSerial,
@@ -181,6 +182,7 @@ private fun StatusCard(
     lastReason: String,
     expiresAt: String,
     graceUntil: String,
+    lastServerTime: String,
     redactedSerial: String,
     devicePreview: String,
     hasSerial: Boolean,
@@ -191,6 +193,7 @@ private fun StatusCard(
     val effectiveReason = result?.reason ?: lastReason
     val effectiveExpires = result?.expiresAt?.ifBlank { expiresAt } ?: expiresAt
     val effectiveGrace = result?.offlineGraceUntil?.ifBlank { graceUntil } ?: graceUntil
+    val effectiveServerTime = result?.serverTime?.ifBlank { lastServerTime } ?: lastServerTime
     val allowed = result?.allowed ?: (effectiveResult == "ALLOWED")
     val notValidated = stringResource(R.string.license_not_validated)
     val reasonText = effectiveReason.ifBlank { notValidated }
@@ -219,6 +222,13 @@ private fun StatusCard(
             if (effectiveGrace.isNotBlank()) {
                 Text(
                     text = stringResource(R.string.license_grace_format, effectiveGrace),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            if (effectiveServerTime.isNotBlank()) {
+                Text(
+                    text = stringResource(R.string.license_server_time_format, effectiveServerTime),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

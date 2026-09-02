@@ -594,7 +594,8 @@ data class LicenseConfig(
     val lastReason: String = "",
     val lastValidatedAt: Long = 0L,
     val expiresAt: String = "",
-    val offlineGraceUntil: String = ""
+    val offlineGraceUntil: String = "",
+    val lastServerTime: String = ""
 )
 
 /** Provider family used by the no-code AI Engine gateway. */
