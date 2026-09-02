@@ -1,6 +1,6 @@
 // @ts-nocheck
 /**
- * MICAFP-UnifiedShield-6.0 — Firefox MV2 Background Script
+ * V2RayEZ Universal — Firefox MV2 Background Script
  *
  * Persistent background script using the browser.* API namespace.
  * Manages the WebTransport tunnel, registers a PAC script via
@@ -57,9 +57,15 @@ declare const browser: {
 // Constants
 // ---------------------------------------------------------------------------
 
-const STORAGE_KEY_STATE = "shield_state";
-const STORAGE_KEY_STATS = "shield_stats";
-const STORAGE_KEY_CONFIG = "shield_config";
+const STORAGE_KEY_STATE = "v2rayez_state";
+const STORAGE_KEY_STATS = "v2rayez_stats";
+const STORAGE_KEY_CONFIG = "v2rayez_config";
+const LEGACY_STORAGE_KEY_STATE = "shield_state";
+const LEGACY_STORAGE_KEY_STATS = "shield_stats";
+const LEGACY_STORAGE_KEY_CONFIG = "shield_config";
+const LEGACY_UNIFIED_STORAGE_KEY_STATE = "unifiedshield_state";
+const LEGACY_UNIFIED_STORAGE_KEY_STATS = "unifiedshield_stats";
+const LEGACY_UNIFIED_STORAGE_KEY_CONFIG = "unifiedshield_config";
 
 const CDN_ENDPOINTS_DEFAULT: string[] = [
   "https://shield-deno-ist.deno.dev",
@@ -143,7 +149,7 @@ async function loadWasmObfuscator(): Promise<WasmObfuscator | null> {
       },
     };
   } catch (err) {
-    console.warn("[Shield] WASM obfuscator load failed, running without:", err);
+    console.warn("[V2RayEZ] WASM obfuscator load failed, running without:", err);
     return null;
   }
 }
@@ -167,17 +173,17 @@ async function enableProxy(): Promise<void> {
   try {
     // Register PAC file from extension
     await browser.proxy.register(browser.runtime.getURL("proxy.pac"));
-    console.log("[Shield] Proxy registered (PAC)");
+    console.log("[V2RayEZ] Proxy registered (PAC)");
   } catch {
     // Fallback: use onProxyError + onRequest pattern
-    console.warn("[Shield] PAC register failed, falling back to direct proxy");
+    console.warn("[V2RayEZ] PAC register failed, falling back to direct proxy");
   }
 }
 
 async function disableProxy(): Promise<void> {
   try {
     await browser.proxy.unregister();
-    console.log("[Shield] Proxy unregistered");
+    console.log("[V2RayEZ] Proxy unregistered");
   } catch {
     /* ignore */
   }
@@ -231,7 +237,7 @@ async function startTunnel(): Promise<void> {
   });
 
   tunnel.onStateChange(async (state, prev) => {
-    console.log(`[Shield] State: ${prev} → ${state}`);
+    console.log(`[V2RayEZ] State: ${prev} → ${state}`);
     updateBadge(state);
     await persistState(state);
 
@@ -243,7 +249,7 @@ async function startTunnel(): Promise<void> {
   });
 
   tunnel.onData((data) => {
-    console.debug("[Shield] Received", data.length, "bytes from tunnel");
+    console.debug("[V2RayEZ] Received", data.length, "bytes from tunnel");
   });
 
   await tunnel.connect();
@@ -269,8 +275,10 @@ interface StoredConfig {
 }
 
 async function loadConfig(): Promise<StoredConfig> {
-  const result = await browser.storage.local.get(STORAGE_KEY_CONFIG);
-  const stored = result[STORAGE_KEY_CONFIG] as StoredConfig | undefined;
+  const result = await browser.storage.local.get([STORAGE_KEY_CONFIG, LEGACY_STORAGE_KEY_CONFIG, LEGACY_UNIFIED_STORAGE_KEY_CONFIG]);
+  const stored = (result[STORAGE_KEY_CONFIG]
+    ?? result[LEGACY_STORAGE_KEY_CONFIG]
+    ?? result[LEGACY_UNIFIED_STORAGE_KEY_CONFIG]) as StoredConfig | undefined;
   return (
     stored ?? {
       endpoints: CDN_ENDPOINTS_DEFAULT,
@@ -348,16 +356,18 @@ browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 // ---------------------------------------------------------------------------
 
 browser.runtime.onInstalled.addListener(() => {
-  console.log("[Shield] Extension installed / updated");
+  console.log("[V2RayEZ] Extension installed / updated");
 });
 
 // Restore previous state on startup
 (async () => {
-  const result = await browser.storage.local.get(STORAGE_KEY_STATE);
-  const prevState = result[STORAGE_KEY_STATE] as TunnelState | undefined;
+  const result = await browser.storage.local.get([STORAGE_KEY_STATE, LEGACY_STORAGE_KEY_STATE, LEGACY_UNIFIED_STORAGE_KEY_STATE]);
+  const prevState = (result[STORAGE_KEY_STATE]
+    ?? result[LEGACY_STORAGE_KEY_STATE]
+    ?? result[LEGACY_UNIFIED_STORAGE_KEY_STATE]) as TunnelState | undefined;
 
   if (prevState === "connected" || prevState === "reconnecting") {
-    console.log("[Shield] Restoring tunnel after restart");
+    console.log("[V2RayEZ] Restoring tunnel after restart");
     wasmObfuscator = await loadWasmObfuscator();
     await startTunnel();
   } else {

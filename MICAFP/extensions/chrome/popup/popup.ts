@@ -1,5 +1,5 @@
 /**
- * UnifiedShield Popup — UI logic
+ * V2RayEZ Popup — UI logic
  */
 
 import type { ProxyState, UnifiedShieldConfig } from '../../shared/protocol';

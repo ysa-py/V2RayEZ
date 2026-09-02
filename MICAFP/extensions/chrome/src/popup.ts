@@ -1,5 +1,5 @@
 /**
- * MICAFP-V2RayEZ Chrome Extension Popup UI
+ * V2RayEZ Universal Chrome Extension Popup UI
  * 
  * Features:
  * - Connection status display with visual indicator
@@ -254,7 +254,7 @@ function renderPage(): void {
 
       <!-- Footer -->
       <div class="mt-4 pt-3 border-t border-gray-100 text-center">
-        <div class="text-xs text-gray-400">MICAFP-V2RayEZ • End-to-end encrypted</div>
+        <div class="text-xs text-gray-400">V2RayEZ • End-to-end encrypted</div>
       </div>
     </div>
   `;

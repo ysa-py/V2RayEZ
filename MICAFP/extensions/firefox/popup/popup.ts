@@ -1,6 +1,6 @@
 // @ts-nocheck
 /**
- * UnifiedShield Firefox Popup — UI logic
+ * V2RayEZ Firefox Popup — UI logic
  */
 
 const api = typeof browser !== 'undefined' ? browser : chrome;

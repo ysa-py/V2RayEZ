@@ -1,5 +1,5 @@
 /**
- * MICAFP-V2RayEZ-6.0 — Chrome Popup Script
+ * V2RayEZ Universal — Chrome Popup Script
  *
  * Handles UI interactions, message passing to the background service
  * worker, and periodic status display updates.
@@ -174,7 +174,7 @@ settingsLink.addEventListener("click", (e) => {
 
 aboutLink.addEventListener("click", (e) => {
   e.preventDefault();
-  chrome.tabs.create({ url: "https://github.com/MICAFP/V2RayEZ" });
+  chrome.tabs.create({ url: "https://github.com/ysa-py/V2RayEZ" });
 });
 
 // ---------------------------------------------------------------------------

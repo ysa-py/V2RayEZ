@@ -2359,3 +2359,14 @@ Observed:
 - `scripts/build-release-artifacts.sh --check` — passed.
 - `node tools/v2rayez_identity_gate.mjs` — passed.
 - `git diff --check` — passed.
+
+## Milestone 54 — Browser Extension Legacy Entrypoint Identity Cleanup
+- `npm run lint --prefix MICAFP/extensions/chrome` — passed.
+- `npm run lint --prefix MICAFP/extensions/firefox` — passed.
+- `V2RAYEZ_ALLOW_EMPTY_EXTENSION_WASM=1 npm run build --prefix MICAFP/extensions/chrome` — passed; sandbox used the development-only empty WASM fallback.
+- `V2RAYEZ_ALLOW_EMPTY_EXTENSION_WASM=1 npm run build --prefix MICAFP/extensions/firefox` — passed; sandbox used the development-only empty WASM fallback.
+- `node tools/v2rayez_identity_gate.mjs` — passed with extension-visible checks for stale MICAFP-UnifiedShield/MICAFP-V2RayEZ labels, old UnifiedShield popup/options/background/style wording, `[Shield]` logs, and old `github.com/MICAFP/V2RayEZ` links.
+- `node tools/runtime_license_watchdog_gate.mjs` — passed.
+- `node tools/release_artifact_contract_gate.mjs` — passed.
+- `scripts/build-release-artifacts.sh --check` — passed.
+- `git diff --check` — passed.

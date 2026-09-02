@@ -69,6 +69,19 @@ const openwrtVisibleForbidden = [
   /_\([^\n]*Aether/i,
 ];
 
+
+const extensionVisibleForbidden = [
+  /MICAFP-UnifiedShield/i,
+  /MICAFP-V2RayEZ/i,
+  /UnifiedShield\s+(Chrome|Firefox)?\s*(Popup|Options|Background|Styles)/i,
+  /\[Shield\]/,
+  /github\.com\/MICAFP\/V2RayEZ/i,
+];
+
+for (const root of ['MICAFP/extensions/chrome', 'MICAFP/extensions/firefox', 'MICAFP/extensions/shared']) {
+  scanExtensionVisibleIdentity(root);
+}
+
 for (const file of openwrtLuciUiFiles) {
   const lines = readFileSync(file, 'utf8').split(/\r?\n/);
   lines.forEach((line, index) => {
@@ -86,6 +99,35 @@ if (failures > 0) {
   process.exit(1);
 }
 console.log('v2rayez_identity_gate: PASS — runtime UI surfaces keep V2RayEZ identity and do not expose forbidden donor GUI identity.');
+
+
+function scanExtensionVisibleIdentity(path) {
+  let stat;
+  try {
+    stat = statSync(path);
+  } catch {
+    return;
+  }
+  if (stat.isDirectory()) {
+    const name = path.split(/[\/]/).pop();
+    if (ignoredDirs.has(name)) return;
+    for (const entry of readdirSync(path)) scanExtensionVisibleIdentity(join(path, entry));
+    return;
+  }
+  if (!stat.isFile()) return;
+  if (ignoredExtensions.has(extension(path))) return;
+
+  const body = readFileSync(path, 'utf8');
+  const lines = body.split(/\r?\n/);
+  lines.forEach((line, index) => {
+    for (const pattern of extensionVisibleForbidden) {
+      if (pattern.test(line)) {
+        failures += 1;
+        console.error(`${relative(process.cwd(), path)}:${index + 1}: forbidden extension visible legacy identity: ${line.trim()}`);
+      }
+    }
+  });
+}
 
 function scan(path) {
   let stat;

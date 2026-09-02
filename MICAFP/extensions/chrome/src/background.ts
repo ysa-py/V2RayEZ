@@ -1,5 +1,5 @@
 /**
- * MICAFP-UnifiedShield Chrome Manifest V3 Background Service Worker
+ * V2RayEZ Universal Chrome Manifest V3 Background Service Worker
  * 
  * Features:
  * - chrome.proxy.settings API for proxy configuration

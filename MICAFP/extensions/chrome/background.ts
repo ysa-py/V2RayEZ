@@ -1,5 +1,5 @@
 /**
- * MICAFP-UnifiedShield-6.0 — Chrome MV3 Service Worker
+ * V2RayEZ Universal — Chrome MV3 Service Worker
  *
  * Manages the WebTransport tunnel, sets the PAC proxy configuration,
  * tracks connection status, and updates the badge icon.
@@ -16,9 +16,15 @@ import { WebTransportTunnel } from "../shared/webtransport_tunnel";
 // Constants
 // ---------------------------------------------------------------------------
 
-const STORAGE_KEY_STATE = "shield_state";
-const STORAGE_KEY_STATS = "shield_stats";
-const STORAGE_KEY_CONFIG = "shield_config";
+const STORAGE_KEY_STATE = "v2rayez_state";
+const STORAGE_KEY_STATS = "v2rayez_stats";
+const STORAGE_KEY_CONFIG = "v2rayez_config";
+const LEGACY_STORAGE_KEY_STATE = "shield_state";
+const LEGACY_STORAGE_KEY_STATS = "shield_stats";
+const LEGACY_STORAGE_KEY_CONFIG = "shield_config";
+const LEGACY_UNIFIED_STORAGE_KEY_STATE = "unifiedshield_state";
+const LEGACY_UNIFIED_STORAGE_KEY_STATS = "unifiedshield_stats";
+const LEGACY_UNIFIED_STORAGE_KEY_CONFIG = "unifiedshield_config";
 
 const CDN_ENDPOINTS_DEFAULT: string[] = [
   "https://shield-deno-ist.deno.dev",
@@ -105,7 +111,7 @@ async function loadWasmObfuscator(): Promise<WasmObfuscator | null> {
       },
     };
   } catch (err) {
-    console.warn("[Shield] WASM obfuscator load failed, running without:", err);
+    console.warn("[V2RayEZ] WASM obfuscator load failed, running without:", err);
     return null;
   }
 }
@@ -129,7 +135,7 @@ function generatePacScript(proxyHost: string, proxyPort: number): string {
           isInNet(host, "192.168.0.0", "255.255.0.0")) {
         return "DIRECT";
       }
-      // Route all other traffic through the shield proxy
+      // Route all other traffic through the V2RayEZ proxy
       return "HTTPS ${proxyHost}:${proxyPort}; SOCKS5 127.0.0.1:1080; DIRECT";
     }
   `;
@@ -140,7 +146,7 @@ function generatePacScript(proxyHost: string, proxyPort: number): string {
 // ---------------------------------------------------------------------------
 
 async function enableProxy(): Promise<void> {
-  const pacScript = generatePacScript("shield.proxy", 443);
+  const pacScript = generatePacScript("v2rayez.proxy", 443);
   await chrome.proxy.settings.set({
     value: {
       mode: "pac_script",
@@ -148,12 +154,12 @@ async function enableProxy(): Promise<void> {
     },
     scope: "regular",
   });
-  console.log("[Shield] Proxy enabled (PAC)");
+  console.log("[V2RayEZ] Proxy enabled (PAC)");
 }
 
 async function disableProxy(): Promise<void> {
   await chrome.proxy.settings.clear({ scope: "regular" });
-  console.log("[Shield] Proxy disabled");
+  console.log("[V2RayEZ] Proxy disabled");
 }
 
 // ---------------------------------------------------------------------------
@@ -204,7 +210,7 @@ async function startTunnel(): Promise<void> {
   });
 
   tunnel.onStateChange(async (state, prev) => {
-    console.log(`[Shield] State: ${prev} → ${state}`);
+    console.log(`[V2RayEZ] State: ${prev} → ${state}`);
     updateBadge(state);
     await persistState(state);
     if (state === "connected") {
@@ -217,7 +223,7 @@ async function startTunnel(): Promise<void> {
   tunnel.onData((data) => {
     // Data received from tunnel — handled by proxy layer
     // In a full implementation this feeds the SOCKS5/HTTPS proxy server
-    console.debug("[Shield] Received", data.length, "bytes from tunnel");
+    console.debug("[V2RayEZ] Received", data.length, "bytes from tunnel");
   });
 
   await tunnel.connect();
@@ -244,8 +250,10 @@ interface StoredConfig {
 
 async function loadConfig(): Promise<StoredConfig> {
   return new Promise((resolve) => {
-    chrome.storage.local.get(STORAGE_KEY_CONFIG, (result) => {
-      const stored = result[STORAGE_KEY_CONFIG] as StoredConfig | undefined;
+    chrome.storage.local.get([STORAGE_KEY_CONFIG, LEGACY_STORAGE_KEY_CONFIG, LEGACY_UNIFIED_STORAGE_KEY_CONFIG], (result) => {
+      const stored = (result[STORAGE_KEY_CONFIG]
+        ?? result[LEGACY_STORAGE_KEY_CONFIG]
+        ?? result[LEGACY_UNIFIED_STORAGE_KEY_CONFIG]) as StoredConfig | undefined;
       resolve(
         stored ?? {
           endpoints: CDN_ENDPOINTS_DEFAULT,
@@ -325,14 +333,16 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 // ---------------------------------------------------------------------------
 
 chrome.runtime.onInstalled.addListener(() => {
-  console.log("[Shield] Extension installed / updated");
+  console.log("[V2RayEZ] Extension installed / updated");
 });
 
 // On service-worker wake-up, restore the previous state
-chrome.storage.session.get(STORAGE_KEY_STATE, (result) => {
-  const prevState = result[STORAGE_KEY_STATE] as TunnelState | undefined;
+chrome.storage.session.get([STORAGE_KEY_STATE, LEGACY_STORAGE_KEY_STATE, LEGACY_UNIFIED_STORAGE_KEY_STATE], (result) => {
+  const prevState = (result[STORAGE_KEY_STATE]
+    ?? result[LEGACY_STORAGE_KEY_STATE]
+    ?? result[LEGACY_UNIFIED_STORAGE_KEY_STATE]) as TunnelState | undefined;
   if (prevState === "connected" || prevState === "reconnecting") {
-    console.log("[Shield] Restoring tunnel after wake-up");
+    console.log("[V2RayEZ] Restoring tunnel after wake-up");
     loadWasmObfuscator().then((wasm) => {
       wasmObfuscator = wasm;
       startTunnel();

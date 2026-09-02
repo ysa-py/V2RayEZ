@@ -1,6 +1,6 @@
 // @ts-nocheck
 /**
- * MICAFP-UnifiedShield Firefox Manifest V2 Background Script
+ * V2RayEZ Universal Firefox Manifest V2 Background Script
  * 
  * Features:
  * - browser.proxy API for proxy configuration
