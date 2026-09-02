@@ -1,0 +1,5 @@
+module v2rayez_core {
+    umbrella header "include/v2rayez_core.h"
+    export *
+    link "v2rayez_universal_core"
+}
