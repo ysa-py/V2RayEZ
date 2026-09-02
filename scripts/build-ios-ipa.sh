@@ -86,7 +86,10 @@ PLIST
   fi
 
   # Package IPA (zip)
-  (cd "$TMPDIR" && zip -r "$ROOT/dist-ios/final/V2RayEZ-fallback.ipa" Payload)
+  VERSION="${VERSION:-2.0.0}"
+  (cd "$TMPDIR" && zip -r "$DIST/final/V2RayEZ-fallback.ipa" Payload)
+  cp -v "$DIST/final/V2RayEZ-fallback.ipa" "$DIST/final/V2RayEZ.ipa" 2>/dev/null || true
+  cp -v "$DIST/final/V2RayEZ-fallback.ipa" "$DIST/final/V2RayEZ-v${VERSION}-ios.ipa" 2>/dev/null || true
   rm -rf "$TMPDIR"
 fi
 

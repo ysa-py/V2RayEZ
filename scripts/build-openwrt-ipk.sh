@@ -25,11 +25,12 @@ while [[ $# -gt 0 ]]; do
 done
 
 mkdir -p "$OUT_DIR"
+OUT_DIR="$(cd "$OUT_DIR" && pwd)"
 LOG="$ROOT/openwrt-${TARGET}.log"
 echo "[openwrt] Target=$TARGET Rust=$RUST_TARGET Out=$OUT_DIR" | tee "$LOG"
 
 retry() {
-  local max=3 count=0 delay=10
+  local max=2 count=0 delay=3
   while true; do
     if "$@" 2>&1 | tee -a "$LOG"; then return 0; fi
     count=$((count+1))
@@ -67,12 +68,25 @@ if [[ -z "$SDK_DIR" ]]; then
       echo "[openwrt] Downloading SDK from $URL" | tee -a "$LOG"
       mkdir -p "$ROOT/openwrt-sdk"
       TMP_TAR="$ROOT/openwrt-sdk/${TARGET}.tar.xz"
-      retry wget -O "$TMP_TAR" "$URL" || retry curl -L -o "$TMP_TAR" "$URL" || echo "[openwrt] SDK download failed, will use fallback" | tee -a "$LOG"
-      if [[ -f "$TMP_TAR" ]]; then
-        mkdir -p "$SDK_DIR.tmp"
-        tar -xf "$TMP_TAR" -C "$SDK_DIR.tmp" --strip-components=1 2>&1 | tee -a "$LOG" || true
-        rm -rf "$SDK_DIR"
-        mv "$SDK_DIR.tmp" "$SDK_DIR"
+      rm -f "$TMP_TAR"
+      if retry curl -fSL --connect-timeout 10 --max-time 180 -o "$TMP_TAR" "$URL" || retry wget --timeout=15 --tries=2 -O "$TMP_TAR" "$URL"; then
+        if [[ -s "$TMP_TAR" ]]; then
+          mkdir -p "$SDK_DIR.tmp"
+          if tar -xf "$TMP_TAR" -C "$SDK_DIR.tmp" --strip-components=1 2>&1 | tee -a "$LOG"; then
+            rm -rf "$SDK_DIR"
+            mv "$SDK_DIR.tmp" "$SDK_DIR"
+            echo "[openwrt] SDK unpacked successfully to $SDK_DIR" | tee -a "$LOG"
+          else
+            echo "[openwrt] SDK tar extraction failed, will use fallback" | tee -a "$LOG"
+            rm -rf "$SDK_DIR.tmp"
+          fi
+        else
+          echo "[openwrt] SDK archive is empty, using fallback" | tee -a "$LOG"
+          rm -f "$TMP_TAR"
+        fi
+      else
+        echo "[openwrt] SDK download failed, will use fallback" | tee -a "$LOG"
+        rm -f "$TMP_TAR"
       fi
     else
       echo "[openwrt] No SDK URL for $TARGET, using fallback" | tee -a "$LOG"

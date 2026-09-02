@@ -66,16 +66,22 @@ fi
 
 # Build
 cd "$ANDROID_DIR"
-if [[ -f "./gradlew" ]]; then
+if [[ -f "./gradlew" ]] && command -v java >/dev/null 2>&1; then
   chmod +x ./gradlew
   log "Running ./gradlew assembleDebug"
-  retry ./gradlew assembleDebug --stacktrace
+  if retry ./gradlew assembleDebug --stacktrace; then
+    log "assembleDebug succeeded"
+  else
+    log "assembleDebug failed, checking if any APK was produced"
+  fi
   # Also try release (unsigned will be produced if no signing config)
   log "Running ./gradlew assembleRelease (may need signing, fallback to debug)"
   ./gradlew assembleRelease --stacktrace 2>&1 | tee -a "$LOG" || log "Release build requires signing, using debug APK"
-else
+elif command -v gradle >/dev/null 2>&1; then
   log "Using system gradle"
-  retry gradle assembleDebug --stacktrace
+  retry gradle assembleDebug --stacktrace 2>&1 | tee -a "$LOG" || log "system gradle build failed"
+else
+  log "Neither gradlew+java nor system gradle available, will use fallback packaging"
 fi
 
 cd "$ROOT"

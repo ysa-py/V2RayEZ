@@ -162,7 +162,7 @@ EOF
     fi
     ;;
 
-  aarch64-apple-darwin|x86_64-apple-darwin)
+  aarch64-apple-darwin|x86_64-apple-darwin|aarch64-apple-ios|x86_64-apple-ios|aarch64-apple-ios-sim)
     rustup target add "$TARGET" || true
     uname_s="$(uname -s)"
     case "$uname_s" in
@@ -172,6 +172,25 @@ EOF
         exit 1
         ;;
     esac
+    run_cargo_build "$TARGET"
+    ;;
+
+  x86_64-unknown-linux-musl)
+    rustup target add "$TARGET" || true
+    if [[ "$(uname -s)" == "Linux" ]]; then
+      apt_install musl-tools musl-dev
+    fi
+    run_cargo_build "$TARGET"
+    ;;
+
+  aarch64-unknown-linux-musl)
+    rustup target add "$TARGET" || true
+    if [[ "$(uname -s)" == "Linux" ]]; then
+      apt_install gcc-aarch64-linux-gnu
+      export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER="${CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER:-aarch64-linux-gnu-gcc}"
+      export CC_aarch64_unknown_linux_musl="${CC_aarch64_unknown_linux_musl:-aarch64-linux-gnu-gcc}"
+      export AR_aarch64_unknown_linux_musl="${AR_aarch64_unknown_linux_musl:-aarch64-linux-gnu-ar}"
+    fi
     run_cargo_build "$TARGET"
     ;;
 
@@ -201,4 +220,4 @@ esac
 
 echo "Build finished for $TARGET"
 # Avoid SIGPIPE+pipefail false failure (find | head) on macOS bash 3.2.
-find target \( -name 'libv2rayez_universal_core.*' -o -name 'v2rayez_universal_core.dll' -o -name 'v2rayez_universal_core.lib' \) -print | sed -n '1,40p' || true
+find target \( -name 'libv2rayez_universal_core.*' -o -name 'v2rayez_universal_core.dll' -o -name 'v2rayez_universal_core.lib' -o -name 'v2rayez-license-gate*' \) -print | sed -n '1,40p' || true

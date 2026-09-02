@@ -26,6 +26,8 @@ echo "[windows] cargo build --release --bin v2rayez-license-gate"
 retry cargo build --release --bin v2rayez-license-gate --features "std,post-quantum-lab"
 find target -name "v2rayez-license-gate.exe" -exec ls -lh {} \; || true
 find target -name "v2rayez-license-gate.exe" -exec cp -v {} "$DIST/" \; || true
+find target -name "v2rayez_universal_core.dll" -exec cp -v {} "$DIST/" \; 2>/dev/null || true
+find target -name "v2rayez_universal_core.lib" -exec cp -v {} "$DIST/" \; 2>/dev/null || true
 cd "$ROOT"
 
 # Build Tauri if Node available

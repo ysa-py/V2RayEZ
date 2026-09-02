@@ -23,6 +23,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 mkdir -p "$OUT_DIR"
+OUT_DIR="$(cd "$OUT_DIR" && pwd)"
 TMPDIR="$(mktemp -d)"
 echo "[openwrt-ipk] Building IPK for ARCH=$ARCH RUST_TARGET=$RUST_TARGET VERSION=$VERSION TMP=$TMPDIR OUT=$OUT_DIR"
 

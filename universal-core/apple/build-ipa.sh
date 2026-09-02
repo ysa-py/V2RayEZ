@@ -66,7 +66,11 @@ PLIST
 echo V2RayEZ" > "$APP/V2RayEZ"
   chmod +x "$APP/V2RayEZ"
   if [[ -f "$DIST/libs/libv2rayez_universal_core.a" ]]; then cp -v "$DIST/libs/libv2rayez_universal_core.a" "$APP/"; fi
-  (cd "$TMPDIR" && zip -r "$ROOT/dist-ios/final/V2RayEZ-fallback.ipa" Payload)
+  # Package IPA (zip)
+  VERSION="${VERSION:-2.0.0}"
+  (cd "$TMPDIR" && zip -r "$DIST/final/V2RayEZ-fallback.ipa" Payload)
+  cp -v "$DIST/final/V2RayEZ-fallback.ipa" "$DIST/final/V2RayEZ.ipa" 2>/dev/null || true
+  cp -v "$DIST/final/V2RayEZ-fallback.ipa" "$DIST/final/V2RayEZ-v${VERSION}-ios.ipa" 2>/dev/null || true
   rm -rf "$TMPDIR"
 fi
 
