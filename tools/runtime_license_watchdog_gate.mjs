@@ -62,6 +62,7 @@ assertContains(iosExtensionLicense, 'graceServerDate.addingTimeInterval(300) < l
 
 
 const extensionProtocol = 'MICAFP/extensions/shared/protocol.ts';
+assertContains(extensionProtocol, 'licensePublicKeyPem?: string;');
 assertContains(extensionProtocol, 'licenseLastServerTime?: string;');
 assertContains(extensionProtocol, 'licenseGraceServerTime?: string;');
 
@@ -71,7 +72,10 @@ for (const path of [
 ]) {
   assertContains(path, 'clientLastServerTime: config.licenseLastServerTime || undefined');
   assertContains(path, 'config.licenseLastServerTime = serverTime;');
-  assertContains(path, 'config.licenseGraceServerTime = serverTime;');
+  assertContains(path, 'config.licenseGraceServerTime = String(gracePayload.serverTime || serverTime ||');
+  assertContains(path, 'using_signed_grace');
+  assertContains(path, 'verifyGraceToken(graceToken, publicKeyPem)');
+  assertContains(path, "license_public_key_missing");
   assertContains(path, 'server_time_rollback_detected');
 }
 
@@ -79,6 +83,8 @@ for (const path of [
   'MICAFP/extensions/chrome/options/options.html',
   'MICAFP/extensions/firefox/options/options.html',
 ]) {
+  assertContains(path, 'id="licensePublicKeyPem"');
+  assertContains(path, 'Required for signed offline grace verification');
   assertContains(path, 'id="licenseLastServerTime"');
   assertContains(path, 'Last trusted server time');
 }
@@ -87,6 +93,7 @@ for (const path of [
   'MICAFP/extensions/chrome/options/options.ts',
   'MICAFP/extensions/firefox/options/options.ts',
 ]) {
+  assertContains(path, 'licensePublicKeyPem: document.getElementById');
   assertContains(path, 'licenseLastServerTime: document.getElementById');
   assertContains(path, "config.licenseLastServerTime || 'Not validated yet'");
 }

@@ -144,15 +144,16 @@ async function initModules(): Promise<void> {
 async function enforceLicense(): Promise<{ allowed: boolean; reason: string }> {
   if (!config.licenseInstalled) return { allowed: true, reason: 'license_not_configured' };
   const stored = await api.storage.local.get(StorageKeys.SECRETS);
-  const serial = String(stored[StorageKeys.SECRETS]?.licenseSerial ?? '').trim();
+  const secrets = { ...(stored[StorageKeys.SECRETS] ?? {}) } as Record<string, string>;
+  const serial = String(secrets.licenseSerial ?? '').trim();
   if (!serial) return denyLicense('license_secret_missing');
 
-  const cached = cachedLicenseDecision('preflight');
+  const cached = await cachedLicenseDecision('preflight', secrets.licenseGraceToken);
   if (cached && !cached.allowed) return cached;
 
   const accountId = (config.licenseAccountId ?? '').trim();
   const validationUrl = (config.licenseValidationUrl ?? '').trim();
-  if (!accountId || !validationUrl) return cachedLicenseDecision('license_account_or_server_missing') ?? denyLicense('online_validation_required');
+  if (!accountId || !validationUrl) return await cachedLicenseDecision('license_account_or_server_missing', secrets.licenseGraceToken) ?? denyLicense('online_validation_required');
 
   try {
     const response = await fetch(licenseEndpoint(validationUrl), {
@@ -173,35 +174,58 @@ async function enforceLicense(): Promise<{ allowed: boolean; reason: string }> {
     config.licenseLastResult = 'ALLOWED';
     config.licenseLastReason = String(body.reason || 'valid');
     config.licenseExpiresAt = String(body.expiresAt || '');
-    config.licenseOfflineGraceUntil = String(body.offlineGraceUntil || '');
     const serverTime = String(body.serverTime || '');
-    if (serverTime) {
-      config.licenseLastServerTime = serverTime;
-      config.licenseGraceServerTime = serverTime;
+    if (serverTime) config.licenseLastServerTime = serverTime;
+    const graceToken = String(body.graceToken || '');
+    if (graceToken && (config.licensePublicKeyPem || '').trim()) {
+      const gracePayload = await verifyGraceToken(graceToken, config.licensePublicKeyPem || '');
+      config.licenseOfflineGraceUntil = String(gracePayload.graceUntil || body.offlineGraceUntil || '');
+      config.licenseGraceServerTime = String(gracePayload.serverTime || serverTime || '');
+      secrets.licenseGraceToken = graceToken;
+      await api.storage.local.set({ [StorageKeys.SECRETS]: secrets });
+    } else {
+      config.licenseOfflineGraceUntil = '';
+      config.licenseGraceServerTime = '';
+      delete secrets.licenseGraceToken;
+      await api.storage.local.set({ [StorageKeys.SECRETS]: secrets });
     }
     await saveConfig();
-    return cachedLicenseDecision('server_valid') ?? { allowed: true, reason: config.licenseLastReason || 'valid' };
+    return await cachedLicenseDecision('server_valid', secrets.licenseGraceToken) ?? { allowed: true, reason: config.licenseLastReason || 'valid' };
   } catch (error) {
     if (config.licenseAllowOfflineGrace !== false) {
-      return cachedLicenseDecision(`server_unreachable:${safeError(error)}`) ?? denyLicense('server_unreachable');
+      return await cachedLicenseDecision(`server_unreachable:${safeError(error)}`, secrets.licenseGraceToken) ?? denyLicense('server_unreachable');
     }
     return denyLicense(`server_unreachable:${safeError(error)}`);
   }
 }
 
-function cachedLicenseDecision(prefix: string): { allowed: boolean; reason: string } | null {
-  const expiresAt = Date.parse(config.licenseExpiresAt || '');
-  const graceUntil = Date.parse(config.licenseOfflineGraceUntil || '');
+async function cachedLicenseDecision(prefix: string, graceToken?: string): Promise<{ allowed: boolean; reason: string } | null> {
+  const publicKeyPem = (config.licensePublicKeyPem || '').trim();
+  if (!graceToken) return null;
+  if (!publicKeyPem) return denyLicense('license_public_key_missing');
+
+  let gracePayload: Record<string, unknown>;
+  try {
+    gracePayload = await verifyGraceToken(graceToken, publicKeyPem);
+  } catch (error) {
+    return denyLicense(`grace_signature_invalid:${safeError(error)}`);
+  }
+
+  const expiresAt = Date.parse(String(gracePayload.expiresAt || config.licenseExpiresAt || ''));
+  const graceUntil = Date.parse(String(gracePayload.graceUntil || config.licenseOfflineGraceUntil || ''));
   const lastServerTime = Date.parse(config.licenseLastServerTime || '');
-  const graceServerTime = Date.parse(config.licenseGraceServerTime || config.licenseLastServerTime || '');
-  if (!Number.isFinite(expiresAt) || !Number.isFinite(graceUntil)) return null;
+  const graceServerTime = Date.parse(String(gracePayload.serverTime || config.licenseGraceServerTime || ''));
+  if (!Number.isFinite(expiresAt) || !Number.isFinite(graceUntil)) return denyLicense('offline_grace_invalid_expiry');
   if (Number.isFinite(lastServerTime) && Number.isFinite(graceServerTime) && graceServerTime + 5 * 60 * 1000 < lastServerTime) {
     return denyLicense('server_time_rollback_detected');
   }
+  if (String(gracePayload.accountId || '') !== (config.licenseAccountId || '').trim()) return denyLicense('offline_grace_account_mismatch');
+  if (String(gracePayload.platform || '') !== 'browser-extension') return denyLicense('offline_grace_platform_mismatch');
+  if (String(gracePayload.status || 'ACTIVE') !== 'ACTIVE') return denyLicense('offline_grace_inactive');
   const now = Date.now();
   if (now >= expiresAt) return denyLicense('license_expired');
   if (now >= graceUntil) return denyLicense('offline_grace_expired');
-  return { allowed: true, reason: `${prefix}:using_cached_grace` };
+  return { allowed: true, reason: `${prefix}:using_signed_grace` };
 }
 
 function denyLicense(reason: string): { allowed: boolean; reason: string } {
@@ -217,6 +241,58 @@ function licenseEndpoint(raw: string): string {
 
 function safeError(error: unknown): string {
   return error instanceof Error && error.message ? error.message : String(error);
+}
+
+async function verifyGraceToken(token: string, publicKeyPem: string): Promise<Record<string, unknown>> {
+  const parts = token.split('.');
+  if (parts.length !== 3 || parts.some((part) => !part)) throw new Error('invalid_grace_token_format');
+  const header = JSON.parse(textDecode(base64UrlDecode(parts[0])));
+  const payload = JSON.parse(textDecode(base64UrlDecode(parts[1])));
+  if (header.alg !== 'EdDSA') throw new Error('unsupported_grace_algorithm');
+  if (header.typ !== 'V2RayEZ-License-Grace') throw new Error('unexpected_grace_token_type');
+  const keyData = publicKeyBytes(publicKeyPem);
+  const key = await crypto.subtle.importKey('raw', asArrayBuffer(keyData), { name: 'Ed25519' } as any, false, ['verify']);
+  const ok = await crypto.subtle.verify(
+    { name: 'Ed25519' } as any,
+    key,
+    asArrayBuffer(base64UrlDecode(parts[2])),
+    asArrayBuffer(new TextEncoder().encode(`${parts[0]}.${parts[1]}`)),
+  );
+  if (!ok) throw new Error('bad_grace_signature');
+  if (payload.schema !== 'v2rayez.license.grace.v1') throw new Error('unexpected_grace_schema');
+  return payload;
+}
+
+function publicKeyBytes(publicKeyPem: string): Uint8Array {
+  const body = publicKeyPem
+    .replace(/\\n/g, '\n')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith('-----'))
+    .join('');
+  const bytes = base64Decode(body);
+  if (bytes.length === 32) return bytes;
+  if (bytes.length > 32) return bytes.slice(bytes.length - 32);
+  throw new Error('invalid_public_key');
+}
+
+function base64UrlDecode(value: string): Uint8Array {
+  let base64 = value.replace(/-/g, '+').replace(/_/g, '/');
+  while (base64.length % 4 !== 0) base64 += '=';
+  return base64Decode(base64);
+}
+
+function base64Decode(value: string): Uint8Array {
+  const binary = atob(value);
+  return Uint8Array.from(binary, (char) => char.charCodeAt(0));
+}
+
+function textDecode(value: Uint8Array): string {
+  return new TextDecoder().decode(value);
+}
+
+function asArrayBuffer(value: Uint8Array): ArrayBuffer {
+  return value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength) as ArrayBuffer;
 }
 
 /* ────────────────────── proxy control ────────────────────── */

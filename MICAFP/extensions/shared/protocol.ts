@@ -44,6 +44,7 @@ export interface UnifiedShieldConfig {
   // License
   licenseValidationUrl?: string;
   licenseAccountId?: string;
+  licensePublicKeyPem?: string;
   licenseAllowOfflineGrace?: boolean;
   licenseInstalled?: boolean;
   licenseLastResult?: string;
@@ -83,6 +84,7 @@ export const DEFAULT_CONFIG: UnifiedShieldConfig = {
   webrtcRelayEnabled: false,
   licenseValidationUrl: '',
   licenseAccountId: '',
+  licensePublicKeyPem: '',
   licenseAllowOfflineGrace: true,
   licenseInstalled: false,
   licenseLastResult: 'not_validated',

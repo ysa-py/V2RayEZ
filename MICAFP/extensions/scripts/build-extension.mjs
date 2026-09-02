@@ -27,9 +27,15 @@ const distDir = resolve(extensionDir, "dist");
 const sourceOutDir = resolve(distDir, target);
 const sharedOutDir = resolve(distDir, "shared");
 const npx = process.platform === "win32" ? "npx.cmd" : "npx";
+const localTsc = resolve(
+  extensionDir,
+  "node_modules",
+  ".bin",
+  process.platform === "win32" ? "tsc.cmd" : "tsc",
+);
 
 rmSync(distDir, { recursive: true, force: true });
-execFileSync(npx, ["tsc", "--noEmit", "false"], { cwd: extensionDir, stdio: "inherit" });
+runTypeScriptEmit();
 patchRelativeImports(distDir);
 
 const manifest = JSON.parse(readFileSync(resolve(extensionDir, "manifest.json"), "utf8"));
@@ -80,6 +86,18 @@ if (!existsSync(sharedOutDir)) {
 stageWasmPlaceholderOrArtifact();
 assertRequiredFiles();
 console.log(`Built V2RayEZ ${target} extension package at ${distDir}`);
+
+
+function runTypeScriptEmit() {
+  if (existsSync(localTsc)) {
+    execFileSync(localTsc, ["--noEmit", "false"], { cwd: extensionDir, stdio: "inherit" });
+    return;
+  }
+  execFileSync(npx, ["--yes", "--package", "typescript", "tsc", "--noEmit", "false"], {
+    cwd: extensionDir,
+    stdio: "inherit",
+  });
+}
 
 function patchRelativeImports(root) {
   for (const entry of readdirSync(root)) {

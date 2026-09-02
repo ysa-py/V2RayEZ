@@ -29,6 +29,7 @@ const els = {
   licenseSerial: document.getElementById('licenseSerial') as HTMLTextAreaElement,
   licenseAccountId: document.getElementById('licenseAccountId') as HTMLInputElement,
   licenseValidationUrl: document.getElementById('licenseValidationUrl') as HTMLInputElement,
+  licensePublicKeyPem: document.getElementById('licensePublicKeyPem') as HTMLTextAreaElement,
   licenseAllowOfflineGrace: document.getElementById('licenseAllowOfflineGrace') as HTMLInputElement,
   licenseLastServerTime: document.getElementById('licenseLastServerTime') as HTMLParagraphElement,
   aiEngineEnabled: document.getElementById('aiEngineEnabled') as HTMLInputElement,
@@ -89,6 +90,7 @@ function populateForm(config: UnifiedShieldConfig): void {
   els.licenseSerial.value = config.licenseInstalled ? SECRET_PLACEHOLDER : '';
   els.licenseAccountId.value = config.licenseAccountId ?? '';
   els.licenseValidationUrl.value = config.licenseValidationUrl ?? '';
+  els.licensePublicKeyPem.value = config.licensePublicKeyPem ?? '';
   els.licenseAllowOfflineGrace.checked = config.licenseAllowOfflineGrace !== false;
   els.licenseLastServerTime.textContent = config.licenseLastServerTime || 'Not validated yet';
   els.aiEngineEnabled.checked = config.aiEngineEnabled !== false;
@@ -145,6 +147,7 @@ function extractConfig(): Partial<UnifiedShieldConfig> {
     dohBlocklist,
     licenseValidationUrl: els.licenseValidationUrl.value.trim(),
     licenseAccountId: els.licenseAccountId.value.trim(),
+    licensePublicKeyPem: els.licensePublicKeyPem.value.trim(),
     licenseAllowOfflineGrace: els.licenseAllowOfflineGrace.checked,
     licenseInstalled: els.licenseSerial.value.trim() === SECRET_PLACEHOLDER,
     aiEngineEnabled: els.aiEngineEnabled.checked,

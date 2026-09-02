@@ -179,6 +179,12 @@
       </div>
 
       <div class="form-group">
+        <label for="licensePublicKeyPem">Ed25519 Public Key PEM</label>
+        <textarea id="licensePublicKeyPem" rows="3" placeholder="-----BEGIN PUBLIC KEY-----"></textarea>
+        <p class="help-text">Required for signed offline grace verification in the extension.</p>
+      </div>
+
+      <div class="form-group">
         <div class="toggle-row">
           <label for="licenseAllowOfflineGrace">Allow signed offline grace</label>
           <input type="checkbox" id="licenseAllowOfflineGrace" />

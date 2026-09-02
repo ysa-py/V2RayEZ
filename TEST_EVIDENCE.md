@@ -2143,3 +2143,39 @@ Notes:
 
 - `npm install --prefix MICAFP/extensions/chrome` and `npm install --prefix MICAFP/extensions/firefox` reported zero vulnerabilities.
 - Generated untracked per-extension package lock files were removed and not committed.
+
+---
+
+## Milestone 45 browser extension signed grace verification and build emit fix — 2026-09-02
+
+Commands:
+
+```bash
+npm run lint --prefix MICAFP/extensions/chrome
+V2RAYEZ_ALLOW_EMPTY_EXTENSION_WASM=1 npm run build --prefix MICAFP/extensions/chrome
+npm run lint --prefix MICAFP/extensions/firefox
+V2RAYEZ_ALLOW_EMPTY_EXTENSION_WASM=1 npm run build --prefix MICAFP/extensions/firefox
+node --check MICAFP/extensions/scripts/build-extension.mjs
+node --check tools/runtime_license_watchdog_gate.mjs
+node tools/runtime_license_watchdog_gate.mjs
+node --check tools/release_artifact_contract_gate.mjs
+node tools/release_artifact_contract_gate.mjs
+scripts/build-release-artifacts.sh --check
+node tools/v2rayez_identity_gate.mjs
+git diff --check
+```
+
+Result: PASS.
+
+Observed:
+
+- Chrome/Firefox options now expose an Ed25519 public-key field required for signed offline grace.
+- Chrome/Firefox background gates store and verify `licenseGraceToken` with WebCrypto Ed25519 before using cached grace.
+- Cached grace decisions use signed token payload expiry/grace/server-time fields and reject stale/invalid/mismatched tokens.
+- Extension build now uses local `node_modules/.bin/tsc` when present and no longer invokes the unrelated deprecated `tsc` package.
+- Chrome/Firefox TypeScript lint passed.
+- Chrome/Firefox package flow passed with `V2RAYEZ_ALLOW_EMPTY_EXTENSION_WASM=1`; that override remains development-only and is not used by release artifact builds.
+
+Blockers:
+
+- Real extension release packages still require the actual WASM obfuscator artifact and browser-store validation.
