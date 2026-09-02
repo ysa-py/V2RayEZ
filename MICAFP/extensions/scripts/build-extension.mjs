@@ -39,8 +39,11 @@ runTypeScriptEmit();
 patchRelativeImports(distDir);
 
 const manifest = JSON.parse(readFileSync(resolve(extensionDir, "manifest.json"), "utf8"));
+const hasModernPopup = existsSync(resolve(extensionDir, "popup", "popup.html"));
 const hasRootPopup = existsSync(resolve(extensionDir, "popup.html"));
-const defaultPopup = hasRootPopup ? "popup.html" : "popup/popup.html";
+const defaultPopup = hasModernPopup ? "popup/popup.html" : "popup.html";
+const modernChromeBackground = "chrome/background/service-worker.js";
+const modernFirefoxBackground = "firefox/background/background.js";
 manifest.name = target === "chrome" ? "V2RayEZ Universal" : "V2RayEZ Universal";
 manifest.short_name = "V2RayEZ";
 manifest.version = "2.0.0";
@@ -57,9 +60,9 @@ if (manifest.browser_action) {
 manifest.options_ui = { page: "options/options.html", open_in_tab: true };
 
 if (target === "chrome") {
-  manifest.background = { service_worker: "chrome/background.js", type: "module" };
+  manifest.background = { service_worker: modernChromeBackground, type: "module" };
 } else {
-  manifest.background = { scripts: ["firefox/background.js"], persistent: true };
+  manifest.background = { scripts: [modernFirefoxBackground], persistent: true };
   manifest.browser_specific_settings = {
     gecko: {
       id: "v2rayez@ysa-py.github.io",
@@ -168,9 +171,9 @@ function stageWasmPlaceholderOrArtifact() {
 }
 
 function assertRequiredFiles() {
-  const popupFiles = hasRootPopup
-    ? [resolve(distDir, "popup.html"), resolve(distDir, "popup.js")]
-    : [resolve(distDir, "popup", "popup.html"), resolve(distDir, "popup", "popup.js")];
+  const popupFiles = hasModernPopup
+    ? [resolve(distDir, "popup", "popup.html"), resolve(distDir, "popup", "popup.js")]
+    : [resolve(distDir, "popup.html"), resolve(distDir, "popup.js")];
   const required = [
     resolve(distDir, "manifest.json"),
     ...popupFiles,
@@ -180,7 +183,7 @@ function assertRequiredFiles() {
     resolve(distDir, "icons", "icon48.png"),
     resolve(distDir, "icons", "icon128.png"),
     resolve(distDir, "wasm", "obfuscator.wasm"),
-    target === "chrome" ? resolve(distDir, "chrome", "background.js") : resolve(distDir, "firefox", "background.js"),
+    target === "chrome" ? resolve(distDir, modernChromeBackground) : resolve(distDir, modernFirefoxBackground),
   ];
   const missing = required.filter((path) => !existsSync(path));
   if (missing.length > 0) {

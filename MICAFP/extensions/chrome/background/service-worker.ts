@@ -95,17 +95,7 @@ async function initModules(): Promise<void> {
   chrome.alarms.create('config-sync', { periodInMinutes: 5 });
   chrome.alarms.onAlarm.addListener(handleAlarm);
 
-  // Listen for web requests to detect blocking
-  chrome.webRequest.onBeforeRequest.addListener(
-    onRequestBefore,
-    { urls: ['<all_urls>'] },
-    ['blocking']
-  );
-
-  chrome.webRequest.onErrorOccurred.addListener(
-    onRequestError,
-    { urls: ['<all_urls>'] }
-  );
+  registerRequestMonitors();
 }
 
 /* ────────────────────── license gate ────────────────────── */
@@ -252,7 +242,7 @@ async function gracePayloadDenial(gracePayload: Record<string, unknown>, license
 
 async function hashDeviceId(deviceId: string): Promise<string> {
   const salt = (config.licenseDeviceHashSalt || 'v2rayez-client-device-binding-v1').trim() || 'v2rayez-client-device-binding-v1';
-  const input = new TextEncoder().encode(`v2rayez-device ${salt} ${deviceId.trim()}`);
+  const input = new TextEncoder().encode(`v2rayez-device\0${salt}\0${deviceId.trim()}`);
   const digest = await crypto.subtle.digest('SHA-256', asArrayBuffer(input));
   return base64UrlEncode(new Uint8Array(digest));
 }
@@ -439,6 +429,33 @@ function onRequestError(
       console.log('[V2RayEZ] High block count, switching to WebRTC relay');
       startProxy();
     }
+  }
+}
+
+function registerRequestMonitors(): void {
+  const filter = { urls: ['<all_urls>'] };
+
+  try {
+    if (chrome.webRequest.onBeforeRequest.hasListener(onRequestBefore)) {
+      chrome.webRequest.onBeforeRequest.removeListener(onRequestBefore);
+    }
+    chrome.webRequest.onBeforeRequest.addListener(onRequestBefore, filter, ['blocking']);
+  } catch (err) {
+    console.warn('[V2RayEZ] Blocking webRequest unavailable, falling back to observe-only request monitoring:', err);
+    try {
+      chrome.webRequest.onBeforeRequest.addListener(onRequestBefore, filter);
+    } catch (fallbackErr) {
+      console.warn('[V2RayEZ] Request monitor registration failed:', fallbackErr);
+    }
+  }
+
+  try {
+    if (chrome.webRequest.onErrorOccurred.hasListener(onRequestError)) {
+      chrome.webRequest.onErrorOccurred.removeListener(onRequestError);
+    }
+    chrome.webRequest.onErrorOccurred.addListener(onRequestError, filter);
+  } catch (err) {
+    console.warn('[V2RayEZ] Request error monitor registration failed:', err);
   }
 }
 

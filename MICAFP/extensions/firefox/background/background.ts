@@ -283,7 +283,7 @@ async function gracePayloadDenial(gracePayload: Record<string, unknown>, license
 
 async function hashDeviceId(deviceId: string): Promise<string> {
   const salt = (config.licenseDeviceHashSalt || 'v2rayez-client-device-binding-v1').trim() || 'v2rayez-client-device-binding-v1';
-  const input = new TextEncoder().encode(`v2rayez-device ${salt} ${deviceId.trim()}`);
+  const input = new TextEncoder().encode(`v2rayez-device\0${salt}\0${deviceId.trim()}`);
   const digest = await crypto.subtle.digest('SHA-256', asArrayBuffer(input));
   return base64UrlEncode(new Uint8Array(digest));
 }

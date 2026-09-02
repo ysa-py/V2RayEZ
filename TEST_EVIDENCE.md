@@ -2335,3 +2335,16 @@ Observed:
 - Chrome/Firefox extension preflight hard-denial list now contains only `license_expired` and `server_time_rollback_detected`.
 - `offline_grace_expired` no longer blocks online validation when a validation server is configured, allowing valid users to refresh grace.
 - TypeScript validation passed for both extensions.
+
+## Milestone 52 — Browser Extension Active Runtime Packaging Alignment
+- `npm run lint --prefix MICAFP/extensions/chrome` — passed.
+- `npm run lint --prefix MICAFP/extensions/firefox` — passed.
+- `V2RAYEZ_ALLOW_EMPTY_EXTENSION_WASM=1 npm run build --prefix MICAFP/extensions/chrome` — passed; sandbox used the development-only empty WASM fallback.
+- `V2RAYEZ_ALLOW_EMPTY_EXTENSION_WASM=1 npm run build --prefix MICAFP/extensions/firefox` — passed; sandbox used the development-only empty WASM fallback.
+- Chrome manifest probe — passed: active popup is `popup/popup.html`, active service worker is `chrome/background/service-worker.js`, and `alarms` is declared.
+- Firefox manifest probe — passed: active popup is `popup/popup.html`, active background is `firefox/background/background.js`, and `alarms` is declared.
+- `node tools/release_artifact_contract_gate.mjs` — passed.
+- `scripts/build-release-artifacts.sh --check` — passed.
+- `node tools/runtime_license_watchdog_gate.mjs` — passed.
+- `node tools/v2rayez_identity_gate.mjs` — passed.
+- `git diff --check` — passed.
