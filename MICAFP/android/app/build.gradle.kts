@@ -39,23 +39,48 @@ android {
             keyAlias = "androiddebugkey"
             keyPassword = "android"
         }
+        create("release") {
+            val propsFile = rootProject.file(".android-signing/signing.properties")
+            val props = java.util.Properties()
+            if (propsFile.exists()) {
+                propsFile.inputStream().use { props.load(it) }
+            }
+            val store = System.getenv("ANDROID_KEYSTORE_PATH") ?: props.getProperty("storeFile")
+            val storePw = System.getenv("ANDROID_KEYSTORE_PASSWORD") ?: props.getProperty("storePassword")
+            val alias = System.getenv("ANDROID_KEY_ALIAS") ?: props.getProperty("keyAlias")
+            val keyPw = System.getenv("ANDROID_KEY_PASSWORD") ?: props.getProperty("keyPassword")
+            if (!store.isNullOrBlank() && !storePw.isNullOrBlank() && !alias.isNullOrBlank() && !keyPw.isNullOrBlank()) {
+                storeFile = rootProject.file(store)
+                storePassword = storePw
+                keyAlias = alias
+                keyPassword = keyPw
+                enableV1Signing = false
+                enableV2Signing = true
+                enableV3Signing = true
+                enableV4Signing = true
+            }
+        }
     }
 
     buildTypes {
         release {
-            // NOTE (MICAFP delivery): R8 minification is temporarily disabled —
-            // the build host (2 vCPU / 4GB RAM) could not finish R8 within the
-            // tool time ceiling. Everything else (release build type, signing,
-            // proguard rules file) stays configured for later re-enable.
-            isMinifyEnabled = false
-            isShrinkResources = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            isDebuggable = false
+            isJniDebuggable = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            // MICAFP delivery agreement: release APK signed with the debug key
-            // so the product owner can install and test immediately.
-            signingConfig = signingConfigs.getByName("debugConfig")
+            val releaseCfg = signingConfigs.getByName("release")
+            signingConfig = if (releaseCfg.storeFile != null) {
+                releaseCfg
+            } else {
+                throw GradleException(
+                    "Release APKs must use a production V2/V3/V4 keystore (not the debug key). " +
+                        "Run android/scripts/create-release-keystore.sh or set ANDROID_KEYSTORE_* env vars."
+                )
+            }
         }
         debug {
             isDebuggable = true

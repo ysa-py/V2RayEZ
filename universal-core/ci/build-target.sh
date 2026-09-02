@@ -55,8 +55,9 @@ case "$TARGET" in
     ;;
 
   mipsel-unknown-linux-musl|mipsel-unknown-linux-gnu)
-    # Keep OpenWrt in CI. Do not build the license-gate bin or cdylib (those
-    # need a full musl sysroot). Emit only libv2rayez_universal_core.a.
+    # OpenWrt: this crate's lockfile is v4 and deps need edition2024, so only
+    # current nightly/stable cargo can build it. Old 1.77/1.78 rustc is skipped
+    # on purpose (icu_collections / lockfile v4). Still emit the staticlib.
     if [[ "$(uname -s)" == "Linux" ]]; then
       apt_install gcc-mipsel-linux-gnu binutils-mipsel-linux-gnu
       export CARGO_TARGET_MIPSEL_UNKNOWN_LINUX_MUSL_LINKER="${CARGO_TARGET_MIPSEL_UNKNOWN_LINUX_MUSL_LINKER:-mipsel-linux-gnu-gcc}"
@@ -67,36 +68,28 @@ case "$TARGET" in
       export AR_mipsel_unknown_linux_gnu="${AR_mipsel_unknown_linux_gnu:-mipsel-linux-gnu-ar}"
       export RUSTFLAGS="${RUSTFLAGS:-} -C target-feature=+crt-static -C linker=mipsel-linux-gnu-gcc -C ar=mipsel-linux-gnu-ar"
     fi
+    rustup toolchain install nightly --profile minimal --component rust-src
+    echo "nightly mipsel targets:"
+    rustc +nightly --print target-list | grep -E 'mipsel' || true
     built=0
-    try_openwrt() {
-      local tc="$1"
-      local triple="$2"
-      echo "==== OpenWrt try toolchain=$tc triple=$triple ===="
-      rustup toolchain install "$tc" --profile minimal --component rust-src || return 1
-      rustc "+$tc" --print target-list | grep -E 'mipsel' || true
-      if rustc "+$tc" --print target-list | grep -qx "$triple"; then
-        RUSTC_BOOTSTRAP=1 cargo "+$tc" rustc -Zbuild-std=std,panic_abort --lib --release \
-          --target "$triple" --features "$FEATURES" -- --crate-type staticlib && return 0
-      fi
-      return 1
-    }
-    for tc in nightly stable 1.84.0 1.81.0 1.78.0 1.77.0; do
-      if try_openwrt "$tc" mipsel-unknown-linux-musl; then
-        built=1
-        TARGET=mipsel-unknown-linux-musl
-        break
-      fi
-      if try_openwrt "$tc" mipsel-unknown-linux-gnu; then
-        built=1
-        TARGET=mipsel-unknown-linux-gnu
-        break
+    for triple in mipsel-unknown-linux-musl mipsel-unknown-linux-gnu; do
+      if rustc +nightly --print target-list | grep -qx "$triple"; then
+        echo "==== OpenWrt nightly builtin $triple ===="
+        if RUSTC_BOOTSTRAP=1 cargo +nightly rustc -Zbuild-std=std,panic_abort --lib --release \
+          --target "$triple" --features "$FEATURES" -- --crate-type staticlib; then
+          built=1
+          TARGET="$triple"
+          break
+        fi
       fi
     done
     if [[ "$built" -eq 0 ]]; then
-      echo "rustc MIPS triples unavailable; using custom target spec + nightly build-std"
-      rustup toolchain install nightly --profile minimal --component rust-src
+      echo "==== OpenWrt custom JSON spec (-Zjson-target-spec) ===="
       SPEC="$ROOT/ci/mipsel-unknown-linux-musl.json"
-      RUSTC_BOOTSTRAP=1 cargo +nightly rustc -Zbuild-std=std,panic_abort --lib --release \
+      RUSTC_BOOTSTRAP=1 cargo +nightly rustc \
+        -Zbuild-std=std,panic_abort \
+        -Zjson-target-spec \
+        --lib --release \
         --target "$SPEC" --features "$FEATURES" -- --crate-type staticlib
       TARGET=mipsel-unknown-linux-musl
     fi
