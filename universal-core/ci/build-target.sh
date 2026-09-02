@@ -28,12 +28,14 @@ install_cross() {
 # Bash 3.2 (macOS) treats empty "${arr[@]}" as unbound under `set -u`.
 run_cargo_build() {
   local triple="$1"
+  shift || true
+  # Extra cargo args (e.g. --lib) must be passed after the triple.
   if [[ "${USE_NIGHTLY_BUILD_STD:-0}" == "1" ]]; then
-    cargo +nightly -Zbuild-std=std,panic_abort build --target "$triple" --release --features "$FEATURES"
+    RUSTC_BOOTSTRAP=1 cargo +nightly -Zbuild-std=std,panic_abort build --target "$triple" --release --features "$FEATURES" "$@"
   elif [[ -n "${CARGO_TOOLCHAIN:-}" ]]; then
-    cargo "+${CARGO_TOOLCHAIN}" build --target "$triple" --release --features "$FEATURES"
+    cargo "+${CARGO_TOOLCHAIN}" build --target "$triple" --release --features "$FEATURES" "$@"
   else
-    cargo build --target "$triple" --release --features "$FEATURES"
+    cargo build --target "$triple" --release --features "$FEATURES" "$@"
   fi
 }
 
@@ -53,38 +55,50 @@ case "$TARGET" in
     ;;
 
   mipsel-unknown-linux-musl|mipsel-unknown-linux-gnu)
-    # OpenWrt stays in the matrix. Current stable rustc dropped MIPS rustup
-    # targets, so pin a toolchain that still ships mipsel, then fall back.
+    # Keep OpenWrt in CI. Do not build the license-gate bin or cdylib (those
+    # need a full musl sysroot). Emit only libv2rayez_universal_core.a.
     if [[ "$(uname -s)" == "Linux" ]]; then
-      apt_install gcc-mipsel-linux-gnu
+      apt_install gcc-mipsel-linux-gnu binutils-mipsel-linux-gnu
       export CARGO_TARGET_MIPSEL_UNKNOWN_LINUX_MUSL_LINKER="${CARGO_TARGET_MIPSEL_UNKNOWN_LINUX_MUSL_LINKER:-mipsel-linux-gnu-gcc}"
       export CARGO_TARGET_MIPSEL_UNKNOWN_LINUX_GNU_LINKER="${CARGO_TARGET_MIPSEL_UNKNOWN_LINUX_GNU_LINKER:-mipsel-linux-gnu-gcc}"
-      export RUSTFLAGS="${RUSTFLAGS:-} -C target-feature=+crt-static -C linker=mipsel-linux-gnu-gcc"
+      export CC_mipsel_unknown_linux_musl="${CC_mipsel_unknown_linux_musl:-mipsel-linux-gnu-gcc}"
+      export CC_mipsel_unknown_linux_gnu="${CC_mipsel_unknown_linux_gnu:-mipsel-linux-gnu-gcc}"
+      export AR_mipsel_unknown_linux_musl="${AR_mipsel_unknown_linux_musl:-mipsel-linux-gnu-ar}"
+      export AR_mipsel_unknown_linux_gnu="${AR_mipsel_unknown_linux_gnu:-mipsel-linux-gnu-ar}"
+      export RUSTFLAGS="${RUSTFLAGS:-} -C target-feature=+crt-static -C linker=mipsel-linux-gnu-gcc -C ar=mipsel-linux-gnu-ar"
     fi
     built=0
-    for pin in 1.77.0 1.76.0 1.72.0; do
-      echo "Trying OpenWrt mipsel with rustc $pin"
-      rustup toolchain install "$pin" --profile minimal || continue
-      if rustup target add mipsel-unknown-linux-musl --toolchain "$pin"; then
-        CARGO_TOOLCHAIN="$pin" run_cargo_build mipsel-unknown-linux-musl && built=1 && TARGET=mipsel-unknown-linux-musl && break
+    try_openwrt() {
+      local tc="$1"
+      local triple="$2"
+      echo "==== OpenWrt try toolchain=$tc triple=$triple ===="
+      rustup toolchain install "$tc" --profile minimal --component rust-src || return 1
+      rustc "+$tc" --print target-list | grep -E 'mipsel' || true
+      if rustc "+$tc" --print target-list | grep -qx "$triple"; then
+        RUSTC_BOOTSTRAP=1 cargo "+$tc" rustc -Zbuild-std=std,panic_abort --lib --release \
+          --target "$triple" --features "$FEATURES" -- --crate-type staticlib && return 0
       fi
-      if rustup target add mipsel-unknown-linux-gnu --toolchain "$pin"; then
-        CARGO_TOOLCHAIN="$pin" run_cargo_build mipsel-unknown-linux-gnu && built=1 && TARGET=mipsel-unknown-linux-gnu && break
+      return 1
+    }
+    for tc in nightly stable 1.84.0 1.81.0 1.78.0 1.77.0; do
+      if try_openwrt "$tc" mipsel-unknown-linux-musl; then
+        built=1
+        TARGET=mipsel-unknown-linux-musl
+        break
+      fi
+      if try_openwrt "$tc" mipsel-unknown-linux-gnu; then
+        built=1
+        TARGET=mipsel-unknown-linux-gnu
+        break
       fi
     done
     if [[ "$built" -eq 0 ]]; then
-      echo "Pinned toolchains failed; trying nightly -Zbuild-std"
-      rustup toolchain install nightly --component rust-src || true
-      export USE_NIGHTLY_BUILD_STD=1
-      if ! run_cargo_build mipsel-unknown-linux-musl; then
-        echo "nightly musl failed; retrying with cross (gnu)"
-        install_cross
-        TARGET=mipsel-unknown-linux-gnu
-        rustup target add "$TARGET" || true
-        cross build --target "$TARGET" --release --features "$FEATURES"
-      else
-        TARGET=mipsel-unknown-linux-musl
-      fi
+      echo "rustc MIPS triples unavailable; using custom target spec + nightly build-std"
+      rustup toolchain install nightly --profile minimal --component rust-src
+      SPEC="$ROOT/ci/mipsel-unknown-linux-musl.json"
+      RUSTC_BOOTSTRAP=1 cargo +nightly rustc -Zbuild-std=std,panic_abort --lib --release \
+        --target "$SPEC" --features "$FEATURES" -- --crate-type staticlib
+      TARGET=mipsel-unknown-linux-musl
     fi
     ;;
 
