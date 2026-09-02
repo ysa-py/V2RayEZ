@@ -317,6 +317,34 @@ Production note: final `.ipa` packaging must configure App Group/Keychain Access
 
 ---
 
+
+---
+
+## Android License Admin companion app
+
+A separate Android operator application is now present under:
+
+`V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/license-admin`
+
+Purpose:
+
+- Issues per-user signed serials through `POST /api/licenses/issue`.
+- Renews per-user expiry through `POST /api/licenses/renew` and returns the newly signed serial.
+- Revokes/deletes access through `POST /api/licenses/revoke` for immediate dashboard-side cutoff.
+- Validates a serial through `POST /api/licenses/validate` for operator checks.
+- Keeps the signing private key exclusively on the dashboard/server; the Android admin app never mints or signs a license locally.
+- Keeps the admin bearer/session token in memory only; it is not saved in SharedPreferences.
+
+Operational cutoff semantics:
+
+- Revocation is immediate in the dashboard database and audit log.
+- Online VPN clients that can reach the configured validation URL are cut off by their next validation/watchdog check.
+- A fully offline client cannot receive an instant revoke packet without any reachable server/channel; it will stop at the next successful server validation or at the signed offline-grace/expiry hard cutoff. For true instant revocation, deploy the validation endpoint on a domestic/intranet path the client can reach during shutdown conditions.
+
+Release artifact contract:
+
+- `scripts/build-release-artifacts.sh --target android` builds both `:app:assembleRelease` and `:license-admin:assembleRelease` and copies both APK outputs.
+
 ## Dashboard Milestone 6 admin UI wiring
 
 The MICAFP Next.js dashboard now has an additive License admin panel:

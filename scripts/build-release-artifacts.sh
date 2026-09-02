@@ -108,6 +108,8 @@ write_checksums() {
 validate_contract() {
     require_file "$BASE_ANDROID_DIR/gradlew"
     require_file "$BASE_ANDROID_DIR/app/build.gradle.kts"
+    require_file "$BASE_ANDROID_DIR/license-admin/build.gradle.kts"
+    require_file "$BASE_ANDROID_DIR/license-admin/src/main/AndroidManifest.xml"
     require_file "$GUI_DIR/package.json"
     require_file "$GUI_DIR/src-tauri/tauri.conf.json"
     require_file "$IOS_DIR/project.yml"
@@ -126,9 +128,10 @@ selected_targets() {
 build_android() {
     require_tool java android
     mkdir -p "$ARTIFACT_DIR/android"
-    (cd "$BASE_ANDROID_DIR" && ./gradlew :app:assembleRelease)
+    (cd "$BASE_ANDROID_DIR" && ./gradlew :app:assembleRelease :license-admin:assembleRelease)
     copy_matches "$ARTIFACT_DIR/android" \
-        "$BASE_ANDROID_DIR/app/build/outputs/apk/release/*.apk"
+        "$BASE_ANDROID_DIR/app/build/outputs/apk/release/*.apk" \
+        "$BASE_ANDROID_DIR/license-admin/build/outputs/apk/release/*.apk"
 }
 
 build_ios() {

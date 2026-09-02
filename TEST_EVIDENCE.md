@@ -2391,3 +2391,16 @@ Observed:
 - `scripts/build-release-artifacts.sh --check` — passed.
 - `git diff --check` — passed.
 - `bash ./gradlew testDebugUnitTest` inside the core V2RayEZ app folder — blocked by sandbox environment: `JAVA_HOME is not set and no 'java' command could be found in your PATH.`
+
+## Milestone 57 — Separate Android License Admin Companion
+- `node tools/android_license_admin_gate.mjs` — passed.
+- `node tools/release_artifact_contract_gate.mjs` — passed.
+- `scripts/build-release-artifacts.sh --check` — passed.
+- `node tools/android_smart_repair_gate.mjs` — passed.
+- `node tools/runtime_license_watchdog_gate.mjs` — passed.
+- `node tools/v2rayez_identity_gate.mjs` — passed.
+- License Admin XML parse for `license-admin/src/main/AndroidManifest.xml` and `license-admin/src/main/res/values/styles.xml` — passed.
+- `bash 'V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/scripts/gates/string-key-parity.sh'` — passed with EN/FA/RU full string-key parity.
+- `git diff --check` — passed.
+- `bash ./gradlew :license-admin:assembleDebug` inside the core V2RayEZ app folder — blocked by sandbox environment: `JAVA_HOME is not set and no 'java' command could be found in your PATH.`
+- `scripts/build-release-artifacts.sh --target android` — failed closed as expected because `java` is not installed for target `android`.
