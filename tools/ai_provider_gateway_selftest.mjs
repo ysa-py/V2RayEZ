@@ -5,6 +5,7 @@ import {
   buildAIRequest,
   detectResponseShape,
   localAIFallbackDescriptor,
+  localAIProviderResult,
   redactProviderConfig,
   testAndAutoDetectProvider,
 } from '../MICAFP/dashboard/src/lib/ai-provider-gateway.mjs';
@@ -42,6 +43,38 @@ try {
   assert.equal(built.request.method, 'POST');
   assert.equal(built.url, `${baseUrl}/echo`);
   assert.match(String(built.request.body), /diagnose vpn/);
+
+  const uiStyleProvider = buildAIRequest({
+    baseUrl,
+    endpoint: '/echo',
+    model: 'ui-model',
+    auth: { type: 'none' },
+    headersJson: '{"X-Test":"yes"}',
+    requestTemplate: '{"prompt":${prompt_json},"model":"${model}"}',
+    responsePath: 'text',
+  }, { prompt: 'diagnose from ui' });
+  assert.equal(uiStyleProvider.url, `${baseUrl}/echo`);
+  assert.equal(uiStyleProvider.request.headers['X-Test'], 'yes');
+  assert.deepEqual(JSON.parse(uiStyleProvider.request.body), { prompt: 'diagnose from ui', model: 'ui-model' });
+
+  assert.throws(
+    () => buildAIRequest({ baseUrl, auth: { type: 'none' }, headersJson: '{bad-json}' }, {}),
+    /headers_json must be a valid JSON object/,
+  );
+
+  const localBuilt = buildAIRequest({ id: 'local-v2rayez', type: 'local', baseUrl: 'local://v2rayez' }, { prompt: 'blocked api' });
+  assert.equal(localBuilt.provider.local, true);
+  assert.equal(localBuilt.request.method, 'LOCAL');
+  assert.equal(localBuilt.url, 'local://v2rayez');
+  const localDirect = localAIProviderResult(localBuilt.provider, { prompt: 'blocked api' });
+  assert.equal(localDirect.success, true);
+  assert.equal(localDirect.localFallback.mode, 'local-v2rayez-ai');
+  const localResult = await testAndAutoDetectProvider({ id: 'local-v2rayez', type: 'local', baseUrl: 'local://v2rayez' }, { prompt: 'blocked api' }, () => {
+    throw new Error('local provider must not call fetch');
+  });
+  assert.equal(localResult.success, true);
+  assert.equal(localResult.provider.baseUrl, 'local://v2rayez');
+  assert.equal(localResult.fallback, null);
 
   for (const [endpoint, shape] of [['/openai', 'openai'], ['/anthropic', 'anthropic'], ['/gemini', 'gemini'], ['/generic', 'generic']]) {
     const result = await testAndAutoDetectProvider({ baseUrl, endpointPath: endpoint, auth: { type: 'none' } });

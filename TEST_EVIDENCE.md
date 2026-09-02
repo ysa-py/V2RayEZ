@@ -2031,3 +2031,34 @@ Observed:
 Blockers:
 
 - Android and iOS compile/device checks still require real platform toolchains.
+
+---
+
+## Milestone 41 dashboard AI provider local/no-code request hardening — 2026-09-02
+
+Commands:
+
+```bash
+node --check MICAFP/dashboard/src/lib/ai-provider-gateway.mjs
+node --check tools/ai_provider_gateway_selftest.mjs
+node tools/ai_provider_gateway_selftest.mjs
+node tools/v2rayez_identity_gate.mjs
+npm run lint --prefix MICAFP/dashboard
+npm run build --prefix MICAFP/dashboard
+git diff --check
+```
+
+Result: PASS.
+
+Observed:
+
+- `local://v2rayez` with `type: local` returns a successful local V2RayEZ AI result and does not call `fetch`.
+- UI-style provider field `endpoint` is accepted.
+- `headersJson` is parsed into outbound headers.
+- String JSON request templates render `prompt_json`/`system_json` safely and are sent as JSON, not a double-encoded string.
+- Invalid `headersJson` is rejected clearly.
+- Dashboard lint/build remained green.
+
+Scope note:
+
+- Real external AI provider API tests remain pending on live credentials/network availability.

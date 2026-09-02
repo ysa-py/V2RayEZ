@@ -34,44 +34,85 @@ export function redactProviderConfig(config) {
   return copy;
 }
 
+function parseJsonObject(value, label) {
+  if (value == null || value === '') return {};
+  if (typeof value === 'object' && !Array.isArray(value)) return { ...value };
+  if (typeof value !== 'string') {
+    throw new AIProviderGatewayError(`invalid_${label}`, `${label} must be a JSON object`);
+  }
+  try {
+    const parsed = JSON.parse(value);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('not_object');
+    return parsed;
+  } catch (error) {
+    throw new AIProviderGatewayError(`invalid_${label}`, `${label} must be a valid JSON object`, { cause: error instanceof Error ? error.message : String(error) });
+  }
+}
+
+function serializeRenderedBody(template) {
+  if (typeof template !== 'string') return JSON.stringify(template);
+  const trimmed = template.trim();
+  if (!trimmed) return undefined;
+  if (/^[{[]/.test(trimmed)) {
+    JSON.parse(trimmed);
+    return trimmed;
+  }
+  return JSON.stringify(template);
+}
+
 export function normalizeProviderConfig(raw) {
   if (!raw || typeof raw !== 'object') {
     throw new AIProviderGatewayError('invalid_provider_config', 'Provider config must be an object');
   }
-  const baseUrl = String(raw.baseUrl || '').trim().replace(/\/+$/, '');
-  if (!baseUrl || !/^https?:\/\//i.test(baseUrl)) {
-    throw new AIProviderGatewayError('invalid_base_url', 'baseUrl must be an http(s) URL');
+  const id = String(raw.id || raw.name || 'custom-provider').trim();
+  const providerType = String(raw.type || raw.provider || raw.shape || '').trim().toLowerCase();
+  const rawBaseUrl = String(raw.baseUrl || '').trim().replace(/\/+$/, '');
+  const isLocalProvider = providerType === 'local'
+    || rawBaseUrl.startsWith('local://')
+    || id === 'local-v2rayez'
+    || id === 'local-v2rayez-ai';
+  const baseUrl = isLocalProvider ? (rawBaseUrl || 'local://v2rayez') : rawBaseUrl;
+  if (!isLocalProvider && (!baseUrl || !/^https?:\/\//i.test(baseUrl))) {
+    throw new AIProviderGatewayError('invalid_base_url', 'baseUrl must be an http(s) URL or a local:// V2RayEZ provider');
   }
-  const endpointPath = String(raw.endpointPath || raw.path || '').trim() || '/v1/chat/completions';
-  const method = String(raw.method || 'POST').toUpperCase();
-  if (!['GET', 'POST', 'PUT', 'PATCH'].includes(method)) {
+  if (isLocalProvider && !baseUrl.startsWith('local://')) {
+    throw new AIProviderGatewayError('invalid_local_base_url', 'Local providers must use local://v2rayez or leave baseUrl empty');
+  }
+  const endpointPath = String(raw.endpointPath || raw.endpoint || raw.path || '').trim() || (isLocalProvider ? '' : '/v1/chat/completions');
+  const method = isLocalProvider ? 'LOCAL' : String(raw.method || 'POST').toUpperCase();
+  if (!isLocalProvider && !['GET', 'POST', 'PUT', 'PATCH'].includes(method)) {
     throw new AIProviderGatewayError('invalid_method', 'method must be GET, POST, PUT, or PATCH');
   }
   const timeoutMs = Math.max(1000, Math.min(120000, Number(raw.timeoutMs || DEFAULT_TIMEOUT_MS)));
   const auth = raw.auth && typeof raw.auth === 'object' ? raw.auth : {};
   const schema = raw.schema && typeof raw.schema === 'object' ? raw.schema : {};
   return {
-    id: String(raw.id || raw.name || 'custom-provider').trim(),
-    displayName: String(raw.displayName || raw.name || raw.id || 'Custom AI Provider').trim(),
+    id,
+    displayName: String(raw.displayName || raw.name || raw.id || (isLocalProvider ? 'V2RayEZ Local AI' : 'Custom AI Provider')).trim(),
+    type: isLocalProvider ? 'local' : (providerType || 'generic'),
+    local: isLocalProvider,
     baseUrl,
-    endpointPath: endpointPath.startsWith('/') ? endpointPath : `/${endpointPath}`,
+    endpointPath: endpointPath ? (endpointPath.startsWith('/') ? endpointPath : `/${endpointPath}`) : '',
     method,
-    model: String(raw.model || schema.model || 'auto').trim(),
+    model: String(raw.model || schema.model || (isLocalProvider ? 'v2rayez-anti-dpi-local' : 'auto')).trim(),
     timeoutMs,
-    headers: raw.headers && typeof raw.headers === 'object' ? { ...raw.headers } : {},
+    headers: {
+      ...parseJsonObject(raw.headersJson, 'headers_json'),
+      ...(raw.headers && typeof raw.headers === 'object' ? raw.headers : {}),
+    },
     auth: {
-      type: String(auth.type || (raw.apiKey ? 'bearer' : 'none')).toLowerCase(),
+      type: isLocalProvider ? 'none' : String(auth.type || (raw.apiKey ? 'bearer' : 'none')).toLowerCase(),
       headerName: String(auth.headerName || 'Authorization'),
       headerTemplate: String(auth.headerTemplate || (raw.apiKey ? 'Bearer ${apiKey}' : '')),
       secretRef: auth.secretRef ? String(auth.secretRef) : undefined,
-      secret: raw.apiKey ? String(raw.apiKey) : auth.secret ? String(auth.secret) : undefined,
+      secret: isLocalProvider ? undefined : raw.apiKey ? String(raw.apiKey) : auth.secret ? String(auth.secret) : undefined,
     },
     schema: {
       requestTemplate: schema.requestTemplate || raw.requestTemplate || defaultRequestTemplate(raw.provider || raw.shape),
-      responsePath: schema.responsePath || raw.responsePath || '',
+      responsePath: schema.responsePath || raw.responsePath || (isLocalProvider ? 'text' : ''),
       systemPromptPath: schema.systemPromptPath || '',
     },
-    proxyPolicy: raw.proxyPolicy || 'try-active-tunnel-then-direct',
+    proxyPolicy: raw.proxyPolicy || (isLocalProvider ? 'local-only' : 'try-active-tunnel-then-direct'),
     censorshipProbe: raw.censorshipProbe || { enabled: true, testPrompt: 'Reply with the single word OK.' },
   };
 }
@@ -116,10 +157,23 @@ export function buildAIRequest(config, input) {
   const provider = normalizeProviderConfig(config);
   const prompt = String(input.prompt || provider.censorshipProbe?.testPrompt || 'Reply OK.');
   const system = String(input.system || 'You are a concise VPN diagnostics assistant. Do not request secrets.');
+  if (provider.local) {
+    return {
+      provider,
+      url: provider.baseUrl,
+      request: {
+        method: provider.method,
+        headers: {},
+        body: JSON.stringify({ prompt, system, model: String(input.model || provider.model || 'v2rayez-anti-dpi-local') }),
+      },
+    };
+  }
   const variables = {
     prompt,
     system,
     model: String(input.model || provider.model || 'auto'),
+    prompt_json: JSON.stringify(prompt),
+    system_json: JSON.stringify(system),
   };
   const renderedEndpointPath = renderTemplate(provider.endpointPath, variables);
   const url = new URL(renderedEndpointPath, provider.baseUrl);
@@ -131,7 +185,7 @@ export function buildAIRequest(config, input) {
   let body;
   if (provider.method !== 'GET') {
     headers['content-type'] = headers['content-type'] || 'application/json';
-    body = JSON.stringify(renderTemplate(provider.schema.requestTemplate, variables));
+    body = serializeRenderedBody(renderTemplate(provider.schema.requestTemplate, variables));
   } else {
     url.searchParams.set('prompt', prompt);
     if (variables.model !== 'auto') url.searchParams.set('model', variables.model);
@@ -202,10 +256,13 @@ function categorizeFetchError(error) {
 }
 
 export async function testAndAutoDetectProvider(config, input = {}, fetchImpl = globalThis.fetch) {
+  const built = buildAIRequest(config, input);
+  if (built.provider.local) {
+    return localAIProviderResult(built.provider, input);
+  }
   if (typeof fetchImpl !== 'function') {
     throw new AIProviderGatewayError('fetch_unavailable', 'fetch implementation is unavailable');
   }
-  const built = buildAIRequest(config, input);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(new Error('timeout')), built.provider.timeoutMs);
   const startedAt = Date.now();
@@ -251,6 +308,25 @@ export async function testAndAutoDetectProvider(config, input = {}, fetchImpl = 
   } finally {
     clearTimeout(timeout);
   }
+}
+
+export function localAIProviderResult(provider, input = {}) {
+  const prompt = String(input.prompt || provider.censorshipProbe?.testPrompt || 'diagnose connection');
+  return {
+    success: true,
+    reachable: true,
+    blocked: false,
+    retryable: false,
+    status: 200,
+    latencyMs: 0,
+    contentType: 'application/vnd.v2rayez.local-ai+json',
+    detectedShape: RESPONSE_SHAPES.generic,
+    responsePath: 'text',
+    sampleText: `V2RayEZ Local AI ready: adaptive anti-DPI guidance is available for ${prompt.slice(0, 80)}`,
+    provider: redactProviderConfig(provider),
+    fallback: null,
+    localFallback: localAIFallbackDescriptor('local_provider_selected'),
+  };
 }
 
 export function localAIFallbackDescriptor(reason = 'external_provider_unavailable') {
