@@ -619,7 +619,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Download all artifacts
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           path: artifacts
           pattern: v2rayez-*
@@ -668,7 +668,7 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: Download all deliverables
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           path: artifacts
           pattern: v2rayez-*
@@ -723,9 +723,19 @@ jobs:
           
           mkdir -p release-assets
           
-          # Flatten all artifact files into release-assets
+          # Flatten all artifact files into release-assets, skipping build
+          # intermediates that are not user-installable deliverables:
+          #   *.d           cargo/clang dependency-tracking files
+          #   installer.nsi the NSIS *source script* (the built .exe is shipped)
+          # Everything a user can actually install is preserved.
           find artifacts -type f | while read -r f; do
             base="$(basename "$f")"
+            case "$base" in
+              *.d|installer.nsi|*.pdb|*.exp|*.lib)
+                echo "Skipping build intermediate: $base"
+                continue
+                ;;
+            esac
             cp -v "$f" "release-assets/$base"
           done
           
