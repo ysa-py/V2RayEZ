@@ -1854,3 +1854,43 @@ Observed:
 Blocked locally:
 
 - Actual artifact generation is still blocked by missing Java/Android SDK, Rust/Tauri, Xcode/signing, Windows builder, OpenWrt SDK, and real target devices.
+
+---
+
+## Milestone 36 traceability and inventory refresh — 2026-09-02
+
+Commands:
+
+```bash
+python3 tools/merge_inventory.py
+python3 - <<'PY'
+from pathlib import Path
+import json
+inventory = json.loads(Path('MERGE_INVENTORY.json').read_text())
+assert inventory['source_summary']['MICAFP-UnifiedShield']['file_count'] == 732
+assert len(inventory['feature_probes']) == 27
+trace = Path('MERGE_TRACEABILITY.md').read_text()
+for needle in ['Milestones 30-35 additions', 'Universal release artifact build contract', 'OpenWrt source pin and SDK `.ipk` build wrapper', 'Runtime hard-cutoff watchdog tightening']:
+    assert needle in trace, needle
+print('traceability inventory refresh check pass')
+PY
+git diff --check
+node tools/release_artifact_contract_gate.mjs
+node tools/openwrt_packaging_gate.mjs
+node tools/android_ai_settings_migration_gate.mjs
+node tools/runtime_license_watchdog_gate.mjs
+node tools/license_serial_e2e_selftest.mjs
+```
+
+Result: PASS.
+
+Observed:
+
+- `MERGE_INVENTORY.json` regenerated successfully.
+- MICAFP source file count is now 732 because the OpenWrt runtime license watchdog is tracked.
+- Feature probe count remains 27.
+- `MERGE_TRACEABILITY.md` now records Milestones 30-35 identity, AI migration, license hard-cutoff, OpenWrt packaging, and release artifact build-contract work.
+
+Scope note:
+
+- This is traceability synchronization only; native builds and real connectivity validation remain pending on proper toolchains/devices.

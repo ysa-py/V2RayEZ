@@ -398,3 +398,18 @@ No existing MICAFP iOS sections or Network Extension capabilities were removed; 
 | Dashboard license admin | `MICAFP/dashboard/src/components/license-admin-panel.tsx`, `src/app/page.tsx` | Dashboard/Web | in progress | UI calls issue/validate/revoke/renew APIs; dashboard lint blocked (`eslint: not found`). |
 | Dashboard AI provider admin/test | `MICAFP/dashboard/src/components/ai-provider-gateway-panel.tsx`, `src/app/page.tsx` | Dashboard/Web | in progress | UI calls provider test API; dashboard lint/build blocked by missing dependencies. |
 | Preserve dashboard modules | `MICAFP/dashboard/src/app/page.tsx` | Dashboard/Web | in progress | Existing tabs remain; license/ai-gateway tabs were added additively. |
+
+---
+
+## 20) Milestones 30-35 additions — identity, license cutoff, OpenWrt packaging, release artifacts
+
+| Requirement | Implementation files | Platforms | Status | Evidence |
+|---|---|---|---|---|
+| Canonical V2RayEZ AI defaults/fallback identity | `universal-core/src/ai_provider.rs`, `MICAFP/dashboard/src/app/api/ai-engine/providers/test/route.ts`, `MICAFP/openwrt/files/etc/config/unifiedshield`, base Android AI models/viewmodels/resources, `docs/AI_PROVIDER_GATEWAY.md` | Android, iOS-compatible storage, desktop, OpenWrt, dashboard | in progress | `node tools/ai_provider_gateway_selftest.mjs` PASS; `node tools/android_ai_settings_migration_gate.mjs` PASS; dashboard lint/build PASS in Milestone 30 evidence. |
+| Legacy persisted AI settings self-heal to V2RayEZ identity | base Android `SupportedLanguages.kt`, `DataStoreSettingsRepository.kt` caller path | Android | in progress | Android settings migration gate PASS; EN/FA/RU string-key parity PASS. |
+| Signed serial lifecycle E2E self-test | `tools/license_serial_e2e_selftest.mjs`, dashboard license crypto primitives | Server/Web + all client-equivalent verifiers | in progress | E2E self-test covers issue, validate, device binding, grace, hard cutoff, forgery, mismatch, expiry, revocation. |
+| Runtime hard-cutoff watchdog tightening | `V2RayEZ-GUI/src-tauri/src/lib.rs`, base Android `V2RayVpnService.kt`, iOS `PacketTunnelProvider.swift`/`TunnelManager.swift`, OpenWrt `license-watchdog.sh` and init script | Windows/Linux desktop, Android, iOS, OpenWrt | in progress | `node tools/runtime_license_watchdog_gate.mjs` PASS; shell syntax PASS; real device/router timing pending. |
+| OpenWrt source pin and SDK `.ipk` build wrapper | `MICAFP/openwrt/Makefile`, `MICAFP/scripts/package-openwrt.sh`, `tools/openwrt_packaging_gate.mjs` | OpenWrt LuCI `.ipk` | in progress | Source pinned to commit `5263aebfdc4673bba8cd56049de26ae3dd7509e3`; `--check` PASS; real `.ipk` blocked by missing SDK. |
+| Universal release artifact build contract | `scripts/build-release-artifacts.sh`, `tools/release_artifact_contract_gate.mjs` | Android `.apk`, iOS `.ipa`, Windows `.exe`, Linux package, OpenWrt `.ipk`, dashboard, browser extensions | in progress | `scripts/build-release-artifacts.sh --check` PASS; gate asserts required artifact formats and no placeholder generation. |
+
+These additions remain additive: donor networking capabilities stay preserved behind V2RayEZ UI/UX, while source gates prevent legacy donor GUI identity or fake release artifacts from becoming release evidence.
