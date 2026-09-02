@@ -8,13 +8,13 @@ on:
   workflow_dispatch:
 
 jobs:
+  # Linux / OpenWrt / Apple / Windows — never install the Android NDK here.
   build-core:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          # Linux native / embedded
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
             platform: Linux
@@ -23,28 +23,10 @@ jobs:
             os: ubuntu-latest
             platform: Linux
             artifact: libv2rayez_universal_core.a
-            ndk: false
           - target: mipsel-unknown-linux-musl
             os: ubuntu-latest
             platform: OpenWrt
             artifact: libv2rayez_universal_core.a
-          # Android (NDK clang)
-          - target: aarch64-linux-android
-            os: ubuntu-latest
-            platform: Android
-            artifact: libv2rayez_universal_core.a
-            ndk: true
-          - target: armv7-linux-androideabi
-            os: ubuntu-latest
-            platform: Android
-            artifact: libv2rayez_universal_core.a
-            ndk: true
-          - target: x86_64-linux-android
-            os: ubuntu-latest
-            platform: Android
-            artifact: libv2rayez_universal_core.a
-            ndk: true
-          # Apple / iOS / macOS — real SDK + linker on macOS runners
           - target: aarch64-apple-darwin
             os: macos-latest
             platform: Apple
@@ -53,12 +35,10 @@ jobs:
             os: macos-latest
             platform: Apple
             artifact: libv2rayez_universal_core.a
-          # Windows MSVC on Windows runners
           - target: x86_64-pc-windows-msvc
             os: windows-latest
             platform: Windows
             artifact: v2rayez_universal_core.dll
-
     steps:
       - uses: actions/checkout@v4
         with:
@@ -67,8 +47,6 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          # mipsel-unknown-linux-musl is not always on rustup stable; the
-          # build script installs nightly+build-std or gnu fallback.
           targets: ${{ matrix.target == 'mipsel-unknown-linux-musl' && 'x86_64-unknown-linux-gnu' || matrix.target }}
           components: rustfmt, clippy
 
@@ -83,19 +61,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-${{ matrix.target }}-
 
-      - name: Install Android NDK
-        if: runner.os == 'Linux' && contains(matrix.target, 'android')
-        uses: nttld/setup-ndk@v1
-        id: setup-ndk
-        with:
-          ndk-version: r27c
-          add-to-path: false
-
       - name: Build universal-core staticlib/cdylib
         working-directory: ./universal-core
-        env:
-          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
-          ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
         shell: bash
         run: |
           chmod +x ci/build-target.sh
@@ -106,18 +73,15 @@ jobs:
         run: |
           set -euo pipefail
           ARTIFACT="${{ matrix.artifact }}"
-          SEARCH="universal-core/target"
-          FOUND="$(find "$SEARCH" -name "$ARTIFACT" 2>/dev/null | head -n 1 || true)"
+          FOUND="$(find universal-core/target -name "$ARTIFACT" 2>/dev/null | head -n 1 || true)"
           if [[ -z "$FOUND" ]]; then
-            echo "Artifact $ARTIFACT not found under $SEARCH"
-            find "$SEARCH" -maxdepth 4 -type f | head -n 80
+            echo "Artifact $ARTIFACT not found"
+            find universal-core/target -maxdepth 4 -type f | head -n 80
             exit 1
           fi
           ls -lh "$FOUND"
-          echo "CORE_ARTIFACT=$FOUND" >> "$GITHUB_ENV"
           mkdir -p dist
           cp "$FOUND" "dist/$ARTIFACT"
-          echo "Expected minimal binary due to release profile settings"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -126,9 +90,100 @@ jobs:
           path: dist/${{ matrix.artifact }}
           if-no-files-found: error
 
-  # Validation step: ensure FFI boundary symbols are present in produced artifacts
+  # Android Bionic — NDK is mandatory on every matrix row (no skip).
+  build-android:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-linux-android
+            artifact: libv2rayez_universal_core.a
+          - target: armv7-linux-androideabi
+            artifact: libv2rayez_universal_core.a
+          - target: x86_64-linux-android
+            artifact: libv2rayez_universal_core.a
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+          components: rustfmt, clippy
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            universal-core/target
+          key: Linux-cargo-${{ matrix.target }}-${{ hashFiles('universal-core/Cargo.toml', 'universal-core/Cargo.lock') }}
+          restore-keys: |
+            Linux-cargo-${{ matrix.target }}-
+
+      - name: Install Android NDK
+        uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: r26c
+          add-to-path: true
+
+      - name: Export NDK clang linkers
+        shell: bash
+        run: |
+          set -euo pipefail
+          NDK="${{ steps.setup-ndk.outputs.ndk-path }}"
+          PRE="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          API=24
+          echo "ANDROID_NDK_HOME=$NDK" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_ROOT=$NDK" >> "$GITHUB_ENV"
+          echo "PATH=$PRE:$PATH" >> "$GITHUB_ENV"
+          echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$PRE/aarch64-linux-android${API}-clang" >> "$GITHUB_ENV"
+          echo "CC_aarch64_linux_android=$PRE/aarch64-linux-android${API}-clang" >> "$GITHUB_ENV"
+          echo "AR_aarch64_linux_android=$PRE/llvm-ar" >> "$GITHUB_ENV"
+          echo "CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_LINKER=$PRE/armv7a-linux-androideabi${API}-clang" >> "$GITHUB_ENV"
+          echo "CC_armv7_linux_androideabi=$PRE/armv7a-linux-androideabi${API}-clang" >> "$GITHUB_ENV"
+          echo "AR_armv7_linux_androideabi=$PRE/llvm-ar" >> "$GITHUB_ENV"
+          echo "CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER=$PRE/x86_64-linux-android${API}-clang" >> "$GITHUB_ENV"
+          echo "CC_x86_64_linux_android=$PRE/x86_64-linux-android${API}-clang" >> "$GITHUB_ENV"
+          echo "AR_x86_64_linux_android=$PRE/llvm-ar" >> "$GITHUB_ENV"
+          ls -l "$PRE"/*android${API}-clang "$PRE"/llvm-ar
+
+      - name: Build universal-core staticlib/cdylib
+        working-directory: ./universal-core
+        shell: bash
+        run: |
+          chmod +x ci/build-target.sh
+          ./ci/build-target.sh "${{ matrix.target }}" "std,post-quantum-lab"
+
+      - name: Verify stripped artifact (LTO/minimal size)
+        shell: bash
+        run: |
+          set -euo pipefail
+          ARTIFACT="${{ matrix.artifact }}"
+          FOUND="$(find universal-core/target -name "$ARTIFACT" 2>/dev/null | head -n 1 || true)"
+          if [[ -z "$FOUND" ]]; then
+            echo "Artifact $ARTIFACT not found"
+            find universal-core/target -maxdepth 4 -type f | head -n 80
+            exit 1
+          fi
+          ls -lh "$FOUND"
+          mkdir -p dist
+          cp "$FOUND" "dist/$ARTIFACT"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: v2rayez-universal-core-Android-${{ matrix.target }}
+          path: dist/${{ matrix.artifact }}
+          if-no-files-found: error
+
   verify-symbols:
-    needs: build-core
+    needs: [build-core, build-android]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -144,10 +199,9 @@ jobs:
           echo "Checking for v2rayez_core_init / v2rayez_free_string symbols..."
           find artifacts -type f | sort
           python3 - <<'PY'
-          import os, subprocess, sys
-          root = "artifacts"
+          import os, sys
           files = []
-          for dirpath, _, names in os.walk(root):
+          for dirpath, _, names in os.walk("artifacts"):
               for n in names:
                   files.append(os.path.join(dirpath, n))
           if not files:
