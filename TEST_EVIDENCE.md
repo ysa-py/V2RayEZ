@@ -1740,3 +1740,39 @@ Observed:
 Scope note:
 
 - Native compilation and real device/router hard-cutoff timing tests remain blocked by missing toolchains, signing credentials, and hardware.
+
+---
+
+## Milestone 33 Android persisted AI settings migration — 2026-09-02
+
+Commands:
+
+```bash
+node --check tools/android_ai_settings_migration_gate.mjs
+node tools/android_ai_settings_migration_gate.mjs
+node --check tools/runtime_license_watchdog_gate.mjs
+node tools/runtime_license_watchdog_gate.mjs
+node --check tools/v2rayez_identity_gate.mjs
+node tools/v2rayez_identity_gate.mjs
+node --check tools/license_serial_e2e_selftest.mjs
+node tools/license_serial_e2e_selftest.mjs
+node --check tools/ai_provider_gateway_selftest.mjs
+node tools/ai_provider_gateway_selftest.mjs
+bash 'V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/scripts/gates/string-key-parity.sh'
+npm test --prefix V2RayEZ-GUI
+git diff --check
+```
+
+Result: PASS.
+
+Observed:
+
+- Android DataStore settings normalization now migrates legacy AI provider IDs, URLs, local models, and empty provider lists to canonical V2RayEZ AI defaults.
+- Canonical local provider is forced to `V2RayEZ Local AI`, `local-v2rayez`, `local://v2rayez`, and `v2rayez-anti-dpi-local`.
+- New static Android AI migration gate passed and is referenced by the CI sample.
+- Base Android EN/FA/RU string-key parity still passes with 1017 keys in each locale.
+- V2RayEZ GUI frontend tests passed 14/14.
+
+Scope note:
+
+- Legacy values remain only as migration aliases for old backups/upgrades; donor capabilities are preserved behind the V2RayEZ UI.

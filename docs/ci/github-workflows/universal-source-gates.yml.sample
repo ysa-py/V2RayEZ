@@ -88,6 +88,9 @@ jobs:
       - name: Assert runtime license watchdog hard-cutoff wiring
         run: node tools/runtime_license_watchdog_gate.mjs
 
+      - name: Assert Android persisted AI settings migrate to V2RayEZ identity
+        run: node tools/android_ai_settings_migration_gate.mjs
+
       - name: Run shared license and AI Provider Gateway self-tests
         run: |
           node tools/license_crypto_selftest.mjs
