@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">V2RayEZ</string>
+    <string name="status_initializing">Initializing V2RayEZ Universal Core...</string>
+    <string name="status_running">Running</string>
+    <string name="status_stopped">Stopped</string>
+</resources>
