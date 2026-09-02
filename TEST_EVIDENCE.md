@@ -2221,3 +2221,26 @@ Observed:
 - Chrome/Firefox options save now clears `licenseGraceToken` when a new serial is installed.
 - Chrome/Firefox options save now clears cached grace when account ID, validation URL, or public key PEM changes.
 - TypeScript validation passed for both extensions.
+
+---
+
+## Milestone 48 OpenWrt source pin refresh for native license gate — 2026-09-02
+
+Commands:
+
+```bash
+node tools/openwrt_packaging_gate.mjs
+MICAFP/scripts/package-openwrt.sh --check
+git diff --check
+```
+
+Result: PASS.
+
+Observed:
+
+- `MICAFP/openwrt/Makefile` now pins `PKG_SOURCE_VERSION` to `f35ba09b790cdb7dd11e6209e346bb4f28ed0b68`.
+- The pinned source includes the native `v2rayez-license-gate` `--client-last-server-time` support needed by the OpenWrt shell wrapper.
+
+Blocker:
+
+- Real `.ipk` generation remains pending on a target OpenWrt SDK/Rust cross-toolchain.

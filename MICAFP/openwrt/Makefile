@@ -33,7 +33,7 @@ PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL:=https://github.com/ysa-py/V2RayEZ.git
 # Pinned to the latest validated V2RayEZ Universal branch commit when the
 # OpenWrt packaging gate was updated. Refresh only after source gates pass.
-PKG_SOURCE_VERSION:=5263aebfdc4673bba8cd56049de26ae3dd7509e3
+PKG_SOURCE_VERSION:=f35ba09b790cdb7dd11e6209e346bb4f28ed0b68
 PKG_MIRROR_HASH:=skip
 
 PKG_BUILD_DEPENDS:=rust/host
