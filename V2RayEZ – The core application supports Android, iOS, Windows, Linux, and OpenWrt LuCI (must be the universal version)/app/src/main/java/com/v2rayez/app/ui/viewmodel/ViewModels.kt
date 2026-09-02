@@ -49,6 +49,8 @@ import com.v2rayez.app.domain.repository.VpnController
 import com.v2rayez.app.ui.SupportedLanguages
 import com.v2rayez.app.ui.tor.TorConflictHandler
 import com.v2rayez.app.ui.tor.TorConflictUi
+import com.v2rayez.app.data.routing.AdaptiveRouteMemory
+import com.v2rayez.app.data.routing.NoopAdaptiveRouteMemory
 import com.v2rayez.app.data.routing.RuleProviderFetcher
 import com.v2rayez.app.data.warp.WarpRegistrar
 import com.v2rayez.app.domain.model.StatsRange
@@ -80,6 +82,7 @@ class HomeViewModel @Inject constructor(
     private val stats: StatsRepository,
     private val settings: SettingsRepository,
     private val servers: ServerRepository,
+    private val adaptiveRoutes: AdaptiveRouteMemory,
     private val torController: TorController? = null
 ) : ViewModel() {
     constructor() : this(
@@ -87,6 +90,7 @@ class HomeViewModel @Inject constructor(
         MockStatsRepository(),
         MockSettingsRepository(),
         MockServerRepository(),
+        NoopAdaptiveRouteMemory,
         null
     )
 
@@ -162,13 +166,18 @@ class HomeViewModel @Inject constructor(
             vpn.toggle()
             return
         }
-        // Don't scan the whole library before connecting: quick-score a small candidate set
-        // (previously-working servers first, then untested), TCP-only so nothing serializes
-        // behind the Xray core. Full-library ranking lives in the Servers screen.
+        // Don't scan the whole library before connecting: UAC-style adaptive memory promotes
+        // this network class's champion/backup routes, then we quick-score a small candidate
+        // set with TCP-only probes so nothing serializes behind the Xray core. Full-library
+        // ranking lives in the Servers screen.
+        val adaptiveRanked = adaptiveRoutes.rank(targets)
+        val adaptiveHead = adaptiveRanked.take(HOME_ADAPTIVE_HEAD)
+        val remaining = adaptiveRanked.drop(HOME_ADAPTIVE_HEAD)
         val candidates = (
-            targets.filter { it.pingMs > 0 }.sortedBy { it.pingMs } +
-                targets.filter { it.pingMs <= 0 }
-            ).take(HOME_CONNECT_CANDIDATES)
+            adaptiveHead +
+                remaining.filter { it.pingMs > 0 }.sortedBy { it.pingMs } +
+                remaining.filter { it.pingMs <= 0 }
+            ).distinctBy { it.id }.take(HOME_CONNECT_CANDIDATES)
         val gate = Semaphore(HOME_PING_CONCURRENCY)
         val measured = kotlinx.coroutines.coroutineScope {
             candidates.map { server ->
@@ -194,6 +203,8 @@ class HomeViewModel @Inject constructor(
         const val HOME_PING_CONCURRENCY = 8
         /** Auto-connect scores at most this many candidates before picking one. */
         const val HOME_CONNECT_CANDIDATES = 12
+        /** Preserve this many per-network champion/backup candidates before ping sorting. */
+        const val HOME_ADAPTIVE_HEAD = 4
     }
 }
 

@@ -2446,3 +2446,19 @@ Observed:
 - `bash 'V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/scripts/gates/string-key-parity.sh'` — passed with EN/FA/RU full string-key parity.
 - `git diff --check` — passed.
 - `bash ./gradlew :app:compileDebugKotlin` — blocked by sandbox Java/JDK absence: `JAVA_HOME is not set and no 'java' command could be found in your PATH.`
+
+## Milestone 61 — Android Adaptive Route Memory
+- `node tools/android_adaptive_route_memory_gate.mjs` — passed.
+- `node tools/android_license_revocation_poll_gate.mjs` — passed.
+- `node tools/android_emergency_privacy_gate.mjs` — passed.
+- `node tools/android_national_intranet_gate.mjs` — passed.
+- `node tools/android_license_admin_gate.mjs` — passed.
+- `node tools/release_artifact_contract_gate.mjs` — passed.
+- `scripts/build-release-artifacts.sh --check` — passed.
+- `node tools/android_smart_repair_gate.mjs` — passed.
+- `node tools/runtime_license_watchdog_gate.mjs` — passed.
+- `node tools/v2rayez_identity_gate.mjs` — passed.
+- Android XML parse for EN/FA/RU strings and License Admin manifest/styles — passed.
+- `bash 'V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/scripts/gates/string-key-parity.sh'` — passed with EN/FA/RU full string-key parity.
+- `git diff --check` — passed.
+- `bash ./gradlew :app:compileDebugKotlin` — blocked by sandbox Java/JDK absence: `JAVA_HOME is not set and no 'java' command could be found in your PATH.`

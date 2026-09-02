@@ -52,6 +52,7 @@ import com.v2rayez.app.domain.model.torEffectiveSettings
 import com.v2rayez.app.domain.model.tunDnsEffectiveSettings
 import com.v2rayez.app.data.repository.logCore
 import com.v2rayez.app.data.repository.logVpn
+import com.v2rayez.app.data.routing.AdaptiveRouteMemory
 import com.v2rayez.app.domain.repository.LogRepository
 import com.v2rayez.app.domain.repository.ServerRepository
 import com.v2rayez.app.domain.repository.SettingsRepository
@@ -237,6 +238,7 @@ class V2RayVpnService : VpnService() {
     @Inject lateinit var settingsRepository: SettingsRepository
     @Inject lateinit var licenseRepository: AndroidLicenseRepository
     @Inject lateinit var aiProviderGateway: AndroidAiProviderGateway
+    @Inject lateinit var adaptiveRoutes: AdaptiveRouteMemory
     @Inject lateinit var logRepository: LogRepository
     @Inject lateinit var sessionDao: SessionDao
     @Inject lateinit var downloadTransport: DownloadTransport
@@ -752,6 +754,7 @@ class V2RayVpnService : VpnService() {
 
             sessionStartMs = System.currentTimeMillis()
             stateHolder.setConnected(server)
+            adaptiveRoutes.recordSuccess(server, stateHolder.connectionState.value.pingMs, activeCoreType.label)
             firebaseTelemetry.logVpnState(connected = true)
             reflectAlwaysOnState()
             settingsRepository.update { it.copy(lastServerId = server.id) }
@@ -882,6 +885,7 @@ class V2RayVpnService : VpnService() {
 
         sessionStartMs = System.currentTimeMillis()
         stateHolder.setConnected(server)
+        adaptiveRoutes.recordSuccess(server, stateHolder.connectionState.value.pingMs, activeCoreType.label)
         firebaseTelemetry.logVpnState(connected = true)
         reflectAlwaysOnState()
         postNotification(server, getString(R.string.vpn_notif_connected), "0 B/s \u2193  0 B/s \u2191")
@@ -1029,6 +1033,7 @@ class V2RayVpnService : VpnService() {
 
         sessionStartMs = System.currentTimeMillis()
         stateHolder.setConnected(server)
+        adaptiveRoutes.recordSuccess(server, stateHolder.connectionState.value.pingMs, activeCoreType.label)
         firebaseTelemetry.logVpnState(connected = true)
         reflectAlwaysOnState()
         postNotification(server, getString(R.string.vpn_notif_connected), "0 B/s \u2193  0 B/s \u2191")
@@ -1187,6 +1192,7 @@ class V2RayVpnService : VpnService() {
         )
         sessionStartMs = System.currentTimeMillis()
         stateHolder.setConnected(server)
+        adaptiveRoutes.recordSuccess(server, stateHolder.connectionState.value.pingMs, activeCoreType.label)
         firebaseTelemetry.logVpnState(connected = true)
         reflectAlwaysOnState()
         settingsRepository.update { it.copy(lastServerId = server.id) }
@@ -1257,6 +1263,7 @@ class V2RayVpnService : VpnService() {
         scheduleReconnectServerId: String? = null
     ) {
         log(LogLevel.ERROR, message)
+        activeServer?.let { adaptiveRoutes.recordFailure(it.id, message) }
         runCatching { firebaseTelemetry.captureVpnFailure(category, message) }
         // A watchdog failure can happen after a long valid session. Persist its final counters
         // before setError() resets the state-holder totals.
