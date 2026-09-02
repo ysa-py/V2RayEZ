@@ -596,6 +596,12 @@ data class LicenseConfig(
     val publicKeysJson: String = "",
     /** Salt shared with the dashboard when binding grace tokens to this device. */
     val deviceHashSalt: String = "v2rayez-client-device-binding-v1",
+    /**
+     * While a tunnel is active and a validation URL exists, poll this often for online revoke.
+     * This is the fastest honest "instant" revoke path; a fully offline client still cannot
+     * receive revocation until validation connectivity returns or signed grace/expiry cuts off.
+     */
+    val revocationPollSeconds: Int = 10,
     val lastResult: String = "not_validated",
     val lastReason: String = "",
     val lastValidatedAt: Long = 0L,

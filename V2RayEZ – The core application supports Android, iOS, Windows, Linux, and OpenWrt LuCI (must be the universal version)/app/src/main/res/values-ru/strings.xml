@@ -1078,6 +1078,7 @@
     <string name="license_public_key_pem">Публичный ключ лицензии (PEM)</string>
     <string name="license_public_keys_json">JSON набора ключей лицензии</string>
     <string name="license_device_hash_salt">Соль хэша устройства</string>
+    <string name="license_revocation_poll_seconds">Интервал онлайн-проверки отзыва, секунд (5–300)</string>
     <string name="license_public_key_help">Требуется для локальной проверки подписанного серийного номера и офлайн grace. Должно совпадать с публичным ключом панели и солью устройства.</string>
     <string name="license_offline_grace">Офлайн grace-токен</string>
     <string name="license_offline_grace_sub">Разрешить подписанное офлайн-окно после онлайн-проверки</string>

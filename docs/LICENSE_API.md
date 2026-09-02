@@ -338,7 +338,7 @@ Purpose:
 Operational cutoff semantics:
 
 - Revocation is immediate in the dashboard database and audit log.
-- Online VPN clients that can reach the configured validation URL are cut off by their next validation/watchdog check.
+- Online VPN clients that can reach the configured validation URL are cut off by their next validation/watchdog check. Android exposes a no-code `revocationPollSeconds` control (5–300 seconds, default 10) and the active VPN watchdog uses it as the online revoke poll interval.
 - A fully offline client cannot receive an instant revoke packet without any reachable server/channel; it will stop at the next successful server validation or at the signed offline-grace/expiry hard cutoff. For true instant revocation, deploy the validation endpoint on a domestic/intranet path the client can reach during shutdown conditions.
 
 Release artifact contract:

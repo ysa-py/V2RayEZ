@@ -58,7 +58,8 @@ class LicenseViewModel @Inject constructor(
         deviceLabel: String,
         publicKeyPem: String,
         publicKeysJson: String,
-        deviceHashSalt: String
+        deviceHashSalt: String,
+        revocationPollSeconds: String
     ) {
         if (_busy.value) return
         viewModelScope.launch {
@@ -69,7 +70,8 @@ class LicenseViewModel @Inject constructor(
                 deviceLabel = deviceLabel.trim(),
                 publicKeyPem = publicKeyPem.trim(),
                 publicKeysJson = publicKeysJson.trim(),
-                deviceHashSalt = deviceHashSalt.trim().ifBlank { "v2rayez-client-device-binding-v1" }
+                deviceHashSalt = deviceHashSalt.trim().ifBlank { "v2rayez-client-device-binding-v1" },
+                revocationPollSeconds = revocationPollSeconds.toIntOrNull()?.coerceIn(5, 300) ?: 10
             )
             settingsRepository.update { it.copy(license = baseConfig) }
             val validation = licenseRepository.activate(serial, baseConfig)

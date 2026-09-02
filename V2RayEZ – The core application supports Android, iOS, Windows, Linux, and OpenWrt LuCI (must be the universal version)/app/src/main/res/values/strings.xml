@@ -1080,6 +1080,7 @@
     <string name="license_public_key_pem">License public key (PEM)</string>
     <string name="license_public_keys_json">License key set JSON</string>
     <string name="license_device_hash_salt">Device hash salt</string>
+    <string name="license_revocation_poll_seconds">Online revoke poll seconds (5–300)</string>
     <string name="license_public_key_help">Required for local signed-serial and offline-grace verification. Must match the dashboard public key and device salt.</string>
     <string name="license_offline_grace">Offline grace token</string>
     <string name="license_offline_grace_sub">Allow a signed grace window after online validation</string>

@@ -169,7 +169,8 @@ assert.ok(!text(desktop).includes('std::time::Duration::from_secs(60)).await;'),
 const android = 'V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/app/src/main/java/com/v2rayez/app/data/service/V2RayVpnService.kt';
 assertContains(android, 'val decision = licenseRepository.enforce(settingsRepository.current().license)');
 assertContains(android, 'decision.remainingSeconds <= 0 -> 1_000L');
-assertContains(android, 'decision.remainingSeconds in 1..60 -> decision.remainingSeconds * 1_000L');
+assertContains(android, 'licenseConfig.revocationPollSeconds.coerceIn(5, 300) * 1_000L');
+assertContains(android, 'decision.remainingSeconds in 1..300 -> minOf(decision.remainingSeconds * 1_000L, onlineRevokePollMs)');
 assert.ok(!/delay\(waitMs\)\s*delay\(waitMs\)/.test(text(android)), `${android}: duplicate watchdog delay found`);
 
 for (const [path, gate] of [

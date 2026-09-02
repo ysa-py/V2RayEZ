@@ -1044,6 +1044,7 @@
     <string name="license_public_key_pem">کلید عمومی مجوز (PEM)</string>
     <string name="license_public_keys_json">JSON مجموعه کلیدهای مجوز</string>
     <string name="license_device_hash_salt">نمک هش دستگاه</string>
+    <string name="license_revocation_poll_seconds">ثانیه‌های بررسی لغو آنلاین (۵–۳۰۰)</string>
     <string name="license_public_key_help">برای بررسی محلی سریال امضاشده و مهلت آفلاین لازم است. باید با کلید عمومی داشبورد و نمک دستگاه یکی باشد.</string>
     <string name="license_offline_grace">توکن مهلت آفلاین</string>
     <string name="license_offline_grace_sub">پس از اعتبارسنجی آنلاین، مهلت امضاشده آفلاین مجاز باشد</string>

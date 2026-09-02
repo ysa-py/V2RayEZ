@@ -1601,10 +1601,16 @@ class V2RayVpnService : VpnService() {
                     }
                     return@launch
                 }
+                val licenseConfig = settingsRepository.current().license
+                val onlineRevokePollMs = if (licenseConfig.validationUrl.isNotBlank()) {
+                    licenseConfig.revocationPollSeconds.coerceIn(5, 300) * 1_000L
+                } else {
+                    60_000L
+                }
                 val waitMs = when {
                     decision.remainingSeconds <= 0 -> 1_000L
-                    decision.remainingSeconds in 1..60 -> decision.remainingSeconds * 1_000L
-                    else -> 60_000L
+                    decision.remainingSeconds in 1..300 -> minOf(decision.remainingSeconds * 1_000L, onlineRevokePollMs)
+                    else -> onlineRevokePollMs
                 }
                 delay(waitMs)
             }

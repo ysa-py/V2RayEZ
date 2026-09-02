@@ -62,6 +62,7 @@ fun LicenseScreen(
     var publicKeyPem by remember { mutableStateOf(config.publicKeyPem) }
     var publicKeysJson by remember { mutableStateOf(config.publicKeysJson) }
     var deviceHashSalt by remember { mutableStateOf(config.deviceHashSalt) }
+    var revocationPollSeconds by remember { mutableStateOf(config.revocationPollSeconds.toString()) }
     var initialized by remember { mutableStateOf(false) }
 
     LaunchedEffect(config) {
@@ -72,6 +73,7 @@ fun LicenseScreen(
             publicKeyPem = config.publicKeyPem
             publicKeysJson = config.publicKeysJson
             deviceHashSalt = config.deviceHashSalt
+            revocationPollSeconds = config.revocationPollSeconds.toString()
             initialized = true
         }
     }
@@ -177,6 +179,15 @@ fun LicenseScreen(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
+                    VSpacer(8)
+                    OutlinedTextField(
+                        value = revocationPollSeconds,
+                        onValueChange = { revocationPollSeconds = it.filter { ch -> ch.isDigit() }.take(3) },
+                        label = { Text(stringResource(R.string.license_revocation_poll_seconds)) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth()
+                    )
                     Text(
                         text = stringResource(R.string.license_public_key_help),
                         style = MaterialTheme.typography.bodySmall,
@@ -201,7 +212,8 @@ fun LicenseScreen(
                                     deviceLabel,
                                     publicKeyPem,
                                     publicKeysJson,
-                                    deviceHashSalt
+                                    deviceHashSalt,
+                                    revocationPollSeconds
                                 )
                             },
                             enabled = !busy
@@ -216,7 +228,8 @@ fun LicenseScreen(
                                         deviceLabel = deviceLabel.trim(),
                                         publicKeyPem = publicKeyPem.trim(),
                                         publicKeysJson = publicKeysJson.trim(),
-                                        deviceHashSalt = deviceHashSalt.trim().ifBlank { "v2rayez-client-device-binding-v1" }
+                                        deviceHashSalt = deviceHashSalt.trim().ifBlank { "v2rayez-client-device-binding-v1" },
+                                        revocationPollSeconds = revocationPollSeconds.toIntOrNull()?.coerceIn(5, 300) ?: 10
                                     )
                                 }
                             },
