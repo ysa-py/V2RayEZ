@@ -165,6 +165,7 @@ async function enforceLicense(): Promise<{ allowed: boolean; reason: string }> {
         platform: 'browser-extension',
         appVersion: api.runtime.getManifest().version,
         deviceLabel: `${api.runtime.getManifest().name} ${api.runtime.id}`,
+        clientLastServerTime: config.licenseLastServerTime || undefined,
       }),
     });
     const body = await response.json().catch(() => ({}));
@@ -173,6 +174,11 @@ async function enforceLicense(): Promise<{ allowed: boolean; reason: string }> {
     config.licenseLastReason = String(body.reason || 'valid');
     config.licenseExpiresAt = String(body.expiresAt || '');
     config.licenseOfflineGraceUntil = String(body.offlineGraceUntil || '');
+    const serverTime = String(body.serverTime || '');
+    if (serverTime) {
+      config.licenseLastServerTime = serverTime;
+      config.licenseGraceServerTime = serverTime;
+    }
     await saveConfig();
     return cachedLicenseDecision('server_valid') ?? { allowed: true, reason: config.licenseLastReason || 'valid' };
   } catch (error) {
@@ -186,7 +192,12 @@ async function enforceLicense(): Promise<{ allowed: boolean; reason: string }> {
 function cachedLicenseDecision(prefix: string): { allowed: boolean; reason: string } | null {
   const expiresAt = Date.parse(config.licenseExpiresAt || '');
   const graceUntil = Date.parse(config.licenseOfflineGraceUntil || '');
+  const lastServerTime = Date.parse(config.licenseLastServerTime || '');
+  const graceServerTime = Date.parse(config.licenseGraceServerTime || config.licenseLastServerTime || '');
   if (!Number.isFinite(expiresAt) || !Number.isFinite(graceUntil)) return null;
+  if (Number.isFinite(lastServerTime) && Number.isFinite(graceServerTime) && graceServerTime + 5 * 60 * 1000 < lastServerTime) {
+    return denyLicense('server_time_rollback_detected');
+  }
   const now = Date.now();
   if (now >= expiresAt) return denyLicense('license_expired');
   if (now >= graceUntil) return denyLicense('offline_grace_expired');

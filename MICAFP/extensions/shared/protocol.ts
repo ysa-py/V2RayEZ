@@ -50,6 +50,8 @@ export interface UnifiedShieldConfig {
   licenseLastReason?: string;
   licenseExpiresAt?: string;
   licenseOfflineGraceUntil?: string;
+  licenseLastServerTime?: string;
+  licenseGraceServerTime?: string;
 
   // AI Provider Gateway
   aiEngineEnabled?: boolean;
@@ -87,6 +89,8 @@ export const DEFAULT_CONFIG: UnifiedShieldConfig = {
   licenseLastReason: '',
   licenseExpiresAt: '',
   licenseOfflineGraceUntil: '',
+  licenseLastServerTime: '',
+  licenseGraceServerTime: '',
   aiEngineEnabled: true,
   aiAutoFallbackToLocal: true,
   aiProviderAlias: 'local-v2rayez',

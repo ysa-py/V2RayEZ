@@ -2111,3 +2111,35 @@ Observed:
 Blocker:
 
 - Real extension WASM generation still needs Rust/WASM tooling on a proper build runner.
+
+---
+
+## Milestone 44 browser extension license server-time propagation — 2026-09-02
+
+Commands:
+
+```bash
+npm install --prefix MICAFP/extensions/chrome
+npm install --prefix MICAFP/extensions/firefox
+npm run lint --prefix MICAFP/extensions/chrome
+npm run lint --prefix MICAFP/extensions/firefox
+node tools/runtime_license_watchdog_gate.mjs
+node tools/v2rayez_identity_gate.mjs
+git diff --check
+```
+
+Result: PASS.
+
+Observed:
+
+- Shared extension config now includes `licenseLastServerTime` and `licenseGraceServerTime`.
+- Chrome and Firefox extension background validation sends `clientLastServerTime` to the dashboard.
+- Successful extension validations store dashboard `serverTime`.
+- Cached grace metadata is denied with `server_time_rollback_detected` when older than the last trusted server time beyond five minutes.
+- Chrome/Firefox options pages display `Last trusted server time`.
+- TypeScript `tsc --noEmit` passed for both browser extensions.
+
+Notes:
+
+- `npm install --prefix MICAFP/extensions/chrome` and `npm install --prefix MICAFP/extensions/firefox` reported zero vulnerabilities.
+- Generated untracked per-extension package lock files were removed and not committed.

@@ -60,6 +60,37 @@ assertContains(iosExtensionLicense, 'body["clientLastServerTime"] = lastServerTi
 assertContains(iosExtensionLicense, 'defaults.set(serverTime, forKey: "licenseLastServerTime")');
 assertContains(iosExtensionLicense, 'graceServerDate.addingTimeInterval(300) < lastServerDate');
 
+
+const extensionProtocol = 'MICAFP/extensions/shared/protocol.ts';
+assertContains(extensionProtocol, 'licenseLastServerTime?: string;');
+assertContains(extensionProtocol, 'licenseGraceServerTime?: string;');
+
+for (const path of [
+  'MICAFP/extensions/chrome/background/service-worker.ts',
+  'MICAFP/extensions/firefox/background/background.ts',
+]) {
+  assertContains(path, 'clientLastServerTime: config.licenseLastServerTime || undefined');
+  assertContains(path, 'config.licenseLastServerTime = serverTime;');
+  assertContains(path, 'config.licenseGraceServerTime = serverTime;');
+  assertContains(path, 'server_time_rollback_detected');
+}
+
+for (const path of [
+  'MICAFP/extensions/chrome/options/options.html',
+  'MICAFP/extensions/firefox/options/options.html',
+]) {
+  assertContains(path, 'id="licenseLastServerTime"');
+  assertContains(path, 'Last trusted server time');
+}
+
+for (const path of [
+  'MICAFP/extensions/chrome/options/options.ts',
+  'MICAFP/extensions/firefox/options/options.ts',
+]) {
+  assertContains(path, 'licenseLastServerTime: document.getElementById');
+  assertContains(path, "config.licenseLastServerTime || 'Not validated yet'");
+}
+
 const openwrtGate = 'MICAFP/openwrt/files/usr/libexec/unifiedshield/license-gate.sh';
 assertContains(openwrtGate, 'LAST_SERVER_TIME=$(uci_get license_last_server_time)');
 assertContains(openwrtGate, '"clientLastServerTime":"%s"');

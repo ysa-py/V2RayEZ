@@ -30,6 +30,7 @@ const els = {
   licenseAccountId: document.getElementById('licenseAccountId') as HTMLInputElement,
   licenseValidationUrl: document.getElementById('licenseValidationUrl') as HTMLInputElement,
   licenseAllowOfflineGrace: document.getElementById('licenseAllowOfflineGrace') as HTMLInputElement,
+  licenseLastServerTime: document.getElementById('licenseLastServerTime') as HTMLParagraphElement,
   aiEngineEnabled: document.getElementById('aiEngineEnabled') as HTMLInputElement,
   aiAutoFallbackToLocal: document.getElementById('aiAutoFallbackToLocal') as HTMLInputElement,
   aiProviderAlias: document.getElementById('aiProviderAlias') as HTMLInputElement,
@@ -89,6 +90,7 @@ function populateForm(config: UnifiedShieldConfig): void {
   els.licenseAccountId.value = config.licenseAccountId ?? '';
   els.licenseValidationUrl.value = config.licenseValidationUrl ?? '';
   els.licenseAllowOfflineGrace.checked = config.licenseAllowOfflineGrace !== false;
+  els.licenseLastServerTime.textContent = config.licenseLastServerTime || 'Not validated yet';
   els.aiEngineEnabled.checked = config.aiEngineEnabled !== false;
   els.aiAutoFallbackToLocal.checked = config.aiAutoFallbackToLocal !== false;
   els.aiProviderAlias.value = config.aiProviderAlias ?? 'local-v2rayez';
