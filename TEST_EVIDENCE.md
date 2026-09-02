@@ -2524,3 +2524,26 @@ Observed:
 - `npm run build --prefix MICAFP/dashboard` — passed.
 - `git diff --check` — passed.
 - `bash ./gradlew :app:compileDebugKotlin :license-admin:assembleDebug` — blocked by sandbox Java/JDK absence: `JAVA_HOME is not set and no 'java' command could be found in your PATH.`
+
+## Milestone 65 — Android Route Matrix Speed Test
+- `node tools/android_route_matrix_speed_test_gate.mjs` — passed.
+- `node tools/android_carrier_core_profiles_gate.mjs` — passed.
+- `node tools/requirement_map_gate.mjs` — passed.
+- `node tools/offline_license_manager_gate.mjs` — passed.
+- `node tools/license_device_revoke_gate.mjs` — passed.
+- `node tools/android_license_admin_gate.mjs` — passed.
+- `node tools/android_license_revocation_poll_gate.mjs` — passed.
+- `node tools/runtime_license_watchdog_gate.mjs` — passed.
+- `node tools/android_adaptive_route_memory_gate.mjs` — passed.
+- `node tools/android_emergency_privacy_gate.mjs` — passed.
+- `node tools/android_national_intranet_gate.mjs` — passed.
+- `node tools/release_artifact_contract_gate.mjs` — passed.
+- `scripts/build-release-artifacts.sh --check` — passed.
+- `node tools/android_smart_repair_gate.mjs` — passed.
+- `node tools/v2rayez_identity_gate.mjs` — passed.
+- Android XML parse for EN/FA/RU strings plus manifests/styles — passed.
+- `bash 'V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/scripts/gates/string-key-parity.sh'` — passed with 1063 keys each in EN/FA/RU.
+- `npm run build --prefix MICAFP/dashboard` — passed.
+- `python3 tools/merge_inventory.py` — regenerated `MERGE_INVENTORY.json` for 8 sources and 27 feature probes.
+- `git diff --check` — passed.
+- `bash ./gradlew :app:compileDebugKotlin :license-admin:assembleDebug` — blocked by sandbox Java/JDK absence: `JAVA_HOME is not set and no 'java' command could be found in your PATH.`

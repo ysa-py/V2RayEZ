@@ -519,6 +519,23 @@
     <string name="speed_result_upload">آپلود</string>
     <string name="speed_server">سرور</string>
     <string name="speed_mbps">مگابیت بر ثانیه</string>
+    <string name="route_race_title">آزمایش ماتریس مسیر</string>
+    <string name="route_race_sub">ماتریس Edge × DNS × Fragment × MTU را با مراحل انتخاب اولیه، پایداری، فشار و نهایی A/B/B/A رقابت می‌دهد.</string>
+    <string name="route_race_start">شروع رقابت ماتریس</string>
+    <string name="route_race_stop">توقف رقابت</string>
+    <string name="route_race_apply_winner">اعمال برنده</string>
+    <string name="route_race_applied">پروفایل DNS، فرگمنت و MTU برنده اعمال شد.</string>
+    <string name="route_race_total">آزمایش %1$d / %2$d گزینه · edgeها %3$d</string>
+    <string name="route_race_winner">برنده فعلی</string>
+    <string name="route_race_no_winner">هنوز گزینه‌ای برنده نشده است.</string>
+    <string name="route_race_candidate">DNS: %1$s · Fragment: %2$s · MTU: %3$d</string>
+    <string name="route_race_phase_idle">آماده رقابت</string>
+    <string name="route_race_phase_qualification">انتخاب اولیه: دسترسی TCP</string>
+    <string name="route_race_phase_stability">پایداری: تأخیر/جیتر تکراری</string>
+    <string name="route_race_phase_stress">فشار: HTTP و نمونه گذردهی</string>
+    <string name="route_race_phase_final">نهایی: تأیید A/B/B/A</string>
+    <string name="route_race_phase_done">رقابت ماتریس کامل شد</string>
+    <string name="route_race_phase_error">رقابت ماتریس ناموفق بود</string>
 
     <string name="logs_title">گزارش‌ها</string>
     <string name="logs_all">همه</string>

@@ -57,6 +57,7 @@ object Routes {
     const val CERTIFICATES = "certificates"
     const val DIAGNOSTICS = "diagnostics"
     const val SPEED_TEST = "speed_test"
+    const val ROUTE_SPEED_TEST = "route_speed_test"
 }
 
 /** The five bottom-bar tabs. */

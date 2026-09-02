@@ -538,6 +538,23 @@
     <string name="speed_result_upload">Upload</string>
     <string name="speed_server">Server</string>
     <string name="speed_mbps">Mbps</string>
+    <string name="route_race_title">Route Matrix Test</string>
+    <string name="route_race_sub">Race Edge × DNS × Fragment × MTU with qualification, stability, stress, and final A/B/B/A scoring.</string>
+    <string name="route_race_start">Start matrix race</string>
+    <string name="route_race_stop">Stop race</string>
+    <string name="route_race_apply_winner">Apply winner</string>
+    <string name="route_race_applied">Winning DNS, fragment, and MTU profile applied.</string>
+    <string name="route_race_total">Tested %1$d / %2$d candidates · edges %3$d</string>
+    <string name="route_race_winner">Current winner</string>
+    <string name="route_race_no_winner">No candidate has won yet.</string>
+    <string name="route_race_candidate">DNS: %1$s · Fragment: %2$s · MTU: %3$d</string>
+    <string name="route_race_phase_idle">Ready to race</string>
+    <string name="route_race_phase_qualification">Qualification: TCP reachability</string>
+    <string name="route_race_phase_stability">Stability: repeated latency/jitter</string>
+    <string name="route_race_phase_stress">Stress: HTTP + throughput sample</string>
+    <string name="route_race_phase_final">Final: A/B/B/A confirmation</string>
+    <string name="route_race_phase_done">Matrix race complete</string>
+    <string name="route_race_phase_error">Matrix race failed</string>
 
     <!-- Logs -->
     <string name="logs_title">Logs</string>

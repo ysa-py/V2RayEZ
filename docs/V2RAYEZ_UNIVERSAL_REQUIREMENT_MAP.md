@@ -104,7 +104,7 @@ Legend:
 | Traffic predictor | MICAFP AI | SOURCE-PRESENT |
 | UCB multi-armed-bandit selector | MICAFP AI | SOURCE-PRESENT |
 | UAC adaptive connection fingerprint/champion/backup/cooldown | Android `AndroidAdaptiveRouteMemory.kt` | PARTIAL / MERGED M61 |
-| UAC exhaustive Route Speed Test matrix | Android/UAC donor target | SOURCE-PRESENT / not fully merged |
+| UAC exhaustive Route Speed Test matrix | Android `RouteSpeedTestViewModel` + `RouteSpeedTestScreen` for Edge × DNS × Fragment × MTU; future shared core/cross-platform | PARTIAL/MERGED M65 on Android with A/B/B/A final; real carrier/device proof remains |
 | UAC Windows per-carrier profile isolation + Auto | Android carrier auto selector now; Windows/profile selector still pending | PARTIAL/MERGED M64 on Android |
 
 ## 2.4 AI provider gateway

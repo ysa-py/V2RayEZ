@@ -536,6 +536,23 @@
     <string name="speed_result_upload">Отдача</string>
     <string name="speed_server">Сервер</string>
     <string name="speed_mbps">Мбит/с</string>
+    <string name="route_race_title">Тест матрицы маршрутов</string>
+    <string name="route_race_sub">Сравнивает Edge × DNS × Fragment × MTU через квалификацию, стабильность, стресс и финал A/B/B/A.</string>
+    <string name="route_race_start">Запустить матрицу</string>
+    <string name="route_race_stop">Остановить</string>
+    <string name="route_race_apply_winner">Применить победителя</string>
+    <string name="route_race_applied">Победивший профиль DNS, фрагментации и MTU применён.</string>
+    <string name="route_race_total">Проверено %1$d / %2$d кандидатов · edge %3$d</string>
+    <string name="route_race_winner">Текущий победитель</string>
+    <string name="route_race_no_winner">Победитель пока не выбран.</string>
+    <string name="route_race_candidate">DNS: %1$s · Fragment: %2$s · MTU: %3$d</string>
+    <string name="route_race_phase_idle">Готово к сравнению</string>
+    <string name="route_race_phase_qualification">Квалификация: TCP-доступность</string>
+    <string name="route_race_phase_stability">Стабильность: повторная задержка/джиттер</string>
+    <string name="route_race_phase_stress">Стресс: HTTP и sample пропускной способности</string>
+    <string name="route_race_phase_final">Финал: подтверждение A/B/B/A</string>
+    <string name="route_race_phase_done">Матрица завершена</string>
+    <string name="route_race_phase_error">Ошибка матрицы</string>
 
     <!-- Logs -->
     <string name="logs_title">Журналы</string>

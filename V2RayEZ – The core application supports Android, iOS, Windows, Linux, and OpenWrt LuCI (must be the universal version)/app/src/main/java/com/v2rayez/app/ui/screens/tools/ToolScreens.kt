@@ -103,6 +103,9 @@ import com.v2rayez.app.ui.theme.V2RayEzTheme
 import com.v2rayez.app.ui.theme.Warning
 import com.v2rayez.app.ui.theme.accentGradient
 import com.v2rayez.app.ui.viewmodel.DiagnosticsViewModel
+import com.v2rayez.app.ui.viewmodel.RouteMatrixPhase
+import com.v2rayez.app.ui.viewmodel.RouteMatrixResult
+import com.v2rayez.app.ui.viewmodel.RouteSpeedTestViewModel
 import com.v2rayez.app.ui.viewmodel.SettingsViewModel
 import com.v2rayez.app.ui.viewmodel.SpeedTestViewModel
 import com.v2rayez.app.ui.viewmodel.ToolsViewModel
@@ -1566,6 +1569,161 @@ private fun buildDiagnosticsReport(context: android.content.Context, state: com.
             }
         }
     }
+
+// ------------------------------------------------------------ Route Speed Test
+@Composable
+fun RouteSpeedTestScreen(onBack: () -> Unit, viewModel: RouteSpeedTestViewModel = hiltViewModel()) {
+    val state by viewModel.state.collectAsState()
+    val edgeCount by viewModel.availableEdgeCount.collectAsState()
+    ToolScaffold(stringResource(R.string.route_race_title), onBack) {
+        Text(
+            stringResource(R.string.route_race_sub),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        VSpacer(12)
+        CardSurface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp)) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = routeRacePhaseLabel(state.phase),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = if (state.phase == RouteMatrixPhase.ERROR) ErrorRed else MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    stringResource(
+                        R.string.route_race_total,
+                        state.testedCandidates,
+                        state.totalCandidates,
+                        state.edgeCount.takeIf { it > 0 } ?: edgeCount
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (state.activeLabel.isNotBlank()) {
+                    Text(
+                        state.activeLabel,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                if (state.running) {
+                    LinearProgressIndicator(
+                        progress = { state.progress },
+                        modifier = Modifier.fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                state.error?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = ErrorRed)
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    PrimaryButton(
+                        stringResource(if (state.running) R.string.route_race_stop else R.string.route_race_start),
+                        onClick = { if (state.running) viewModel.stop() else viewModel.start() },
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(
+                        onClick = viewModel::applyWinner,
+                        enabled = !state.running && state.winner != null
+                    ) {
+                        Text(stringResource(R.string.route_race_apply_winner))
+                    }
+                }
+                if (state.appliedWinner) {
+                    Text(
+                        stringResource(R.string.route_race_applied),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Connected
+                    )
+                }
+            }
+        }
+        VSpacer(14)
+        RouteWinnerCard(state.winner)
+        VSpacer(14)
+        state.results.take(18).forEach { result ->
+            RouteMatrixResultRow(result)
+            VSpacer(8)
+        }
+    }
+}
+
+@Composable
+private fun routeRacePhaseLabel(phase: RouteMatrixPhase): String = when (phase) {
+    RouteMatrixPhase.IDLE -> stringResource(R.string.route_race_phase_idle)
+    RouteMatrixPhase.QUALIFICATION -> stringResource(R.string.route_race_phase_qualification)
+    RouteMatrixPhase.STABILITY -> stringResource(R.string.route_race_phase_stability)
+    RouteMatrixPhase.STRESS -> stringResource(R.string.route_race_phase_stress)
+    RouteMatrixPhase.FINAL_ABBA -> stringResource(R.string.route_race_phase_final)
+    RouteMatrixPhase.DONE -> stringResource(R.string.route_race_phase_done)
+    RouteMatrixPhase.ERROR -> stringResource(R.string.route_race_phase_error)
+}
+
+@Composable
+private fun RouteWinnerCard(winner: RouteMatrixResult?) {
+    CardSurface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp)) {
+        Column(Modifier.padding(16.dp)) {
+            Text(
+                stringResource(R.string.route_race_winner),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            VSpacer(6)
+            if (winner == null) {
+                Text(
+                    stringResource(R.string.route_race_no_winner),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                Text(winner.candidate.label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+                VSpacer(4)
+                Text(
+                    routeRaceScoreLine(winner),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RouteMatrixResultRow(result: RouteMatrixResult) {
+    CardSurface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
+        Column(Modifier.padding(14.dp)) {
+            Text(result.candidate.edge.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            VSpacer(4)
+            Text(
+                stringResource(R.string.route_race_candidate, result.candidate.dns.label, result.candidate.fragment.label, result.candidate.mtu),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            VSpacer(4)
+            Text(
+                routeRaceScoreLine(result),
+                style = MaterialTheme.typography.bodySmall,
+                color = if (result.successRate > 0.0) MaterialTheme.colorScheme.primary else ErrorRed
+            )
+            if (result.message.isNotBlank()) {
+                Text(result.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+private fun routeRaceScoreLine(result: RouteMatrixResult): String = String.format(
+    java.util.Locale.US,
+    "Score %.0f · %d ms · jitter %d ms · %.1f Mbps · success %.0f%% · confidence %.0f%% · n=%d",
+    result.score,
+    result.latencyMs,
+    result.jitterMs,
+    result.throughputMbps,
+    result.successRate * 100.0,
+    result.confidence * 100.0,
+    result.sampleCount
+)
 
 // ---------------------------------------------------------------- Speed Test
 @Composable

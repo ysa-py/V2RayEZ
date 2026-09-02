@@ -53,7 +53,7 @@ import com.v2rayez.app.ui.theme.Warning
 // Unblock = get through censorship; Routing & DNS = shape traffic; Manage & Diagnose = the rest.
 private val UNBLOCK_IDS = listOf("sni", "fronting", "tor", "snifront")
 private val ROUTING_IDS = listOf("routing", "dns", "hosts", "appproxy")
-private val MANAGE_IDS = listOf("bp8", "cert", "coremgr", "speed", "diag", "logs")
+private val MANAGE_IDS = listOf("bp8", "cert", "coremgr", "speed", "matrix", "diag", "logs")
 
 @Composable
 fun ToolsScreen(onNavigate: (String) -> Unit, onOpenLogs: () -> Unit) {
@@ -143,6 +143,7 @@ private fun toolTitleSub(id: String): Pair<String, String> = when (id) {
     "cert" -> stringResource(R.string.cert_title) to stringResource(R.string.cert_install)
     "coremgr" -> stringResource(R.string.core_manager_title) to stringResource(R.string.core_manager_sub)
     "speed" -> stringResource(R.string.tools_speed_test) to stringResource(R.string.tools_speed_test_sub)
+    "matrix" -> stringResource(R.string.route_race_title) to stringResource(R.string.route_race_sub)
     "diag" -> stringResource(R.string.diag_title) to stringResource(R.string.diag_sec_connectivity)
     "logs" -> stringResource(R.string.tools_logs) to stringResource(R.string.tools_logs_sub)
     else -> id to ""
@@ -161,6 +162,7 @@ private fun routeFor(id: String): String = when (id) {
     "hosts" -> Routes.HOSTS
     "appproxy" -> Routes.APP_PROXY
     "speed" -> Routes.SPEED_TEST
+    "matrix" -> Routes.ROUTE_SPEED_TEST
     "coremgr" -> Routes.CORE_MANAGER
     else -> Routes.DIAGNOSTICS
 }
@@ -182,6 +184,7 @@ private fun listIcon(id: String): ImageVector = when (id) {
     "cert" -> Icons.Filled.Shield
     "coremgr" -> Icons.Filled.Memory
     "speed" -> Icons.Filled.Speed
+    "matrix" -> Icons.Filled.Route
     "diag" -> Icons.Filled.MonitorHeart
     "logs" -> Icons.Filled.Article
     else -> Icons.Filled.Tune

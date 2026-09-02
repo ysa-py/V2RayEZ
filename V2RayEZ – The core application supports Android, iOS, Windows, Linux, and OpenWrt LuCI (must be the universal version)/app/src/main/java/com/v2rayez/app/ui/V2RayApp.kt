@@ -65,6 +65,7 @@ import com.v2rayez.app.ui.screens.tools.HostsScreen
 import com.v2rayez.app.ui.screens.tools.RoutingScreen
 import com.v2rayez.app.ui.screens.tools.SniTunnelScreen
 import com.v2rayez.app.ui.screens.tools.SpeedTestScreen
+import com.v2rayez.app.ui.screens.tools.RouteSpeedTestScreen
 import com.v2rayez.app.ui.screens.tools.ToolsScreen
 import com.v2rayez.app.ui.screens.tools.TorScreen
 import com.v2rayez.app.data.analytics.FirebaseTelemetry
@@ -279,6 +280,7 @@ fun V2RayApp(
             composable(Routes.CERTIFICATES) { CertificatesScreen(onBack = { navController.popBackStack() }) }
             composable(Routes.DIAGNOSTICS) { DiagnosticsScreen(onBack = { navController.popBackStack() }) }
             composable(Routes.SPEED_TEST) { SpeedTestScreen(onBack = { navController.popBackStack() }) }
+            composable(Routes.ROUTE_SPEED_TEST) { RouteSpeedTestScreen(onBack = { navController.popBackStack() }) }
 
             composable(
                 route = Routes.SERVER_EDITOR_ROUTE,
