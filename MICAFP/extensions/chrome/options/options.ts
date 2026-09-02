@@ -30,6 +30,7 @@ const els = {
   licenseAccountId: document.getElementById('licenseAccountId') as HTMLInputElement,
   licenseValidationUrl: document.getElementById('licenseValidationUrl') as HTMLInputElement,
   licensePublicKeyPem: document.getElementById('licensePublicKeyPem') as HTMLTextAreaElement,
+  licenseDeviceHashSalt: document.getElementById('licenseDeviceHashSalt') as HTMLInputElement,
   licenseAllowOfflineGrace: document.getElementById('licenseAllowOfflineGrace') as HTMLInputElement,
   licenseLastServerTime: document.getElementById('licenseLastServerTime') as HTMLParagraphElement,
   aiEngineEnabled: document.getElementById('aiEngineEnabled') as HTMLInputElement,
@@ -91,6 +92,7 @@ function populateForm(config: UnifiedShieldConfig): void {
   els.licenseAccountId.value = config.licenseAccountId ?? '';
   els.licenseValidationUrl.value = config.licenseValidationUrl ?? '';
   els.licensePublicKeyPem.value = config.licensePublicKeyPem ?? '';
+  els.licenseDeviceHashSalt.value = config.licenseDeviceHashSalt ?? 'v2rayez-client-device-binding-v1';
   els.licenseAllowOfflineGrace.checked = config.licenseAllowOfflineGrace !== false;
   els.licenseLastServerTime.textContent = config.licenseLastServerTime || 'Not validated yet';
   els.aiEngineEnabled.checked = config.aiEngineEnabled !== false;
@@ -148,6 +150,7 @@ function extractConfig(): Partial<UnifiedShieldConfig> {
     licenseValidationUrl: els.licenseValidationUrl.value.trim(),
     licenseAccountId: els.licenseAccountId.value.trim(),
     licensePublicKeyPem: els.licensePublicKeyPem.value.trim(),
+    licenseDeviceHashSalt: els.licenseDeviceHashSalt.value.trim() || 'v2rayez-client-device-binding-v1',
     licenseAllowOfflineGrace: els.licenseAllowOfflineGrace.checked,
     licenseInstalled: els.licenseSerial.value.trim() === SECRET_PLACEHOLDER,
     aiEngineEnabled: els.aiEngineEnabled.checked,
@@ -183,6 +186,7 @@ async function handleSave(): Promise<void> {
     if (
       partial.licenseAccountId !== previousConfig.licenseAccountId ||
       partial.licensePublicKeyPem !== previousConfig.licensePublicKeyPem ||
+      partial.licenseDeviceHashSalt !== previousConfig.licenseDeviceHashSalt ||
       partial.licenseValidationUrl !== previousConfig.licenseValidationUrl
     ) {
       delete secrets.licenseGraceToken;

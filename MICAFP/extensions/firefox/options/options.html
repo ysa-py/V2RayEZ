@@ -185,6 +185,12 @@
       </div>
 
       <div class="form-group">
+        <label for="licenseDeviceHashSalt">Device hash salt</label>
+        <input type="text" id="licenseDeviceHashSalt" placeholder="v2rayez-client-device-binding-v1" />
+        <p class="help-text">Must match the dashboard license device salt for offline grace device binding.</p>
+      </div>
+
+      <div class="form-group">
         <div class="toggle-row">
           <label for="licenseAllowOfflineGrace">Allow signed offline grace</label>
           <input type="checkbox" id="licenseAllowOfflineGrace" />

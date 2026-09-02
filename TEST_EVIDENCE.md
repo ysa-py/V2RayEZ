@@ -2280,3 +2280,37 @@ Observed:
 Blockers:
 
 - Real release extension packages still require `cargo` and `wasm-pack` on a proper build runner.
+
+---
+
+## Milestone 50 browser extension signed serial and device-bound grace enforcement — 2026-09-02
+
+Commands:
+
+```bash
+npm run lint --prefix MICAFP/extensions/chrome
+npm run lint --prefix MICAFP/extensions/firefox
+V2RAYEZ_ALLOW_EMPTY_EXTENSION_WASM=1 npm run build --prefix MICAFP/extensions/chrome
+V2RAYEZ_ALLOW_EMPTY_EXTENSION_WASM=1 npm run build --prefix MICAFP/extensions/firefox
+node --check tools/runtime_license_watchdog_gate.mjs
+node tools/runtime_license_watchdog_gate.mjs
+node tools/release_artifact_contract_gate.mjs
+scripts/build-release-artifacts.sh --check
+node tools/v2rayez_identity_gate.mjs
+git diff --check
+```
+
+Result: PASS.
+
+Observed:
+
+- Chrome/Firefox extension gates now verify signed serial tokens locally when a public key is configured.
+- Offline cached grace is not used if the active serial cannot be locally verified and online validation fails.
+- Signed grace payloads are bound to the signed serial when available, account ID, platform, device hash, expiry, grace expiry, and server-time rollback window.
+- Online server success still allows the current connection even if a returned grace token cannot be cached; cached grace is cleared and the reason records `offline_grace_not_cached:*`.
+- Chrome/Firefox options pages expose `Device hash salt` and clear stale grace when it changes.
+- Chrome/Firefox TypeScript lint and development package flow passed.
+
+Blockers:
+
+- Real Chrome/Firefox release packages still need the real Rust/WASM obfuscator and browser runtime/store validation.

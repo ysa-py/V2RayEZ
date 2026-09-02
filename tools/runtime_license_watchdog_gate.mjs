@@ -63,6 +63,7 @@ assertContains(iosExtensionLicense, 'graceServerDate.addingTimeInterval(300) < l
 
 const extensionProtocol = 'MICAFP/extensions/shared/protocol.ts';
 assertContains(extensionProtocol, 'licensePublicKeyPem?: string;');
+assertContains(extensionProtocol, 'licenseDeviceHashSalt?: string;');
 assertContains(extensionProtocol, 'licenseLastServerTime?: string;');
 assertContains(extensionProtocol, 'licenseGraceServerTime?: string;');
 
@@ -75,7 +76,11 @@ for (const path of [
   assertContains(path, 'config.licenseGraceServerTime = String(gracePayload.serverTime || serverTime ||');
   assertContains(path, 'using_signed_grace');
   assertContains(path, 'isHardCachedDenial(cached)');
+  assertContains(path, 'verifyLicenseToken(serial, publicKeyPem)');
+  assertContains(path, 'licenseVerificationError');
   assertContains(path, 'verifyGraceToken(graceToken, publicKeyPem)');
+  assertContains(path, 'offline_grace_device_mismatch');
+  assertContains(path, 'hashDeviceId(`browser-extension:${');
   assertContains(path, "license_public_key_missing");
   assertContains(path, 'server_time_rollback_detected');
 }
@@ -86,6 +91,8 @@ for (const path of [
 ]) {
   assertContains(path, 'id="licensePublicKeyPem"');
   assertContains(path, 'Required for signed offline grace verification');
+  assertContains(path, 'id="licenseDeviceHashSalt"');
+  assertContains(path, 'Must match the dashboard license device salt');
   assertContains(path, 'id="licenseLastServerTime"');
   assertContains(path, 'Last trusted server time');
 }
@@ -95,10 +102,12 @@ for (const path of [
   'MICAFP/extensions/firefox/options/options.ts',
 ]) {
   assertContains(path, 'licensePublicKeyPem: document.getElementById');
+  assertContains(path, 'licenseDeviceHashSalt: document.getElementById');
   assertContains(path, 'licenseLastServerTime: document.getElementById');
   assertContains(path, "config.licenseLastServerTime || 'Not validated yet'");
   assertContains(path, 'delete secrets.licenseGraceToken');
   assertContains(path, 'previousConfig.licensePublicKeyPem');
+  assertContains(path, 'previousConfig.licenseDeviceHashSalt');
 }
 
 const openwrtGate = 'MICAFP/openwrt/files/usr/libexec/unifiedshield/license-gate.sh';

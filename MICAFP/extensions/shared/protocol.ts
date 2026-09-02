@@ -45,6 +45,7 @@ export interface UnifiedShieldConfig {
   licenseValidationUrl?: string;
   licenseAccountId?: string;
   licensePublicKeyPem?: string;
+  licenseDeviceHashSalt?: string;
   licenseAllowOfflineGrace?: boolean;
   licenseInstalled?: boolean;
   licenseLastResult?: string;
@@ -85,6 +86,7 @@ export const DEFAULT_CONFIG: UnifiedShieldConfig = {
   licenseValidationUrl: '',
   licenseAccountId: '',
   licensePublicKeyPem: '',
+  licenseDeviceHashSalt: 'v2rayez-client-device-binding-v1',
   licenseAllowOfflineGrace: true,
   licenseInstalled: false,
   licenseLastResult: 'not_validated',
