@@ -26,6 +26,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 #include <uci.h>
 
 int uci_load_config(const char* config_name, const char* section_name,
@@ -35,7 +36,7 @@ int uci_load_config(const char* config_name, const char* section_name,
         return -1;
     }
 
-    struct uci_package* pkg = nullptr;
+    struct uci_package* pkg = NULL;
     int ret = uci_load(ctx, config_name, &pkg);
 
     if (ret != UCI_OK || !pkg) {
@@ -70,7 +71,7 @@ int uci_load_config(const char* config_name, const char* section_name,
         uci_foreach_element(&s->options, oe) {
             struct uci_option* o = uci_to_option(oe);
             const char* key = o->e.name;
-            const char* val = (o->type == UCI_TYPE_STRING) ? o->v.string : nullptr;
+            const char* val = (o->type == UCI_TYPE_STRING) ? o->v.string : NULL;
 
             if (!val && o->type != UCI_TYPE_LIST) continue;
 

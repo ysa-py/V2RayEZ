@@ -47,7 +47,9 @@ import com.v2rayez.app.ui.screens.servers.FreeServersScreen
 import com.v2rayez.app.ui.screens.servers.ServerEditorScreen
 import com.v2rayez.app.ui.screens.servers.ServersScreen
 import com.v2rayez.app.ui.screens.settings.AdvancedVpnScreen
+import com.v2rayez.app.ui.screens.settings.AiEngineScreen
 import com.v2rayez.app.ui.screens.settings.CoreManagerScreen
+import com.v2rayez.app.ui.screens.settings.LicenseScreen
 import com.v2rayez.app.ui.screens.settings.MoreSettingsScreen
 import com.v2rayez.app.ui.screens.settings.SettingsScreen
 import com.v2rayez.app.ui.screens.statistics.StatisticsScreen
@@ -63,6 +65,7 @@ import com.v2rayez.app.ui.screens.tools.HostsScreen
 import com.v2rayez.app.ui.screens.tools.RoutingScreen
 import com.v2rayez.app.ui.screens.tools.SniTunnelScreen
 import com.v2rayez.app.ui.screens.tools.SpeedTestScreen
+import com.v2rayez.app.ui.screens.tools.RouteSpeedTestScreen
 import com.v2rayez.app.ui.screens.tools.ToolsScreen
 import com.v2rayez.app.ui.screens.tools.TorScreen
 import com.v2rayez.app.data.analytics.FirebaseTelemetry
@@ -223,7 +226,9 @@ fun V2RayApp(
                     onOpenDns = { go(Routes.DNS) },
                     onOpenWarp = { go(Routes.WARP) },
                     onOpenHotspot = { go(Routes.HOTSPOT) },
-                    onOpenStatistics = { go(Routes.STATISTICS) }
+                    onOpenStatistics = { go(Routes.STATISTICS) },
+                    onOpenLicense = { go(Routes.LICENSE) },
+                    onOpenAiEngine = { go(Routes.AI_ENGINE) }
                 )
             }
             composable(Routes.LOGS) { LogsScreen(onBack = { navController.popBackStack() }) }
@@ -246,6 +251,8 @@ fun V2RayApp(
             }
             composable(Routes.MORE_SETTINGS) { MoreSettingsScreen(onBack = { navController.popBackStack() }) }
             composable(Routes.CORE_MANAGER) { CoreManagerScreen(onBack = { navController.popBackStack() }) }
+            composable(Routes.LICENSE) { LicenseScreen(onBack = { navController.popBackStack() }) }
+            composable(Routes.AI_ENGINE) { AiEngineScreen(onBack = { navController.popBackStack() }) }
 
             composable(Routes.ROUTING) { RoutingScreen(onBack = { navController.popBackStack() }) }
             composable(Routes.DNS) { DnsScreen(onBack = { navController.popBackStack() }) }
@@ -273,6 +280,7 @@ fun V2RayApp(
             composable(Routes.CERTIFICATES) { CertificatesScreen(onBack = { navController.popBackStack() }) }
             composable(Routes.DIAGNOSTICS) { DiagnosticsScreen(onBack = { navController.popBackStack() }) }
             composable(Routes.SPEED_TEST) { SpeedTestScreen(onBack = { navController.popBackStack() }) }
+            composable(Routes.ROUTE_SPEED_TEST) { RouteSpeedTestScreen(onBack = { navController.popBackStack() }) }
 
             composable(
                 route = Routes.SERVER_EDITOR_ROUTE,

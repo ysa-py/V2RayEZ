@@ -5,6 +5,8 @@ import android.content.Intent
 import androidx.core.content.ContextCompat
 import com.v2rayez.app.R
 import com.v2rayez.app.data.analytics.FirebaseTelemetry
+import com.v2rayez.app.data.license.AndroidLicenseRepository
+import com.v2rayez.app.data.license.LicenseValidationResult
 import com.v2rayez.app.data.core.ConfigBuilder
 import com.v2rayez.app.data.core.GeoAssetManager
 import com.v2rayez.app.data.core.ProcessProxyCore
@@ -49,7 +51,8 @@ class RealVpnController @Inject constructor(
     private val serverRepository: ServerRepository,
     private val geoAssets: GeoAssetManager,
     private val firebaseTelemetry: FirebaseTelemetry,
-    private val logRepository: LogRepository
+    private val logRepository: LogRepository,
+    private val licenseRepository: AndroidLicenseRepository
 ) : VpnController {
 
     override val connectionState: StateFlow<ConnectionState> = stateHolder.connectionState
@@ -60,10 +63,7 @@ class RealVpnController @Inject constructor(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun connect(server: Server) {
-        val intent = Intent(context, V2RayVpnService::class.java)
-            .setAction(V2RayVpnService.ACTION_CONNECT)
-            .putExtra(V2RayVpnService.EXTRA_SERVER_ID, server.id)
-        ContextCompat.startForegroundService(context, intent)
+        scope.launch { startLicensedForegroundService(server.id) }
     }
 
     override fun disconnect() {
@@ -89,11 +89,47 @@ class RealVpnController @Inject constructor(
                         stateHolder.setError(context.getString(R.string.vpn_error_no_server))
                         return@launch
                     }
-                    val intent = Intent(context, V2RayVpnService::class.java)
-                        .setAction(V2RayVpnService.ACTION_CONNECT)
-                        .putExtra(V2RayVpnService.EXTRA_SERVER_ID, server.id)
-                    ContextCompat.startForegroundService(context, intent)
+                    startLicensedForegroundService(server.id)
                 }
+            }
+        }
+    }
+
+    private suspend fun startLicensedForegroundService(serverId: String) {
+        val settings = runCatching { settingsRepository.current() }.getOrElse {
+            stateHolder.setError(it.message ?: "Settings unavailable")
+            return
+        }
+        val decision = runCatching { licenseRepository.enforce(settings.license) }.getOrElse {
+            LicenseValidationResult(
+                allowed = false,
+                result = "DENIED",
+                reason = it.message ?: "license_validation_failed"
+            )
+        }
+        persistLicenseDecision(decision)
+        if (!decision.allowed) {
+            stateHolder.setError(context.getString(R.string.vpn_error_license_required, decision.reason))
+            return
+        }
+        val intent = Intent(context, V2RayVpnService::class.java)
+            .setAction(V2RayVpnService.ACTION_CONNECT)
+            .putExtra(V2RayVpnService.EXTRA_SERVER_ID, serverId)
+        ContextCompat.startForegroundService(context, intent)
+    }
+
+    private suspend fun persistLicenseDecision(decision: LicenseValidationResult) {
+        runCatching {
+            settingsRepository.update { settings ->
+                settings.copy(
+                    license = settings.license.copy(
+                        lastResult = decision.result,
+                        lastReason = decision.reason,
+                        expiresAt = decision.expiresAt,
+                        offlineGraceUntil = decision.offlineGraceUntil,
+                        lastServerTime = decision.serverTime.ifBlank { settings.license.lastServerTime }
+                    )
+                )
             }
         }
     }

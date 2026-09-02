@@ -43,7 +43,7 @@ export class PacGenerator {
     ].map((d) => `  "${d}"`).join(',\n');
 
     return `
-// UnifiedShield NextGen PAC Script (Firefox)
+// V2RayEZ Universal PAC Script (Firefox)
 // Generated: ${new Date().toISOString()}
 // ISP: ${this.isp?.name ?? 'unknown'}
 

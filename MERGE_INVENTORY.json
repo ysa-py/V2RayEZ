@@ -1,0 +1,575 @@
+{
+  "generated_by": "tools/merge_inventory.py",
+  "source_summary": {
+    "V2RayEZ base": {
+      "path": "V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)",
+      "exists": true,
+      "file_count": 311,
+      "top_level_dirs": [
+        ".github",
+        "app",
+        "gradle",
+        "license-admin",
+        "scripts"
+      ]
+    },
+    "V2RayEZ GUI / Aether adapter": {
+      "path": "V2RayEZ-GUI",
+      "exists": true,
+      "file_count": 176,
+      "top_level_dirs": [
+        ".github",
+        "android",
+        "docs",
+        "scripts",
+        "src",
+        "src-tauri",
+        "tests",
+        "third-party"
+      ]
+    },
+    "EasySNI": {
+      "path": "EasySNI- Make sure to fully add all features to the V2RayEZ app",
+      "exists": true,
+      "file_count": 103,
+      "top_level_dirs": [
+        "Configs",
+        "docs",
+        "internal",
+        "repo"
+      ]
+    },
+    "MICAFP-UnifiedShield": {
+      "path": "MICAFP",
+      "exists": true,
+      "file_count": 733,
+      "top_level_dirs": [
+        "ai-models",
+        "android",
+        "app",
+        "configs",
+        "core",
+        "daemon",
+        "dashboard",
+        "docs",
+        "extensions",
+        "flutter",
+        "flutter_app",
+        "go-bridge",
+        "ios",
+        "linux",
+        "models",
+        "openwrt",
+        "scripts",
+        "tests",
+        "wasm-obfuscator",
+        "windows",
+        "workers",
+        "zig-openwrt"
+      ]
+    },
+    "MSN-GUARD": {
+      "path": "MSN-GUARD- Make sure to fully add all features to the V2RayEZ app",
+      "exists": true,
+      "file_count": 939,
+      "top_level_dirs": [
+        ".github",
+        "app",
+        "core",
+        "docs",
+        "gradle",
+        "tools"
+      ]
+    },
+    "UAC-SNI-Spoofer Android": {
+      "path": "UAC-SNI-Spoofer-Android- Make sure to fully add all features to the V2RayEZ app",
+      "exists": true,
+      "file_count": 488,
+      "top_level_dirs": [
+        "app",
+        "gradle",
+        "scripts",
+        "third_party"
+      ]
+    },
+    "UAC-SNI-Spoofer Windows": {
+      "path": "UAC-SNI-Spoofer-Windows- Make sure to fully add all features to the V2RayEZ app",
+      "exists": true,
+      "file_count": 165,
+      "top_level_dirs": [
+        "artifacts",
+        "assets",
+        "docs",
+        "tests",
+        "third_party",
+        "tools",
+        "uac_desktop",
+        "wizard guider"
+      ]
+    },
+    "MasterDnsVPN": {
+      "path": "MasterDnsVPN-main",
+      "exists": true,
+      "file_count": 164,
+      "top_level_dirs": [
+        ".github",
+        "assets",
+        "cmd",
+        "docker",
+        "internal",
+        "scripts"
+      ]
+    }
+  },
+  "feature_probes": [
+    {
+      "feature": "Base Android Compose app, Room/DataStore, app shell",
+      "source": "V2RayEZ base",
+      "source_paths": [
+        "V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/app/src/main/java/com/v2rayez/app",
+        "V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/app/build.gradle.kts"
+      ],
+      "target_component": "apps/android",
+      "target_platforms": [
+        "Android"
+      ],
+      "status": "preserved"
+    },
+    {
+      "feature": "Base Xray config import/export and protocol builder",
+      "source": "V2RayEZ base",
+      "source_paths": [
+        "V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/app/src/main/java/com/v2rayez/app/data/parser/ProxyParser.kt",
+        "V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/app/src/main/java/com/v2rayez/app/data/core/ConfigBuilder.kt",
+        "V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/app/libs/libv2ray.aar"
+      ],
+      "target_component": "universal-core/config + apps/android",
+      "target_platforms": [
+        "Android",
+        "Windows",
+        "Linux",
+        "iOS",
+        "OpenWrt"
+      ],
+      "status": "preserved"
+    },
+    {
+      "feature": "Base MITM/domain fronting/browser/tools",
+      "source": "V2RayEZ base",
+      "source_paths": [
+        "V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/app/src/main/java/com/v2rayez/app/data/mitm",
+        "V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/app/src/main/java/com/v2rayez/app/data/fronting",
+        "V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/app/src/main/java/com/v2rayez/app/ui/screens/browser",
+        "V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/app/src/main/java/com/v2rayez/app/ui/screens/tools"
+      ],
+      "target_component": "universal-core/fronting + apps/* tools UI",
+      "target_platforms": [
+        "Android",
+        "Windows",
+        "Linux"
+      ],
+      "status": "preserved"
+    },
+    {
+      "feature": "Base Tor/PT/Core Manager/addon packs",
+      "source": "V2RayEZ base",
+      "source_paths": [
+        "V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/app/src/main/java/com/v2rayez/app/data/core/AddonPackManager.kt",
+        "V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/app/src/main/java/com/v2rayez/app/data/tor",
+        "V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/scripts/addon-vendor-sources.json"
+      ],
+      "target_component": "universal-core/core-manager",
+      "target_platforms": [
+        "Android",
+        "Windows",
+        "Linux",
+        "OpenWrt"
+      ],
+      "status": "preserved"
+    },
+    {
+      "feature": "Localization parity QA gate",
+      "source": "V2RayEZ base",
+      "source_paths": [
+        "V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/scripts/gates/string-key-parity.sh",
+        "V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/app/src/main/res/values/strings.xml",
+        "V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/app/src/main/res/values-fa/strings.xml",
+        "V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/app/src/main/res/values-ru/strings.xml"
+      ],
+      "target_component": ".github/workflows + scripts/gates",
+      "target_platforms": [
+        "Android",
+        "Windows",
+        "Linux",
+        "iOS",
+        "OpenWrt"
+      ],
+      "status": "preserved"
+    },
+    {
+      "feature": "V2RayEZ GUI Aether v1.7.0 engine and Tauri Windows integration",
+      "source": "V2RayEZ GUI / Aether adapter",
+      "source_paths": [
+        "V2RayEZ-GUI/src-tauri",
+        "V2RayEZ-GUI/src-tauri/src/settings.rs",
+        "V2RayEZ-GUI/src-tauri/src/routing.rs",
+        "V2RayEZ-GUI/README.md"
+      ],
+      "target_component": "universal-core/engines/aether + apps/desktop-tauri",
+      "target_platforms": [
+        "Windows",
+        "Android"
+      ],
+      "status": "preserved"
+    },
+    {
+      "feature": "V2RayEZ signed update flow",
+      "source": "V2RayEZ GUI / Aether adapter",
+      "source_paths": [
+        "V2RayEZ-GUI/src-tauri/src/update.rs",
+        "V2RayEZ-GUI/android/app/src/main/java/app/v2rayez/gui/AppUpdateManager.java",
+        "V2RayEZ-GUI/android/app/src/main/java/app/v2rayez/gui/UpdateWorker.java"
+      ],
+      "target_component": "universal-core/ota + apps/* settings",
+      "target_platforms": [
+        "Android",
+        "Windows"
+      ],
+      "status": "preserved"
+    },
+    {
+      "feature": "EasySNI local web panel and API",
+      "source": "EasySNI",
+      "source_paths": [
+        "EasySNI- Make sure to fully add all features to the V2RayEZ app/main.go",
+        "EasySNI- Make sure to fully add all features to the V2RayEZ app/internal/server",
+        "EasySNI- Make sure to fully add all features to the V2RayEZ app/internal/server/web/index.html"
+      ],
+      "target_component": "tools/easysni-sidecar + universal-core/tools API",
+      "target_platforms": [
+        "Windows",
+        "Linux",
+        "macOS"
+      ],
+      "status": "preserved"
+    },
+    {
+      "feature": "EasySNI MITM/domain-fronting and SNI/desync modules",
+      "source": "EasySNI",
+      "source_paths": [
+        "EasySNI- Make sure to fully add all features to the V2RayEZ app/internal/mitmdf",
+        "EasySNI- Make sure to fully add all features to the V2RayEZ app/internal/sni",
+        "EasySNI- Make sure to fully add all features to the V2RayEZ app/internal/desync",
+        "EasySNI- Make sure to fully add all features to the V2RayEZ app/internal/gtunnel"
+      ],
+      "target_component": "universal-core/fronting + universal-core/obfuscation",
+      "target_platforms": [
+        "Android",
+        "Windows",
+        "Linux",
+        "OpenWrt"
+      ],
+      "status": "preserved"
+    },
+    {
+      "feature": "EasySNI BPB/EdgeTunnel/SPlus compatibility",
+      "source": "EasySNI",
+      "source_paths": [
+        "EasySNI- Make sure to fully add all features to the V2RayEZ app/internal/bpb",
+        "EasySNI- Make sure to fully add all features to the V2RayEZ app/internal/edgetunnel",
+        "EasySNI- Make sure to fully add all features to the V2RayEZ app/internal/splus"
+      ],
+      "target_component": "universal-core/deployers + apps/* tools UI",
+      "target_platforms": [
+        "Android",
+        "Windows",
+        "Linux"
+      ],
+      "status": "preserved"
+    },
+    {
+      "feature": "MICAFP Rust daemon full module tree",
+      "source": "MICAFP-UnifiedShield",
+      "source_paths": [
+        "MICAFP/daemon/src/lib.rs",
+        "MICAFP/daemon/src/transport",
+        "MICAFP/daemon/src/ai",
+        "MICAFP/daemon/src/national_intranet",
+        "MICAFP/daemon/src/quantum"
+      ],
+      "target_component": "universal-core",
+      "target_platforms": [
+        "Android",
+        "iOS",
+        "Windows",
+        "Linux",
+        "OpenWrt"
+      ],
+      "status": "preserved"
+    },
+    {
+      "feature": "MICAFP named VPN cores",
+      "source": "MICAFP-UnifiedShield",
+      "source_paths": [
+        "MICAFP/daemon/src/cores",
+        "MICAFP/README.md"
+      ],
+      "target_component": "universal-core/engines",
+      "target_platforms": [
+        "Android",
+        "iOS",
+        "Windows",
+        "Linux",
+        "OpenWrt"
+      ],
+      "status": "preserved"
+    },
+    {
+      "feature": "MICAFP data-driven configs",
+      "source": "MICAFP-UnifiedShield",
+      "source_paths": [
+        "MICAFP/configs/cdn-endpoints.json",
+        "MICAFP/configs/cloudflare-workers-urls.json",
+        "MICAFP/configs/dpi-signatures.json",
+        "MICAFP/configs/isp-profiles.json",
+        "MICAFP/configs/p2p-bootstrap-peers.json",
+        "MICAFP/configs/pluggable-transports.json"
+      ],
+      "target_component": "universal-core/resources/configs",
+      "target_platforms": [
+        "Android",
+        "iOS",
+        "Windows",
+        "Linux",
+        "OpenWrt",
+        "Browser"
+      ],
+      "status": "preserved"
+    },
+    {
+      "feature": "MICAFP dashboard/control plane",
+      "source": "MICAFP-UnifiedShield",
+      "source_paths": [
+        "MICAFP/dashboard/src/app/api",
+        "MICAFP/dashboard/prisma/schema.prisma",
+        "MICAFP/dashboard/package.json"
+      ],
+      "target_component": "dashboard",
+      "target_platforms": [
+        "Server/Web"
+      ],
+      "status": "preserved"
+    },
+    {
+      "feature": "MICAFP browser extensions and WASM obfuscator",
+      "source": "MICAFP-UnifiedShield",
+      "source_paths": [
+        "MICAFP/extensions/chrome",
+        "MICAFP/extensions/firefox",
+        "MICAFP/extensions/shared",
+        "MICAFP/extensions/wasm-obfuscator"
+      ],
+      "target_component": "extensions",
+      "target_platforms": [
+        "Chrome",
+        "Firefox"
+      ],
+      "status": "preserved"
+    },
+    {
+      "feature": "MICAFP iOS/Linux/OpenWrt platform layers",
+      "source": "MICAFP-UnifiedShield",
+      "source_paths": [
+        "MICAFP/ios",
+        "MICAFP/linux",
+        "MICAFP/openwrt"
+      ],
+      "target_component": "apps/ios + packages/linux + packages/openwrt",
+      "target_platforms": [
+        "iOS",
+        "Linux",
+        "OpenWrt"
+      ],
+      "status": "preserved"
+    },
+    {
+      "feature": "MICAFP AI model training pipeline",
+      "source": "MICAFP-UnifiedShield",
+      "source_paths": [
+        "MICAFP/ai-models/train/dataset_collector.py",
+        "MICAFP/ai-models/train/adversarial_traffic_gan.py",
+        "MICAFP/ai-models/quantize/validate_onnx.py"
+      ],
+      "target_component": "ai-models",
+      "target_platforms": [
+        "Developer/CI",
+        "On-device model supply"
+      ],
+      "status": "preserved"
+    },
+    {
+      "feature": "MSN-GUARD Aether Android VPN + JNI/TUN",
+      "source": "MSN-GUARD",
+      "source_paths": [
+        "MSN-GUARD- Make sure to fully add all features to the V2RayEZ app/core/aether/src",
+        "MSN-GUARD- Make sure to fully add all features to the V2RayEZ app/app/src/main/cpp/aether_jni.cpp",
+        "MSN-GUARD- Make sure to fully add all features to the V2RayEZ app/app/src/main/java/com/msnguard/vpn"
+      ],
+      "target_component": "universal-core/engines/aether + apps/android",
+      "target_platforms": [
+        "Android"
+      ],
+      "status": "preserved"
+    },
+    {
+      "feature": "MSN-GUARD MASQUE/WireGuard/WARP/Psiphon/Tor",
+      "source": "MSN-GUARD",
+      "source_paths": [
+        "MSN-GUARD- Make sure to fully add all features to the V2RayEZ app/core/aether/src/masque.rs",
+        "MSN-GUARD- Make sure to fully add all features to the V2RayEZ app/core/aether/src/wireguard.rs"
+      ],
+      "target_component": "universal-core/transports + engines/aether",
+      "target_platforms": [
+        "Android",
+        "Windows",
+        "Linux",
+        "iOS"
+      ],
+      "status": "preserved"
+    },
+    {
+      "feature": "UAC Android adaptive connection and route speed test",
+      "source": "UAC-SNI-Spoofer Android",
+      "source_paths": [
+        "UAC-SNI-Spoofer-Android- Make sure to fully add all features to the V2RayEZ app/app/src/main/java/com/uacspoofer/mobile/vpn/AdaptiveConnection.kt",
+        "UAC-SNI-Spoofer-Android- Make sure to fully add all features to the V2RayEZ app/app/src/main/java/com/uacspoofer/mobile/ui/RouteSpeedTestController.kt",
+        "UAC-SNI-Spoofer-Android- Make sure to fully add all features to the V2RayEZ app/app/src/main/java/com/uacspoofer/mobile/ui/RouteSpeedTestScreen.kt"
+      ],
+      "target_component": "universal-core/adaptive-routing + apps/android",
+      "target_platforms": [
+        "Android",
+        "Windows",
+        "Linux"
+      ],
+      "status": "preserved"
+    },
+    {
+      "feature": "UAC Android exact profile parsing/fidelity",
+      "source": "UAC-SNI-Spoofer Android",
+      "source_paths": [
+        "UAC-SNI-Spoofer-Android- Make sure to fully add all features to the V2RayEZ app/app/src/main/java/com/uacspoofer/mobile/profiles/ProfileUriParser.kt",
+        "UAC-SNI-Spoofer-Android- Make sure to fully add all features to the V2RayEZ app/app/src/main/java/com/uacspoofer/mobile/profiles/SubscriptionConfigParser.kt",
+        "UAC-SNI-Spoofer-Android- Make sure to fully add all features to the V2RayEZ app/app/src/main/java/com/uacspoofer/mobile/mci/MciXrayConfigBuilder.kt"
+      ],
+      "target_component": "universal-core/config",
+      "target_platforms": [
+        "Android",
+        "Windows",
+        "Linux",
+        "iOS",
+        "OpenWrt"
+      ],
+      "status": "preserved"
+    },
+    {
+      "feature": "UAC Android Tor/WebTunnel subsystem",
+      "source": "UAC-SNI-Spoofer Android",
+      "source_paths": [
+        "UAC-SNI-Spoofer-Android- Make sure to fully add all features to the V2RayEZ app/app/src/main/java/com/uacspoofer/mobile/engine/tor",
+        "UAC-SNI-Spoofer-Android- Make sure to fully add all features to the V2RayEZ app/app/src/main/assets/tor/bridges-webtunnel.txt"
+      ],
+      "target_component": "universal-core/transports/tor + apps/android",
+      "target_platforms": [
+        "Android"
+      ],
+      "status": "preserved"
+    },
+    {
+      "feature": "UAC Windows Python desktop modules and Patterniha/Npcap",
+      "source": "UAC-SNI-Spoofer Windows",
+      "source_paths": [
+        "UAC-SNI-Spoofer-Windows- Make sure to fully add all features to the V2RayEZ app/uac_desktop/engine.py",
+        "UAC-SNI-Spoofer-Windows- Make sure to fully add all features to the V2RayEZ app/uac_desktop/npcap.py",
+        "UAC-SNI-Spoofer-Windows- Make sure to fully add all features to the V2RayEZ app/uac_desktop/pattern_core",
+        "UAC-SNI-Spoofer-Windows- Make sure to fully add all features to the V2RayEZ app/UAC-Spoofer-Desktop.spec"
+      ],
+      "target_component": "apps/windows/python-tools + universal-core/adaptive-routing",
+      "target_platforms": [
+        "Windows"
+      ],
+      "status": "preserved"
+    },
+    {
+      "feature": "UAC Windows wizard assistant",
+      "source": "UAC-SNI-Spoofer Windows",
+      "source_paths": [
+        "UAC-SNI-Spoofer-Windows- Make sure to fully add all features to the V2RayEZ app/uac_desktop/assistant.py",
+        "UAC-SNI-Spoofer-Windows- Make sure to fully add all features to the V2RayEZ app/uac_desktop/assistant_messages.py",
+        "UAC-SNI-Spoofer-Windows- Make sure to fully add all features to the V2RayEZ app/wizard guider"
+      ],
+      "target_component": "apps/windows/assistant + apps/* guide surfaces",
+      "target_platforms": [
+        "Windows",
+        "Android"
+      ],
+      "status": "preserved"
+    },
+    {
+      "feature": "MasterDnsVPN DNS tunnel client/server",
+      "source": "MasterDnsVPN",
+      "source_paths": [
+        "MasterDnsVPN-main/cmd/client/main.go",
+        "MasterDnsVPN-main/cmd/server/main.go",
+        "MasterDnsVPN-main/internal/client",
+        "MasterDnsVPN-main/internal/udpserver"
+      ],
+      "target_component": "universal-core/transports/dns-tunnel + server/dns-tunnel",
+      "target_platforms": [
+        "Android",
+        "iOS",
+        "Windows",
+        "Linux",
+        "OpenWrt"
+      ],
+      "status": "preserved"
+    },
+    {
+      "feature": "MasterDnsVPN ARQ/multipath/balancer/security/compression",
+      "source": "MasterDnsVPN",
+      "source_paths": [
+        "MasterDnsVPN-main/internal/arq",
+        "MasterDnsVPN-main/internal/client/balancer.go",
+        "MasterDnsVPN-main/internal/security",
+        "MasterDnsVPN-main/internal/compression",
+        "MasterDnsVPN-main/internal/vpnproto"
+      ],
+      "target_component": "universal-core/transports/dns-tunnel",
+      "target_platforms": [
+        "Android",
+        "iOS",
+        "Windows",
+        "Linux",
+        "OpenWrt"
+      ],
+      "status": "preserved"
+    },
+    {
+      "feature": "MasterDnsVPN server installer/Docker/docs",
+      "source": "MasterDnsVPN",
+      "source_paths": [
+        "MasterDnsVPN-main/server_linux_install.sh",
+        "MasterDnsVPN-main/docker",
+        "MasterDnsVPN-main/README.MD",
+        "MasterDnsVPN-main/server_config.toml.simple",
+        "MasterDnsVPN-main/client_config.toml.simple"
+      ],
+      "target_component": "server/dns-tunnel + docs",
+      "target_platforms": [
+        "Linux",
+        "OpenWrt",
+        "Server"
+      ],
+      "status": "preserved"
+    }
+  ]
+}

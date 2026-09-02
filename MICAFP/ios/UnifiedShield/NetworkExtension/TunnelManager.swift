@@ -21,6 +21,7 @@ class TunnelManager: ObservableObject {
     private var vpnStatus: NEVPNStatus = .invalid
     private var statusObservation: NSKeyValueObservation?
     private var startTime: Date?
+    private var licenseWatchdogTask: Task<Void, Never>?
 
     private init() {
         loadTunnelConfiguration()
@@ -43,6 +44,7 @@ class TunnelManager: ObservableObject {
     }
 
     func disconnect() {
+        stopLicenseWatchdog()
         guard let session = tunnelProviderManager?.connection as? NETunnelProviderSession else {
             return
         }
@@ -115,12 +117,12 @@ class TunnelManager: ObservableObject {
         let manager = NETunnelProviderManager()
 
         manager.protocolConfiguration = NETunnelProviderProtocol(
-            providerBundleIdentifier: "com.unifiedshield.packet-tunnel",
+            providerBundleIdentifier: "app.v2rayez.ios.PacketTunnel",
             providerConfiguration: [:],
-            serverAddress: "UnifiedShield"
+            serverAddress: "V2RayEZ"
         )
 
-        manager.localizedDescription = "UnifiedShield VPN"
+        manager.localizedDescription = "V2RayEZ"
         manager.isEnabled = true
 
         // Enable always-on VPN (kill switch)
@@ -147,19 +149,64 @@ class TunnelManager: ObservableObject {
     }
 
     private func startVPN() {
+        isConnecting = true
+        Task { [weak self] in
+            let status = await LicenseManager.shared.enforce()
+            await MainActor.run {
+                guard let self = self else { return }
+                guard status.allowed else {
+                    print("License check failed before VPN start: \(status.reason)")
+                    self.isConnecting = false
+                    return
+                }
+                self.startVPNAfterLicense()
+            }
+        }
+    }
+
+    private func startVPNAfterLicense() {
         guard let manager = tunnelProviderManager,
               let session = manager.connection as? NETunnelProviderSession else {
+            isConnecting = false
             return
         }
-
-        isConnecting = true
 
         do {
             try session.startTunnel()
         } catch {
             print("Failed to start tunnel: \(error)")
             isConnecting = false
+            Task {
+                if let advice = await AIProviderGateway.shared.adviseOnFailure("startTunnel failed: \(error)") {
+                    print("AI Engine advisor (\(advice.source)): \(advice.text)")
+                }
+            }
         }
+    }
+
+    private func startLicenseWatchdog() {
+        licenseWatchdogTask?.cancel()
+        licenseWatchdogTask = Task { [weak self] in
+            while !Task.isCancelled {
+                let status = await LicenseManager.shared.enforce()
+                if !status.allowed {
+                    await MainActor.run {
+                        guard let self = self else { return }
+                        print("License watchdog stopped VPN: \(status.reason)")
+                        self.disconnect()
+                    }
+                    return
+                }
+                let waitSeconds = max(Int64(1), min(status.remainingSeconds > 0 ? status.remainingSeconds : 60, Int64(60)))
+                try? await Task.sleep(nanoseconds: UInt64(waitSeconds) * 1_000_000_000)
+                guard !Task.isCancelled else { return }
+            }
+        }
+    }
+
+    private func stopLicenseWatchdog() {
+        licenseWatchdogTask?.cancel()
+        licenseWatchdogTask = nil
     }
 
     private func observeVpnStatus() {
@@ -172,10 +219,12 @@ class TunnelManager: ObservableObject {
                     self.isConnected = true
                     self.isConnecting = false
                     self.startTime = Date()
+                    self.startLicenseWatchdog()
                 case .disconnected:
                     self.isConnected = false
                     self.isConnecting = false
                     self.startTime = nil
+                    self.stopLicenseWatchdog()
                 case .connecting:
                     self.isConnecting = true
                 case .disconnecting:

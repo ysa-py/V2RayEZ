@@ -2,17 +2,19 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <!-- App identity — never show VPN/proxy keywords -->
+    <!-- App identity — V2RayEZ is the final product/GUI identity. -->
     <key>CFBundleName</key>
-    <string>Shield</string>
+    <string>V2RayEZ</string>
     <key>CFBundleDisplayName</key>
-    <string>Shield</string>
+    <string>V2RayEZ</string>
     <key>CFBundleIdentifier</key>
-    <string>com.shield.ios</string>
+    <string>app.v2rayez.ios</string>
     <key>CFBundleVersion</key>
-    <string>600</string>
+    <string>200</string>
     <key>CFBundleShortVersionString</key>
-    <string>6.0.0</string>
+    <string>2.0.0</string>
+    <key>V2RayEZKeychainAccessGroup</key>
+    <string>$(AppIdentifierPrefix)app.v2rayez.ios</string>
 
     <!-- Network Extension entitlement -->
     <key>UIBackgroundModes</key>
@@ -24,11 +26,11 @@
 
     <!-- Microphone permission for acoustic channel -->
     <key>NSMicrophoneUsageDescription</key>
-    <string>Shield needs microphone access for audio processing features.</string>
+    <string>V2RayEZ needs microphone access for audio processing features.</string>
 
     <!-- Privacy descriptions -->
     <key>NSLocalNetworkUsageDescription</key>
-    <string>Shield needs local network access for device communication.</string>
+    <string>V2RayEZ needs local network access for device communication.</string>
 
     <!-- App Transport Security — allow custom endpoints -->
     <key>NSAppTransportSecurity</key>
@@ -42,7 +44,7 @@
     <dict>
         <key>NEProviderExtensions</key>
         <dict>
-            <key>com.shield.ios.PacketTunnel</key>
+            <key>app.v2rayez.ios.PacketTunnel</key>
             <dict>
                 <key>TeamIdentifier</key>
                 <string>$(TeamIdentifierPrefix)</string>

@@ -102,7 +102,7 @@ struct StatusView: View {
                 }
                 .padding()
             }
-            .navigationTitle("UnifiedShield")
+            .navigationTitle("V2RayEZ")
         }
     }
 

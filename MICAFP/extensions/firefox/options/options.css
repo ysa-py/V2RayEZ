@@ -1,4 +1,4 @@
-/* ────────── UnifiedShield Firefox Options Styles ────────── */
+/* ────────── V2RayEZ Options Styles ────────── */
 
 :root {
   --bg-primary: #0f1117;
@@ -14,17 +14,22 @@
   --radius: 10px;
 }
 
-* { margin: 0; padding: 0; box-sizing: border-box; }
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   background: var(--bg-primary);
   color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
   line-height: 1.5;
 }
 
 .options-container {
-  max-width: 600px;
+  max-width: 680px;
   margin: 0 auto;
   padding: 32px 24px;
 }
@@ -33,12 +38,15 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 28px;
+  margin-bottom: 32px;
   padding-bottom: 16px;
   border-bottom: 1px solid var(--border);
 }
 
-.header h1 { font-size: 22px; font-weight: 600; }
+.header h1 {
+  font-size: 22px;
+  font-weight: 600;
+}
 
 .version {
   font-size: 12px;
@@ -47,6 +55,8 @@ body {
   padding: 4px 10px;
   border-radius: 12px;
 }
+
+/* ────────── Sections ────────── */
 
 .section {
   background: var(--bg-secondary);
@@ -60,15 +70,22 @@ body {
   font-size: 14px;
   font-weight: 600;
   color: var(--accent-blue);
-  margin-bottom: 14px;
+  margin-bottom: 16px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
-.form-group { margin-bottom: 14px; }
-.form-group:last-child { margin-bottom: 0; }
+/* ────────── Form Groups ────────── */
 
-.form-group > label {
+.form-group {
+  margin-bottom: 14px;
+}
+
+.form-group:last-child {
+  margin-bottom: 0;
+}
+
+.form-group label {
   display: block;
   font-size: 13px;
   font-weight: 500;
@@ -77,8 +94,10 @@ body {
 }
 
 input[type="text"],
+input[type="password"],
 input[type="number"],
-select {
+select,
+textarea {
   width: 100%;
   padding: 10px 12px;
   background: var(--bg-tertiary);
@@ -87,9 +106,22 @@ select {
   color: var(--text-primary);
   font-size: 13px;
   outline: none;
+  transition: border-color 0.2s;
 }
 
-input:focus, select:focus { border-color: var(--accent-blue); }
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--accent-blue);
+}
+
+textarea {
+  resize: vertical;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 12px;
+}
+
+/* ────────── Toggle Row ────────── */
 
 .toggle-row {
   display: flex;
@@ -97,7 +129,9 @@ input:focus, select:focus { border-color: var(--accent-blue); }
   align-items: center;
 }
 
-.toggle-row label { margin-bottom: 0; }
+.toggle-row label {
+  margin-bottom: 0;
+}
 
 input[type="checkbox"] {
   width: 18px;
@@ -106,7 +140,15 @@ input[type="checkbox"] {
   cursor: pointer;
 }
 
-.help-text { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+/* ────────── Help Text ────────── */
+
+.help-text {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* ────────── DoH Servers ────────── */
 
 .doh-servers {
   display: flex;
@@ -125,7 +167,15 @@ input[type="checkbox"] {
   cursor: pointer;
 }
 
-.check-item span { font-size: 13px; color: var(--text-secondary); }
+.check-item span {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.check-item input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+}
 
 .badge {
   font-size: 10px;
@@ -135,7 +185,17 @@ input[type="checkbox"] {
   margin-left: auto;
 }
 
-.badge.chinese { background: #dc2626; color: white; }
+.badge.chinese {
+  background: #dc2626;
+  color: white;
+}
+
+.badge.warning {
+  background: #f59e0b;
+  color: #000;
+}
+
+/* ────────── Actions ────────── */
 
 .actions-bar {
   display: flex;
@@ -151,11 +211,35 @@ input[type="checkbox"] {
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
+  transition: all 0.2s;
 }
 
-.btn-primary { background: var(--accent-blue); color: white; }
-.btn-primary:hover { filter: brightness(1.1); }
-.btn-secondary { background: var(--bg-tertiary); color: var(--text-secondary); border: 1px solid var(--border); }
+.btn-primary {
+  background: var(--accent-blue);
+  color: white;
+}
+
+.btn-primary:hover {
+  filter: brightness(1.1);
+}
+
+.btn-secondary {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+
+.btn-secondary:hover {
+  border-color: var(--text-muted);
+  color: var(--text-primary);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ────────── Status Bar ────────── */
 
 .status-bar {
   display: none;

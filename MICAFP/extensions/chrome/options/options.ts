@@ -1,5 +1,5 @@
 /**
- * UnifiedShield Options — Settings page logic
+ * V2RayEZ Options — Settings page logic
  */
 
 import type { UnifiedShieldConfig } from '../../shared/protocol';
@@ -24,13 +24,30 @@ const els = {
   webrtcRelayEnabled: document.getElementById('webrtcRelayEnabled') as HTMLInputElement,
   autoStart: document.getElementById('autoStart') as HTMLInputElement,
   nativeAppEnabled: document.getElementById('nativeAppEnabled') as HTMLInputElement,
+  nativeMessagingHost: document.getElementById('nativeMessagingHost') as HTMLInputElement,
   preferredMode: document.getElementById('preferredMode') as HTMLSelectElement,
   dohBlocklist: document.getElementById('dohBlocklist') as HTMLTextAreaElement,
+  licenseSerial: document.getElementById('licenseSerial') as HTMLTextAreaElement,
+  licenseAccountId: document.getElementById('licenseAccountId') as HTMLInputElement,
+  licenseValidationUrl: document.getElementById('licenseValidationUrl') as HTMLInputElement,
+  licensePublicKeyPem: document.getElementById('licensePublicKeyPem') as HTMLTextAreaElement,
+  licenseDeviceHashSalt: document.getElementById('licenseDeviceHashSalt') as HTMLInputElement,
+  licenseAllowOfflineGrace: document.getElementById('licenseAllowOfflineGrace') as HTMLInputElement,
+  licenseLastServerTime: document.getElementById('licenseLastServerTime') as HTMLParagraphElement,
+  aiEngineEnabled: document.getElementById('aiEngineEnabled') as HTMLInputElement,
+  aiAutoFallbackToLocal: document.getElementById('aiAutoFallbackToLocal') as HTMLInputElement,
+  aiProviderAlias: document.getElementById('aiProviderAlias') as HTMLInputElement,
+  aiProviderBaseUrl: document.getElementById('aiProviderBaseUrl') as HTMLInputElement,
+  aiProviderEndpoint: document.getElementById('aiProviderEndpoint') as HTMLInputElement,
+  aiProviderModel: document.getElementById('aiProviderModel') as HTMLInputElement,
+  aiApiKey: document.getElementById('aiApiKey') as HTMLInputElement,
   saveBtn: document.getElementById('saveBtn') as HTMLButtonElement,
   resetBtn: document.getElementById('resetBtn') as HTMLButtonElement,
   statusBar: document.getElementById('statusBar') as HTMLDivElement,
   statusMessage: document.getElementById('statusMessage') as HTMLSpanElement,
 };
+
+const SECRET_PLACEHOLDER = '••••••••';
 
 const dohCheckboxes = document.querySelectorAll<HTMLInputElement>(
   'input[data-doh]'
@@ -39,9 +56,10 @@ const dohCheckboxes = document.querySelectorAll<HTMLInputElement>(
 /* ────────── Init ────────── */
 
 async function init(): Promise<void> {
-  const stored = await chrome.storage.local.get(StorageKeys.CONFIG);
-  const config: UnifiedShieldConfig = stored[StorageKeys.CONFIG]
-    ? { ...DEFAULT_CONFIG, ...stored[StorageKeys.CONFIG] }
+  const stored = await chrome.storage.local.get([StorageKeys.CONFIG, StorageKeys.LEGACY_CONFIG]);
+  const savedConfig = stored[StorageKeys.CONFIG] ?? stored[StorageKeys.LEGACY_CONFIG];
+  const config: UnifiedShieldConfig = savedConfig
+    ? { ...DEFAULT_CONFIG, ...savedConfig }
     : { ...DEFAULT_CONFIG };
 
   populateForm(config);
@@ -69,8 +87,23 @@ function populateForm(config: UnifiedShieldConfig): void {
   els.webrtcRelayEnabled.checked = config.webrtcRelayEnabled ?? false;
   els.autoStart.checked = config.autoStart;
   els.nativeAppEnabled.checked = config.nativeAppEnabled;
+  els.nativeMessagingHost.value = config.nativeMessagingHost ?? 'com.v2rayez.native';
   els.preferredMode.value = config.preferredMode ?? 'auto';
   els.dohBlocklist.value = (config.dohBlocklist ?? []).join('\n');
+  els.licenseSerial.value = config.licenseInstalled ? SECRET_PLACEHOLDER : '';
+  els.licenseAccountId.value = config.licenseAccountId ?? '';
+  els.licenseValidationUrl.value = config.licenseValidationUrl ?? '';
+  els.licensePublicKeyPem.value = config.licensePublicKeyPem ?? '';
+  els.licenseDeviceHashSalt.value = config.licenseDeviceHashSalt ?? 'v2rayez-client-device-binding-v1';
+  els.licenseAllowOfflineGrace.checked = config.licenseAllowOfflineGrace !== false;
+  els.licenseLastServerTime.textContent = config.licenseLastServerTime || 'Not validated yet';
+  els.aiEngineEnabled.checked = config.aiEngineEnabled !== false;
+  els.aiAutoFallbackToLocal.checked = config.aiAutoFallbackToLocal !== false;
+  els.aiProviderAlias.value = config.aiProviderAlias ?? 'local-v2rayez';
+  els.aiProviderBaseUrl.value = config.aiProviderBaseUrl ?? 'local://v2rayez';
+  els.aiProviderEndpoint.value = config.aiProviderEndpoint ?? '';
+  els.aiProviderModel.value = config.aiProviderModel ?? 'v2rayez-anti-dpi-local';
+  els.aiApiKey.value = config.aiApiKeyInstalled ? SECRET_PLACEHOLDER : '';
 
   // DoH server checkboxes
   const dohServers = config.dohServers ?? ['alidns', 'dnspod', 'byteplus'];
@@ -114,8 +147,23 @@ function extractConfig(): Partial<UnifiedShieldConfig> {
     webrtcRelayEnabled: els.webrtcRelayEnabled.checked,
     autoStart: els.autoStart.checked,
     nativeAppEnabled: els.nativeAppEnabled.checked,
+    nativeMessagingHost: els.nativeMessagingHost.value.trim() || 'com.v2rayez.native',
+    nativeMessagingHostFallbacks: ['com.unifiedshield.native'],
     preferredMode: els.preferredMode.value as any,
     dohBlocklist,
+    licenseValidationUrl: els.licenseValidationUrl.value.trim(),
+    licenseAccountId: els.licenseAccountId.value.trim(),
+    licensePublicKeyPem: els.licensePublicKeyPem.value.trim(),
+    licenseDeviceHashSalt: els.licenseDeviceHashSalt.value.trim() || 'v2rayez-client-device-binding-v1',
+    licenseAllowOfflineGrace: els.licenseAllowOfflineGrace.checked,
+    licenseInstalled: els.licenseSerial.value.trim() === SECRET_PLACEHOLDER,
+    aiEngineEnabled: els.aiEngineEnabled.checked,
+    aiAutoFallbackToLocal: els.aiAutoFallbackToLocal.checked,
+    aiProviderAlias: safeAlias(els.aiProviderAlias.value) || 'local-v2rayez',
+    aiProviderBaseUrl: els.aiProviderBaseUrl.value.trim() || 'local://v2rayez',
+    aiProviderEndpoint: els.aiProviderEndpoint.value.trim(),
+    aiProviderModel: els.aiProviderModel.value.trim() || 'v2rayez-anti-dpi-local',
+    aiApiKeyInstalled: els.aiApiKey.value.trim() === SECRET_PLACEHOLDER,
   };
 }
 
@@ -126,9 +174,37 @@ async function handleSave(): Promise<void> {
 
   try {
     const partial = extractConfig();
-    const config: UnifiedShieldConfig = { ...DEFAULT_CONFIG, ...partial };
+    const current = await chrome.storage.local.get([StorageKeys.CONFIG, StorageKeys.LEGACY_CONFIG, StorageKeys.SECRETS]);
+    const previousConfig = (current[StorageKeys.CONFIG] ?? current[StorageKeys.LEGACY_CONFIG] ?? DEFAULT_CONFIG) as UnifiedShieldConfig;
+    const secrets = { ...(current[StorageKeys.SECRETS] ?? {}) } as Record<string, string>;
+    const serial = els.licenseSerial.value.trim();
+    const apiKey = els.aiApiKey.value.trim();
+    if (serial && serial !== SECRET_PLACEHOLDER) {
+      secrets.licenseSerial = serial;
+      delete secrets.licenseGraceToken;
+      partial.licenseInstalled = true;
+      partial.licenseOfflineGraceUntil = '';
+      partial.licenseGraceServerTime = '';
+      els.licenseSerial.value = SECRET_PLACEHOLDER;
+    }
+    if (
+      partial.licenseAccountId !== previousConfig.licenseAccountId ||
+      partial.licensePublicKeyPem !== previousConfig.licensePublicKeyPem ||
+      partial.licenseDeviceHashSalt !== previousConfig.licenseDeviceHashSalt ||
+      partial.licenseValidationUrl !== previousConfig.licenseValidationUrl
+    ) {
+      delete secrets.licenseGraceToken;
+      partial.licenseOfflineGraceUntil = '';
+      partial.licenseGraceServerTime = '';
+    }
+    if (apiKey && apiKey !== SECRET_PLACEHOLDER) {
+      secrets.aiApiKey = apiKey;
+      partial.aiApiKeyInstalled = true;
+      els.aiApiKey.value = SECRET_PLACEHOLDER;
+    }
+    const config: UnifiedShieldConfig = { ...DEFAULT_CONFIG, ...(current[StorageKeys.CONFIG] ?? current[StorageKeys.LEGACY_CONFIG] ?? {}), ...partial };
 
-    await chrome.storage.local.set({ [StorageKeys.CONFIG]: config });
+    await chrome.storage.local.set({ [StorageKeys.CONFIG]: config, [StorageKeys.SECRETS]: secrets });
 
     // Notify service worker
     chrome.runtime.sendMessage({
@@ -147,7 +223,7 @@ async function handleSave(): Promise<void> {
 async function handleReset(): Promise<void> {
   if (!confirm('Reset all settings to defaults?')) return;
 
-  await chrome.storage.local.set({ [StorageKeys.CONFIG]: DEFAULT_CONFIG });
+  await chrome.storage.local.set({ [StorageKeys.CONFIG]: DEFAULT_CONFIG, [StorageKeys.SECRETS]: {} });
   populateForm(DEFAULT_CONFIG);
 
   chrome.runtime.sendMessage({
@@ -156,6 +232,12 @@ async function handleReset(): Promise<void> {
   });
 
   showStatus('Settings reset to defaults', 'success');
+}
+
+/* ────────── Secret-safe helpers ────────── */
+
+function safeAlias(value: string): string {
+  return value.trim().replace(/[^a-zA-Z0-9_-]/g, '');
 }
 
 /* ────────── Status ────────── */

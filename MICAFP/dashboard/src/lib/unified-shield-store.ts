@@ -3750,7 +3750,7 @@ export const useUnifiedShieldStore = create<UnifiedShieldStore>((set, get) => ({
     const now = Date.now();
     const lines: string[] = [];
     lines.push('══════════════════════════════════════════════════');
-    lines.push('  UnifiedShield — MICAFP — Diagnostic Report');
+    lines.push('  V2RayEZ Universal — Diagnostic Report');
     lines.push('  موتور ضد سانسور هوشمند چند هسته‌ای');
     lines.push('══════════════════════════════════════════════════');
     lines.push(`Generated: ${new Date(now).toISOString()}`);
@@ -4091,7 +4091,7 @@ export const useUnifiedShieldStore = create<UnifiedShieldStore>((set, get) => ({
       details: { level, score: String(score), probesOk: String(probesOk), strategy: strategy.id, server: String(activeServerId) },
     });
 
-    // v11 — AI auto-applies the strongest tunnel config to the UnifiedShield client
+    // v11 — AI auto-applies the strongest tunnel config to the V2RayEZ client
     if (get().autoScannerEngine.autoApply) {
       get().autoApplyBestConfig();
     }
@@ -4334,7 +4334,7 @@ export const useUnifiedShieldStore = create<UnifiedShieldStore>((set, get) => ({
     get().addLog({
       type: 'update',
       message: `Tunnel config applied: ${kind} -> ${map.coreId}/${map.protocolId}`,
-      messageFa: `کانفیگ «${map.labelFa}» روی کلاینت UnifiedShield اعمال و تانل فعال شد`,
+      messageFa: `کانفیگ «${map.labelFa}» روی کلاینت V2RayEZ اعمال و تانل فعال شد`,
       details: { kind, coreId: map.coreId, protocolId: map.protocolId },
     });
   },

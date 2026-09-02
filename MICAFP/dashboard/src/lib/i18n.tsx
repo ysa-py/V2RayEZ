@@ -12,7 +12,8 @@ import React, {
 export type Locale = 'fa' | 'en';
 export type Direction = 'rtl' | 'ltr';
 
-const STORAGE_KEY = 'shield-locale';
+const STORAGE_KEY = 'v2rayez-locale';
+const LEGACY_STORAGE_KEY = 'shield-locale';
 
 function safeRead(key: string): string | null {
   try {
@@ -43,7 +44,7 @@ type Messages = Record<string, string>;
 
 const messages: Record<Locale, Messages> = {
   fa: {
-    'app.title': 'یونیفایدشیلد – MICAFP',
+    'app.title': 'V2RayEZ Universal',
     'app.subtitle': 'موتور ضد سانسور هوشمند چند هسته‌ای – بهینه ایران',
     'settings.general': 'عمومی',
     'settings.language': 'زبان',
@@ -75,14 +76,14 @@ const messages: Record<Locale, Messages> = {
     'app.connected': 'متصل و ایمن',
     'app.connecting': 'در حال اتصال…',
     'app.connectHint': 'برای اتصال خودکار لمس کنید',
-    'app.protectedHint': 'یونیفایدشیلد از شما محافظت می‌کند',
-    'app.loading': 'در حال بارگذاری سپر یکپارچه…',
+    'app.protectedHint': 'V2RayEZ از شما محافظت می‌کند',
+    'app.loading': 'در حال بارگذاری V2RayEZ…',
     'app.footerTagline': 'موتور ضد سانسور هوشمند چند هسته‌ای (بهینه ایران)',
     'header.connected': 'متصل',
     'header.disconnected': 'قطع',
   },
   en: {
-    'app.title': 'UnifiedShield – MICAFP',
+    'app.title': 'V2RayEZ Universal',
     'app.subtitle': 'Multi-core intelligent anti-censorship engine — optimized for Iran',
     'settings.general': 'General',
     'settings.language': 'Language',
@@ -114,8 +115,8 @@ const messages: Record<Locale, Messages> = {
     'app.connected': 'Connected & secure',
     'app.connecting': 'Connecting…',
     'app.connectHint': 'Tap to connect automatically',
-    'app.protectedHint': 'UnifiedShield is protecting you',
-    'app.loading': 'Loading UnifiedShield…',
+    'app.protectedHint': 'V2RayEZ is protecting you',
+    'app.loading': 'Loading V2RayEZ…',
     'app.footerTagline': 'Multi-core intelligent anti-censorship engine (optimized for Iran)',
     'header.connected': 'Connected',
     'header.disconnected': 'Disconnected',
@@ -140,7 +141,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
   // Restore persisted choice, falling back to the browser language.
   useEffect(() => {
-    const saved = safeRead(STORAGE_KEY);
+    const saved = safeRead(STORAGE_KEY) ?? safeRead(LEGACY_STORAGE_KEY);
     setLocaleState(isValidLocale(saved) ? saved : detectBrowserLocale());
   }, []);
 

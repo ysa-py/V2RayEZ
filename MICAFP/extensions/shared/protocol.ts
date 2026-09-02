@@ -1,13 +1,17 @@
 /**
- * UnifiedShield NextGen — Shared Protocol Types
+ * V2RayEZ Universal — Shared Protocol Types
  */
 
 /* ────────── Storage Keys ────────── */
 
 export const StorageKeys = {
-  CONFIG: 'unifiedshield_config',
-  STATE: 'unifiedshield_state',
-  STATS: 'unifiedshield_stats',
+  CONFIG: 'v2rayez_config',
+  STATE: 'v2rayez_state',
+  STATS: 'v2rayez_stats',
+  SECRETS: 'v2rayez_extension_secrets',
+  LEGACY_CONFIG: 'unifiedshield_config',
+  LEGACY_STATE: 'unifiedshield_state',
+  LEGACY_STATS: 'unifiedshield_stats',
 } as const;
 
 /* ────────── Configuration ────────── */
@@ -37,9 +41,34 @@ export interface UnifiedShieldConfig {
   dpiBypassEnabled?: boolean;
   webrtcRelayEnabled?: boolean;
 
+  // License
+  licenseValidationUrl?: string;
+  licenseAccountId?: string;
+  licensePublicKeyPem?: string;
+  licenseDeviceHashSalt?: string;
+  licenseAllowOfflineGrace?: boolean;
+  licenseInstalled?: boolean;
+  licenseLastResult?: string;
+  licenseLastReason?: string;
+  licenseExpiresAt?: string;
+  licenseOfflineGraceUntil?: string;
+  licenseLastServerTime?: string;
+  licenseGraceServerTime?: string;
+
+  // AI Provider Gateway
+  aiEngineEnabled?: boolean;
+  aiAutoFallbackToLocal?: boolean;
+  aiProviderAlias?: string;
+  aiProviderBaseUrl?: string;
+  aiProviderEndpoint?: string;
+  aiProviderModel?: string;
+  aiApiKeyInstalled?: boolean;
+
   // General
   autoStart: boolean;
   nativeAppEnabled: boolean;
+  nativeMessagingHost?: string;
+  nativeMessagingHostFallbacks?: string[];
   preferredMode: 'auto' | 'socks5' | 'webrtc' | 'direct';
 }
 
@@ -56,8 +85,29 @@ export const DEFAULT_CONFIG: UnifiedShieldConfig = {
   dohBlocklist: [],
   dpiBypassEnabled: true,
   webrtcRelayEnabled: false,
+  licenseValidationUrl: '',
+  licenseAccountId: '',
+  licensePublicKeyPem: '',
+  licenseDeviceHashSalt: 'v2rayez-client-device-binding-v1',
+  licenseAllowOfflineGrace: true,
+  licenseInstalled: false,
+  licenseLastResult: 'not_validated',
+  licenseLastReason: '',
+  licenseExpiresAt: '',
+  licenseOfflineGraceUntil: '',
+  licenseLastServerTime: '',
+  licenseGraceServerTime: '',
+  aiEngineEnabled: true,
+  aiAutoFallbackToLocal: true,
+  aiProviderAlias: 'local-v2rayez',
+  aiProviderBaseUrl: 'local://v2rayez',
+  aiProviderEndpoint: '',
+  aiProviderModel: 'v2rayez-anti-dpi-local',
+  aiApiKeyInstalled: false,
   autoStart: false,
   nativeAppEnabled: false,
+  nativeMessagingHost: 'com.v2rayez.native',
+  nativeMessagingHostFallbacks: ['com.unifiedshield.native'],
   preferredMode: 'auto',
 };
 

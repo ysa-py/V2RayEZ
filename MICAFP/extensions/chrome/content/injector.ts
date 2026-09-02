@@ -226,4 +226,4 @@ try {
   // Extension context may be invalidated
 }
 
-console.log('[UnifiedShield] Content injector loaded');
+console.log('[V2RayEZ] Content injector loaded');

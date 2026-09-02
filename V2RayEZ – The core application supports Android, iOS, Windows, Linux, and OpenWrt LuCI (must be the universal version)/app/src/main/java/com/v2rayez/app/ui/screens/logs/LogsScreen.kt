@@ -23,11 +23,14 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -62,9 +65,11 @@ import com.v2rayez.app.ui.viewmodel.LogsViewModel
 fun LogsScreen(onBack: () -> Unit, viewModel: LogsViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsState()
     val reportStatus by viewModel.reportStatus.collectAsState()
+    val privacyCleanupStatus by viewModel.privacyCleanupStatus.collectAsState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var searchExpanded by remember { mutableStateOf(false) }
+    var showPrivacyCleanupDialog by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
     LaunchedEffect(state.filtered.size, state.autoScroll) {
@@ -76,6 +81,12 @@ fun LogsScreen(onBack: () -> Unit, viewModel: LogsViewModel = hiltViewModel()) {
         reportStatus?.let { status ->
             Toast.makeText(context, bugReportToastText(context, status), Toast.LENGTH_LONG).show()
             viewModel.clearReportStatus()
+        }
+    }
+    LaunchedEffect(privacyCleanupStatus) {
+        privacyCleanupStatus?.let { status ->
+            Toast.makeText(context, privacyCleanupToastText(context, status), Toast.LENGTH_LONG).show()
+            viewModel.clearPrivacyCleanupStatus()
         }
     }
 
@@ -144,6 +155,7 @@ fun LogsScreen(onBack: () -> Unit, viewModel: LogsViewModel = hiltViewModel()) {
             autoScroll = state.autoScroll,
             onAutoScrollChange = viewModel::setAutoScroll,
             onClear = viewModel::clear,
+            onEmergencyCleanup = { showPrivacyCleanupDialog = true },
             onExport = {
                 scope.launch {
                     val file = viewModel.export()
@@ -151,6 +163,25 @@ fun LogsScreen(onBack: () -> Unit, viewModel: LogsViewModel = hiltViewModel()) {
                 }
             },
             onReportBug = viewModel::reportBug
+        )
+    }
+
+    if (showPrivacyCleanupDialog) {
+        AlertDialog(
+            onDismissRequest = { showPrivacyCleanupDialog = false },
+            title = { Text(stringResource(R.string.logs_privacy_cleanup_title)) },
+            text = { Text(stringResource(R.string.logs_privacy_cleanup_body)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showPrivacyCleanupDialog = false
+                    viewModel.emergencyPrivacyCleanup()
+                }) { Text(stringResource(R.string.logs_privacy_cleanup_confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPrivacyCleanupDialog = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            }
         )
     }
 }
@@ -162,6 +193,13 @@ private fun bugReportToastText(context: android.content.Context, status: String)
         else -> context.getString(R.string.report_bug_firebase_failed)
     }
 }
+
+private fun privacyCleanupToastText(context: android.content.Context, status: String): String =
+    when {
+        status.startsWith("privacy_cleanup_ok") -> context.getString(R.string.logs_privacy_cleanup_done)
+        status.startsWith("privacy_cleanup_partial") -> context.getString(R.string.logs_privacy_cleanup_partial)
+        else -> context.getString(R.string.logs_privacy_cleanup_partial)
+    }
 
 private fun shareLogFile(context: android.content.Context, file: java.io.File) {
     val uri = androidx.core.content.FileProvider.getUriForFile(
@@ -183,6 +221,7 @@ private fun LogsBottomBar(
     autoScroll: Boolean,
     onAutoScrollChange: (Boolean) -> Unit,
     onClear: () -> Unit,
+    onEmergencyCleanup: () -> Unit,
     onExport: () -> Unit,
     onReportBug: () -> Unit
 ) {
@@ -198,6 +237,8 @@ private fun LogsBottomBar(
         LogsChipButton(Icons.Filled.BugReport, stringResource(R.string.report_bug), onReportBug)
         HSpacer(8)
         LogsChipButton(Icons.Filled.DeleteOutline, stringResource(R.string.logs_clear), onClear)
+        HSpacer(8)
+        LogsChipButton(Icons.Filled.Security, stringResource(R.string.logs_privacy_cleanup), onEmergencyCleanup)
         Box(Modifier.weight(1f))
         Text(stringResource(R.string.logs_auto_scroll), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         HSpacer(8)

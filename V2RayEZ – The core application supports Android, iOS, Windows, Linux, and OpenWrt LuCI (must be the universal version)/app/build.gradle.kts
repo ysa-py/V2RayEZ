@@ -34,6 +34,11 @@ android {
         // Configurable links sourced from gradle.properties (build-time "env").
         fun linkProp(key: String, default: String): String =
             (project.findProperty(key) as String?)?.takeIf { it.isNotBlank() } ?: default
+        fun buildConfigString(value: String): String =
+            "\"" + value
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n") + "\""
         buildConfigField("String", "LINK_WEBSITE", "\"${linkProp("v2rayez.link.website", "https://v2rayez.app")}\"")
         buildConfigField("String", "LINK_TELEGRAM", "\"${linkProp("v2rayez.link.telegram", "https://t.me/EzAccess1")}\"")
         buildConfigField("String", "LINK_YOUTUBE", "\"${linkProp("v2rayez.link.youtube", "https://youtube.com/@MacanDev")}\"")
@@ -46,6 +51,26 @@ android {
             "String",
             "ADDONS_RELEASE_TAG",
             "\"${linkProp("v2rayez.addons.releaseTag", "V2RayEZ-v1.0.1")}\""
+        )
+        buildConfigField(
+            "String",
+            "LICENSE_VALIDATION_URL",
+            buildConfigString(linkProp("v2rayez.license.validationUrl", ""))
+        )
+        buildConfigField(
+            "String",
+            "LICENSE_ED25519_PUBLIC_KEY_PEM",
+            buildConfigString(linkProp("v2rayez.license.publicKeyPem", ""))
+        )
+        buildConfigField(
+            "String",
+            "LICENSE_ED25519_PUBLIC_KEYS_JSON",
+            buildConfigString(linkProp("v2rayez.license.publicKeysJson", ""))
+        )
+        buildConfigField(
+            "String",
+            "LICENSE_DEVICE_HASH_SALT",
+            buildConfigString(linkProp("v2rayez.license.deviceHashSalt", "v2rayez-client-device-binding-v1"))
         )
         // Ship English + Persian + Russian; strip every other locale (incl. library ones).
         resourceConfigurations += listOf("en", "fa", "ru")

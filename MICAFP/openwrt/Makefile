@@ -1,7 +1,7 @@
 # =============================================================================
-# MICAFP-UnifiedShield-6.0 — OpenWrt Package Makefile
+# V2RayEZ Universal — OpenWrt Package Makefile
 #
-# Build the UnifiedShield daemon and LuCI web interface for OpenWrt.
+# Build the V2RayEZ router daemon and LuCI web interface for OpenWrt.
 #
 # Supported targets:
 #   mipsel_24kc     — Most common MIPS routers (TP-Link, D-Link, etc.)
@@ -9,7 +9,7 @@
 #   aarch64_cortex-a53 — ARM routers (NanoPi, etc.)
 #
 # Usage:
-#   make package/shield/compile V=s
+#   make package/unifiedshield/compile V=s
 #
 # Prerequisites:
 #   - OpenWrt SDK for the target architecture
@@ -22,16 +22,18 @@ include $(TOPDIR)/rules.mk
 # Package definition
 # ---------------------------------------------------------------------------
 
-PKG_NAME:=shield
-PKG_VERSION:=6.0.0
+PKG_NAME:=unifiedshield
+PKG_VERSION:=2.0.0
 PKG_RELEASE:=1
 
-PKG_MAINTAINER:=MICAFP Team <team@micAFP.org>
+PKG_MAINTAINER:=V2RayEZ Contributors
 PKG_LICENSE:=MIT
 
 PKG_SOURCE_PROTO:=git
-PKG_SOURCE_URL:=https://github.com/MICAFP/UnifiedShield.git
-PKG_SOURCE_VERSION:=v$(PKG_VERSION)
+PKG_SOURCE_URL:=https://github.com/ysa-py/V2RayEZ.git
+# Pinned to the latest validated V2RayEZ Universal branch commit when the
+# OpenWrt packaging gate was updated. Refresh only after source gates pass.
+PKG_SOURCE_VERSION:=f35ba09b790cdb7dd11e6209e346bb4f28ed0b68
 PKG_MIRROR_HASH:=skip
 
 PKG_BUILD_DEPENDS:=rust/host
@@ -42,18 +44,19 @@ include $(INCLUDE_DIR)/package.mk
 # Package metadata
 # ---------------------------------------------------------------------------
 
-define Package/shield
+define Package/unifiedshield
   SECTION:=net
   CATEGORY:=Network
-  TITLE:=UnifiedShield Anti-Censorship VPN Daemon
-  DEPENDS:=+libc +libpthread +ca-bundle +libopenssl +kmod-tun
+  TITLE:=V2RayEZ Universal Router Gateway
+  DEPENDS:=+libc +libpthread +ca-bundle +libopenssl +kmod-tun +netifd +uclient-fetch
   PKGARCH:=all
 endef
 
-define Package/shield/description
-  UnifiedShield is an anti-censorship VPN designed for Iran.
-  It uses WebTransport/HTTPS tunnels through CDN workers with
-  traffic obfuscation to bypass DPI and the national firewall.
+define Package/unifiedshield/description
+  V2RayEZ Universal router gateway packages the preserved UnifiedShield/OpenWrt
+  daemon pipeline behind the V2RayEZ product identity. It uses WebTransport/HTTPS
+  tunnels through CDN workers with traffic obfuscation, license gating, LuCI
+  management, AI Provider Gateway fallback, and netifd integration.
 
   Features:
   - WebTransport/HTTPS tunneling through CDN workers
@@ -65,11 +68,14 @@ define Package/shield/description
   - LuCI web management interface
 endef
 
-define Package/shield/conffiles
-/etc/config/shield
-/etc/shield/cdn-endpoints.json
-/etc/shield/p2p-bootstrap-peers.json
-/etc/shield/isp-profiles.json
+define Package/unifiedshield/conffiles
+/etc/config/unifiedshield
+/etc/unifiedshield/license-public.pem
+/etc/unifiedshield/license.token
+/etc/unifiedshield/license.grace
+/etc/unifiedshield/cdn-endpoints.json
+/etc/unifiedshield/p2p-bootstrap-peers.json
+/etc/unifiedshield/isp-profiles.json
 endef
 
 # ---------------------------------------------------------------------------
@@ -93,84 +99,134 @@ RUSTC:=$(STAGING_DIR_HOSTPKG)/rust/bin/rustc
 CARGO:=$(STAGING_DIR_HOSTPKG)/rust/bin/cargo
 
 define Build/Compile
-	# Set up cross-compilation environment
-	mkdir -p $(PKG_BUILD_DIR)/daemon/.cargo
-	echo '[target.$(RUST_TARGET)]' > $(PKG_BUILD_DIR)/daemon/.cargo/config.toml
-	echo 'linker = "$(TARGET_CC)"' >> $(PKG_BUILD_DIR)/daemon/.cargo/config.toml
-
-	# Build the daemon with release optimizations
-	cd $(PKG_BUILD_DIR)/daemon && \
+	# Set up cross-compilation environment. Support both donor-source layout
+	# ($(PKG_BUILD_DIR)/daemon) and this repository layout ($(PKG_BUILD_DIR)/MICAFP/daemon).
+	set -eu; \
+		if [ -f "$(PKG_BUILD_DIR)/MICAFP/daemon/Cargo.toml" ]; then \
+			DAEMON_DIR="$(PKG_BUILD_DIR)/MICAFP/daemon"; \
+		else \
+			DAEMON_DIR="$(PKG_BUILD_DIR)/daemon"; \
+		fi; \
+		mkdir -p "$$DAEMON_DIR/.cargo"; \
+		echo '[target.$(RUST_TARGET)]' > "$$DAEMON_DIR/.cargo/config.toml"; \
+		echo 'linker = "$(TARGET_CC)"' >> "$$DAEMON_DIR/.cargo/config.toml"; \
+		cd "$$DAEMON_DIR"; \
 		CARGO_HOME=$(CARGO_HOME) \
 		RUSTFLAGS="-C target-feature=+crt-static -C opt-level=z -C panic=abort" \
 		$(CARGO) build \
 			--release \
 			--target $(RUST_TARGET) \
 			--no-default-features \
-			--features openwrt \
-			--manifest-path $(PKG_BUILD_DIR)/daemon/Cargo.toml
+			--features platform-openwrt \
+			--manifest-path "$$DAEMON_DIR/Cargo.toml"; \
+		if [ -f "$(PKG_BUILD_DIR)/universal-core/Cargo.toml" ]; then \
+			cd "$(PKG_BUILD_DIR)/universal-core"; \
+			CARGO_HOME=$(CARGO_HOME) \
+			RUSTFLAGS="-C target-feature=+crt-static -C opt-level=z -C panic=abort" \
+			$(CARGO) build \
+				--release \
+				--target $(RUST_TARGET) \
+				--no-default-features \
+				--features std \
+				--bin v2rayez-license-gate \
+				--manifest-path "$(PKG_BUILD_DIR)/universal-core/Cargo.toml"; \
+		fi
 endef
 
 # ---------------------------------------------------------------------------
 # Install
 # ---------------------------------------------------------------------------
 
-define Package/shield/install
+define Package/unifiedshield/install
 	# Daemon binary
 	$(INSTALL_DIR) $(1)/usr/bin
-	$(INSTALL_BIN) \
-		$(PKG_BUILD_DIR)/daemon/target/$(RUST_TARGET)/release/shield-daemon \
-		$(1)/usr/bin/shield-daemon
+	set -eu; \
+		if [ -f "$(PKG_BUILD_DIR)/MICAFP/daemon/Cargo.toml" ]; then \
+			DAEMON_DIR="$(PKG_BUILD_DIR)/MICAFP/daemon"; \
+		else \
+			DAEMON_DIR="$(PKG_BUILD_DIR)/daemon"; \
+		fi; \
+		$(INSTALL_BIN) "$$DAEMON_DIR/target/$(RUST_TARGET)/release/shield-daemon" $(1)/usr/bin/unifiedshield; \
+		if [ -x "$(PKG_BUILD_DIR)/universal-core/target/$(RUST_TARGET)/release/v2rayez-license-gate" ]; then \
+			$(INSTALL_BIN) "$(PKG_BUILD_DIR)/universal-core/target/$(RUST_TARGET)/release/v2rayez-license-gate" $(1)/usr/bin/v2rayez-license-gate; \
+		fi
 
 	# Configuration files
 	$(INSTALL_DIR) $(1)/etc/config
-	$(INSTALL_CONF) ./files/etc/config/shield $(1)/etc/config/shield
+	$(INSTALL_CONF) ./files/etc/config/unifiedshield $(1)/etc/config/unifiedshield
 
-	$(INSTALL_DIR) $(1)/etc/shield
-	$(INSTALL_CONF) $(PKG_BUILD_DIR)/configs/cdn-endpoints.json $(1)/etc/shield/
-	$(INSTALL_CONF) $(PKG_BUILD_DIR)/configs/p2p-bootstrap-peers.json $(1)/etc/shield/
-	$(INSTALL_CONF) $(PKG_BUILD_DIR)/configs/isp-profiles.json $(1)/etc/shield/
+	$(INSTALL_DIR) $(1)/etc/unifiedshield
+	set -eu; \
+		if [ -d "$(PKG_BUILD_DIR)/MICAFP/configs" ]; then \
+			CONFIG_DIR="$(PKG_BUILD_DIR)/MICAFP/configs"; \
+		else \
+			CONFIG_DIR="$(PKG_BUILD_DIR)/configs"; \
+		fi; \
+		$(INSTALL_CONF) "$$CONFIG_DIR/cdn-endpoints.json" $(1)/etc/unifiedshield/; \
+		$(INSTALL_CONF) "$$CONFIG_DIR/p2p-bootstrap-peers.json" $(1)/etc/unifiedshield/; \
+		$(INSTALL_CONF) "$$CONFIG_DIR/isp-profiles.json" $(1)/etc/unifiedshield/
+	$(INSTALL_CONF) ./files/etc/unifiedshield/iran_ip_ranges.txt $(1)/etc/unifiedshield/
 
-	# Init script
+	# Init script and netifd protocol integration
 	$(INSTALL_DIR) $(1)/etc/init.d
-	$(INSTALL_BIN) ./files/etc/init.d/shield $(1)/etc/init.d/shield
+	$(INSTALL_BIN) ./files/etc/init.d/unifiedshield $(1)/etc/init.d/unifiedshield
 
-	# LuCI web interface
+	$(INSTALL_DIR) $(1)/lib/netifd/proto
+	$(INSTALL_BIN) ./files/lib/netifd/proto/unifiedshield.sh $(1)/lib/netifd/proto/unifiedshield.sh
+
+	# License/AI helper scripts
+	$(INSTALL_DIR) $(1)/usr/libexec/unifiedshield
+	$(INSTALL_BIN) ./files/usr/libexec/unifiedshield/license-gate.sh $(1)/usr/libexec/unifiedshield/license-gate.sh
+	$(INSTALL_BIN) ./files/usr/libexec/unifiedshield/license-watchdog.sh $(1)/usr/libexec/unifiedshield/license-watchdog.sh
+	$(INSTALL_BIN) ./files/usr/libexec/unifiedshield/ai-provider-test.lua $(1)/usr/libexec/unifiedshield/ai-provider-test.lua
+
+	# LuCI web interface: controller, models, CBI forms, templates, and ACL.
 	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/controller
-	$(INSTALL_DATA) $(PKG_BUILD_DIR)/openwrt/files/usr/lib/lua/luci/controller/shield.lua \
-		$(1)/usr/lib/lua/luci/controller/shield.lua
+	$(INSTALL_DATA) ./src/luci-app-unifiedshield/luasrc/controller/unifiedshield.lua \
+		$(1)/usr/lib/lua/luci/controller/unifiedshield.lua
 
-	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/view/shield
-	$(INSTALL_DATA) ./files/usr/lib/lua/luci/view/shield/status.htm \
-		$(1)/usr/lib/lua/luci/view/shield/status.htm
+	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/model
+	$(INSTALL_DATA) ./src/luci-app-unifiedshield/luasrc/model/unifiedshield.lua \
+		$(1)/usr/lib/lua/luci/model/unifiedshield.lua
 
-	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/model/cbi/shield
-	$(INSTALL_DATA) ./files/usr/lib/lua/luci/model/cbi/shield/config.lua \
-		$(1)/usr/lib/lua/luci/model/cbi/shield/config.lua
+	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/model/cbi
+	$(INSTALL_DATA) ./src/luci-app-unifiedshield/luasrc/model/cbi/unifiedshield.lua \
+		$(1)/usr/lib/lua/luci/model/cbi/unifiedshield.lua
 
-	# Firewall integration
-	$(INSTALL_DIR) $(1)/etc/firewall.d
-	$(INSTALL_BIN) ./files/etc/firewall.d/shield $(1)/etc/firewall.d/shield
+	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/model/cbi/unifiedshield
+	$(INSTALL_DATA) ./src/luci-app-unifiedshield/luasrc/model/cbi/unifiedshield/config.lua \
+		$(1)/usr/lib/lua/luci/model/cbi/unifiedshield/config.lua
+
+	$(INSTALL_DIR) $(1)/usr/lib/lua/luci/view/unifiedshield
+	$(INSTALL_DATA) ./files/usr/lib/lua/luci/view/unifiedshield/status.htm \
+		$(1)/usr/lib/lua/luci/view/unifiedshield/status.htm
+	$(INSTALL_DATA) ./files/usr/lib/lua/luci/view/unifiedshield/advanced.htm \
+		$(1)/usr/lib/lua/luci/view/unifiedshield/advanced.htm
+
+	$(INSTALL_DIR) $(1)/usr/share/rpcd/acl.d
+	$(INSTALL_DATA) ./files/usr/share/rpcd/acl.d/luci-app-unifiedshield.json \
+		$(1)/usr/share/rpcd/acl.d/luci-app-unifiedshield.json
 endef
 
-define Package/shield/postinst
+define Package/unifiedshield/postinst
 #!/bin/sh
 [ -n "$${IPKG_INSTROOT}" ] || {
 	# Enable the service on install
-	/etc/init.d/shield enable
-	# Add shield user (non-privileged)
-	id shield >/dev/null 2>&1 || \
-		echo "Adding shield system user" && \
-		useradd -r -s /bin/false -d /var/run/shield shield 2>/dev/null || true
+	/etc/init.d/unifiedshield enable
+	# Add unifiedshield user (non-privileged) when user management is available
+	id unifiedshield >/dev/null 2>&1 || \
+		(echo "Adding unifiedshield system user" && \
+		(adduser -S -D -H -s /bin/false unifiedshield 2>/dev/null || true))
 }
 endef
 
-define Package/shield/prerm
+define Package/unifiedshield/prerm
 #!/bin/sh
 [ -n "$${IPKG_INSTROOT}" ] || {
 	# Stop and disable the service
-	/etc/init.d/shield stop 2>/dev/null || true
-	/etc/init.d/shield disable 2>/dev/null || true
+	/etc/init.d/unifiedshield stop 2>/dev/null || true
+	/etc/init.d/unifiedshield disable 2>/dev/null || true
 }
 endef
 
-$(eval $(call BuildPackage,shield))
+$(eval $(call BuildPackage,unifiedshield))

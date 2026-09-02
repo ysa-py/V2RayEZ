@@ -1,10 +1,10 @@
--- UnifiedShield LuCI CBI Model
--- Configuration UI for the UnifiedShield web interface
+-- V2RayEZ LuCI CBI Model
+-- Configuration UI for the V2RayEZ router web interface
 
 local m, s, o
 
-m = Map("unifiedshield", translate("UnifiedShield"),
-    translate("UnifiedShield is a next-generation censorship circumvention tool " ..
+m = Map("unifiedshield", translate("V2RayEZ Universal"),
+    translate("V2RayEZ Universal is a next-generation censorship circumvention tool " ..
               "using Chinese CDN relays to bypass internet restrictions in Iran and other " ..
               "heavily censored regions. It uses X25519 ECDH key exchange and ChaCha20-Poly1305 " ..
               "encryption for secure relay connections."))
@@ -16,7 +16,7 @@ s.addremove = false
 
 -- Enable/Disable
 o = s:option(Flag, "enabled", translate("Enable"),
-    translate("Enable or disable the UnifiedShield service"))
+    translate("Enable or disable the V2RayEZ service"))
 o.rmempty = false
 o.default = "1"
 
@@ -34,7 +34,7 @@ o.rmempty = false
 
 -- Server address
 o = s:option(Value, "server", translate("Server Address"),
-    translate("Hostname or IP address of the UnifiedShield relay server"))
+    translate("Hostname or IP address of the V2RayEZ relay server"))
 o.datatype = "host"
 o.rmempty = false
 
@@ -137,7 +137,7 @@ o.rmempty = true
 -- Relay failover section
 s = m:section(TypedSection, "relay", translate("Relay Failover Servers"),
     translate("Additional relay servers for automatic failover. " ..
-              "If the primary server fails, UnifiedShield will try these in priority order."))
+              "If the primary server fails, V2RayEZ will try these in priority order."))
 s.anonymous = false
 s.addremove = true
 s.template = "cbi/tblsection"

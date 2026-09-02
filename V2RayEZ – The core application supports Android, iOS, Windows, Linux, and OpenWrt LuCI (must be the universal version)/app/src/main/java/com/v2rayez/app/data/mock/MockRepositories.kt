@@ -14,8 +14,10 @@ import com.v2rayez.app.domain.model.ThroughputSample
 import com.v2rayez.app.domain.model.TopServer
 import com.v2rayez.app.domain.model.TrafficPoint
 import com.v2rayez.app.domain.model.UsageSlice
+import com.v2rayez.app.domain.repository.EmergencyPrivacyCleanup
 import com.v2rayez.app.domain.repository.LogRepository
 import com.v2rayez.app.domain.repository.MitmProxyController
+import com.v2rayez.app.domain.repository.PrivacyCleanupResult
 import com.v2rayez.app.domain.repository.ServerRepository
 import com.v2rayez.app.domain.repository.SettingsRepository
 import com.v2rayez.app.domain.repository.StatsRepository
@@ -104,6 +106,12 @@ class MockLogRepository : LogRepository {
     override fun append(entry: LogEntry) = Unit
     override fun clear() = Unit
     override suspend fun exportToFile(): File? = null
+}
+
+class MockEmergencyPrivacyCleanup : EmergencyPrivacyCleanup {
+    override suspend fun wipeLocalTraces(): PrivacyCleanupResult = PrivacyCleanupResult(
+        cleared = listOf("preview_only")
+    )
 }
 
 class MockSettingsRepository : SettingsRepository {

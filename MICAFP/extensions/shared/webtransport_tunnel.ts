@@ -1,6 +1,6 @@
 // @ts-nocheck
 /**
- * MICAFP-UnifiedShield-6.0 — Shared WebTransport Tunnel
+ * V2RayEZ Universal — Shared WebTransport Tunnel
  *
  * Provides a bidirectional tunnel over WebTransport (HTTP/3) with
  * automatic WebSocket fallback, HMAC-SHA256 authentication,
@@ -260,11 +260,11 @@ export class WebTransportTunnel {
         await this.connectWebSocket(endpoint);
       }
     } catch (err) {
-      console.warn("[Shield] Primary transport failed, trying WebSocket fallback:", err);
+      console.warn("[V2RayEZ] Primary transport failed, trying WebSocket fallback:", err);
       try {
         await this.connectWebSocket(endpoint);
       } catch (wsErr) {
-        console.error("[Shield] WebSocket fallback also failed:", wsErr);
+        console.error("[V2RayEZ] WebSocket fallback also failed:", wsErr);
         this.setState("failed");
         this.scheduleReconnect();
       }
@@ -370,7 +370,7 @@ export class WebTransportTunnel {
         this.dispatchData(data);
       }
     } catch (err) {
-      console.warn("[Shield] WebTransport recv loop error:", err);
+      console.warn("[V2RayEZ] WebTransport recv loop error:", err);
     } finally {
       if (!this._closed) {
         this.handleDisconnect();
@@ -422,7 +422,7 @@ export class WebTransportTunnel {
           this.stats.packetsReceived += 1;
           this.dispatchData(data);
         } catch (err) {
-          console.warn("[Shield] WS frame decode error:", err);
+          console.warn("[V2RayEZ] WS frame decode error:", err);
         }
       };
 
@@ -475,7 +475,7 @@ export class WebTransportTunnel {
     );
 
     console.log(
-      `[Shield] Reconnecting in ${Math.round(backoff)}ms (attempt ${this.reconnectAttempts})`,
+      `[V2RayEZ] Reconnecting in ${Math.round(backoff)}ms (attempt ${this.reconnectAttempts})`,
     );
 
     // Rotate to next endpoint on each attempt
@@ -484,7 +484,7 @@ export class WebTransportTunnel {
 
     this.reconnectTimer = setTimeout(() => {
       this.connect().catch((err) => {
-        console.error("[Shield] Reconnect failed:", err);
+        console.error("[V2RayEZ] Reconnect failed:", err);
       });
     }, backoff);
   }

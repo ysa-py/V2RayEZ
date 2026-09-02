@@ -116,6 +116,9 @@ interface SessionDao {
     @Query("SELECT COALESCE(AVG(endedAt - startedAt),0) FROM sessions")
     fun observeAvgDurationMs(): Flow<Long>
 
+    @Query("DELETE FROM sessions")
+    suspend fun deleteAll()
+
     /** Persisted lifetime usage (down + up) per server, for the Servers-list traffic labels. */
     @Query("SELECT serverId AS serverId, COALESCE(SUM(downBytes + upBytes),0) AS bytes FROM sessions GROUP BY serverId")
     fun observeUsageByServer(): Flow<List<ServerUsageRow>>
@@ -137,6 +140,9 @@ interface DailyTrafficDao {
 
     @Query("UPDATE daily_traffic SET downBytes = downBytes + :down, upBytes = upBytes + :up WHERE dateEpochDay = :day")
     suspend fun increment(day: Long, down: Long, up: Long)
+
+    @Query("DELETE FROM daily_traffic")
+    suspend fun deleteAll()
 
     /** Atomically add byte deltas to a day's bucket, creating the row if needed. */
     @Transaction

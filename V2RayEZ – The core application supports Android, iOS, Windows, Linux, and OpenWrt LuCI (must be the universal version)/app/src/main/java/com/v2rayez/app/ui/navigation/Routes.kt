@@ -30,6 +30,8 @@ object Routes {
     const val ADVANCED_VPN = "advanced_vpn"
     const val MORE_SETTINGS = "more_settings"
     const val CORE_MANAGER = "core_manager"
+    const val LICENSE = "license"
+    const val AI_ENGINE = "ai_engine"
 
     /** Server editor. Pass an optional serverId to edit an existing entry. */
     const val FREE_SERVERS = "free_servers"
@@ -55,6 +57,7 @@ object Routes {
     const val CERTIFICATES = "certificates"
     const val DIAGNOSTICS = "diagnostics"
     const val SPEED_TEST = "speed_test"
+    const val ROUTE_SPEED_TEST = "route_speed_test"
 }
 
 /** The five bottom-bar tabs. */

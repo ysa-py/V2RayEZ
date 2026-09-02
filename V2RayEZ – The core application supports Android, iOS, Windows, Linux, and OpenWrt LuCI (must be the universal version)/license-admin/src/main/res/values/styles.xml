@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="V2RayEZLicenseAdminTheme" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:statusBarColor">#151126</item>
+        <item name="android:navigationBarColor">#151126</item>
+        <item name="android:colorAccent">#7C3AED</item>
+    </style>
+</resources>

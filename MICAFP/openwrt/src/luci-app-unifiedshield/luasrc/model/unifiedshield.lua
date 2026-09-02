@@ -1,10 +1,10 @@
--- LuCI CBI Model for UnifiedShield Configuration
+-- LuCI CBI Model for V2RayEZ router configuration
 -- Form definition at: /admin/services/unifiedshield/config
 
 local m, s, o
 
-m = Map("unifiedshield", translate("UnifiedShield VPN"),
-    translate("Next-gen anti-censorship VPN for Iran. " ..
+m = Map("unifiedshield", translate("V2RayEZ Universal"),
+    translate("V2RayEZ router-grade anti-censorship VPN. " ..
               "Supports Xray, NaïveProxy, Hysteria2, and TUIC cores. " ..
               "DNS uses Alibaba/Tencent CDN (Cloudflare is blocked in Iran)."))
 
@@ -15,7 +15,7 @@ s.addremove = false
 
 -- Enable/Disable
 o = s:option(Flag, "enabled", translate("Enable"),
-    translate("Enable UnifiedShield VPN service"))
+    translate("Enable V2RayEZ router VPN service"))
 o.default = "0"
 o.rmempty = false
 

@@ -21,3 +21,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "V2RayEz"
 include(":app")
+include(":license-admin")

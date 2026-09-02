@@ -92,6 +92,51 @@ fun CoreManagerScreen(
                     ) { viewModel.setDefaultCore(type) }
                 }
             }
+            VSpacer(16)
+
+            SectionHeader(title = stringResource(R.string.core_carrier_profile_title))
+            CardSurface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp)) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        stringResource(R.string.core_carrier_profile_sub),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        V2FilterChip(
+                            label = stringResource(R.string.core_carrier_auto_on),
+                            selected = state.carrierCoreAutoEnabled,
+                            enabled = !busy
+                        ) { viewModel.setCarrierCoreAuto(true) }
+                        V2FilterChip(
+                            label = stringResource(R.string.core_carrier_auto_off),
+                            selected = !state.carrierCoreAutoEnabled,
+                            enabled = !busy
+                        ) { viewModel.setCarrierCoreAuto(false) }
+                    }
+                    Text(
+                        stringResource(R.string.core_carrier_detected, viewModel.detectedCarrierLabel()),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        stringResource(R.string.core_carrier_recommended, viewModel.carrierPreferenceSummary()),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        stringResource(R.string.core_named_inventory_title),
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    viewModel.namedCoreInventoryLines().forEach { line ->
+                        Text(
+                            text = "• $line",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
             VSpacer(20)
 
             ProxyCoreType.entries.forEach { type ->

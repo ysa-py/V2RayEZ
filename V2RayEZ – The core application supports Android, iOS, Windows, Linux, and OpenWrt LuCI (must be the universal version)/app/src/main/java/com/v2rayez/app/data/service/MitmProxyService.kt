@@ -17,6 +17,8 @@ import com.v2rayez.app.data.analytics.FirebaseTelemetry
 import com.v2rayez.app.data.cert.MitmCaStore
 import com.v2rayez.app.data.core.GeoAssetManager
 import com.v2rayez.app.data.core.V2RayCore
+import com.v2rayez.app.data.license.AndroidLicenseRepository
+import com.v2rayez.app.data.license.LicenseValidationResult
 import com.v2rayez.app.data.mitm.MitmConfigBuilder
 import com.v2rayez.app.data.repository.logMitm
 import com.v2rayez.app.domain.model.LogLevel
@@ -29,6 +31,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.net.InetSocketAddress
 import java.net.Socket
@@ -43,6 +47,7 @@ class MitmProxyService : Service() {
 
     @Inject lateinit var core: V2RayCore
     @Inject lateinit var settingsRepository: SettingsRepository
+    @Inject lateinit var licenseRepository: AndroidLicenseRepository
     @Inject lateinit var stateHolder: MitmProxyStateHolder
     @Inject lateinit var geoAssets: GeoAssetManager
     @Inject lateinit var firebaseTelemetry: FirebaseTelemetry
@@ -50,6 +55,7 @@ class MitmProxyService : Service() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var startJob: Job? = null
+    private var licenseJob: Job? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -82,6 +88,12 @@ class MitmProxyService : Service() {
         val trace = firebaseTelemetry.startTrace("mitm_start", mapOf("mode" to "standalone"))
         try {
             val settings = settingsRepository.current()
+            val licenseDecision = licenseRepository.enforce(settings.license)
+            persistLicenseDecision(licenseDecision)
+            if (!licenseDecision.allowed) {
+                fail(getString(R.string.vpn_error_license_required, licenseDecision.reason))
+                return
+            }
             val mitm = settings.mitm
             if (!MitmCaStore.isPresent(this@MitmProxyService) || !mitm.caInstallAcknowledged) {
                 fail(getString(R.string.vpn_error_mitm_ca))
@@ -149,6 +161,7 @@ class MitmProxyService : Service() {
                 )
             }
             Log.i(TAG, "MITM proxy listening socks=${mitm.proxyPort} http=${mitm.httpPort}")
+            startLicenseWatchdog()
             trace.putAttribute("result", "success")
         } catch (t: Throwable) {
             trace.putAttribute("result", "failed")
@@ -160,8 +173,44 @@ class MitmProxyService : Service() {
         }
     }
 
+    private fun startLicenseWatchdog() {
+        licenseJob?.cancel()
+        licenseJob = scope.launch {
+            while (isActive && stateHolder.running.value) {
+                val decision = licenseRepository.enforce(settingsRepository.current().license)
+                persistLicenseDecision(decision)
+                if (!decision.allowed) {
+                    fail(getString(R.string.vpn_error_license_required, decision.reason))
+                    return@launch
+                }
+                val waitMs = when {
+                    decision.remainingSeconds in 1..60 -> decision.remainingSeconds * 1_000L
+                    else -> 60_000L
+                }
+                delay(waitMs)
+            }
+        }
+    }
+
+    private suspend fun persistLicenseDecision(decision: LicenseValidationResult) {
+        settingsRepository.update {
+            it.copy(
+                license = it.license.copy(
+                    lastResult = decision.result,
+                    lastReason = decision.reason,
+                    lastValidatedAt = decision.checkedAt,
+                    expiresAt = decision.expiresAt,
+                    offlineGraceUntil = decision.offlineGraceUntil,
+                    lastServerTime = decision.serverTime.ifBlank { it.license.lastServerTime }
+                )
+            )
+        }
+    }
+
     private suspend fun stopProxy() {
         startJob?.cancel()
+        licenseJob?.cancel()
+        licenseJob = null
         runCatching { core.stopLoop() }
         runCatching { logMitm(LogLevel.INFO, "MITM proxy stopped") }
         stateHolder.setRunning(false)
@@ -246,6 +295,8 @@ class MitmProxyService : Service() {
     }
 
     override fun onDestroy() {
+        licenseJob?.cancel()
+        licenseJob = null
         scope.cancel()
         if (stateHolder.running.value) {
             runCatching { core.stopLoopBlocking() }

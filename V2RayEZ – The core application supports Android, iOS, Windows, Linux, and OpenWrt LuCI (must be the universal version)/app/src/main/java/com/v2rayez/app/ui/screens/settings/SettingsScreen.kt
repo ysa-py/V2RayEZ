@@ -10,6 +10,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.BatteryChargingFull
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.filled.Backup
@@ -74,6 +75,8 @@ fun SettingsScreen(
     onOpenWarp: () -> Unit = {},
     onOpenHotspot: () -> Unit = {},
     onOpenStatistics: () -> Unit = {},
+    onOpenLicense: () -> Unit = {},
+    onOpenAiEngine: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
     backupViewModel: BackupViewModel = hiltViewModel()
 ) {
@@ -140,6 +143,20 @@ fun SettingsScreen(
             SectionHeader(title = stringResource(R.string.settings_section_connection))
             SettingsGroup {
                 SettingRow(Icons.Filled.VpnKey, stringResource(R.string.settings_vpn), onClick = onOpenAdvancedVpn)
+                Divider()
+                SettingRow(
+                    Icons.Filled.VpnKey,
+                    stringResource(R.string.settings_license),
+                    subtitle = stringResource(R.string.settings_license_sub, state.license.lastResult),
+                    onClick = onOpenLicense
+                )
+                Divider()
+                SettingRow(
+                    Icons.Filled.AutoAwesome,
+                    stringResource(R.string.settings_ai_engine),
+                    subtitle = stringResource(R.string.settings_ai_engine_sub, state.aiEngine.providers.size),
+                    onClick = onOpenAiEngine
+                )
                 Divider()
                 SettingRow(Icons.Filled.Route, stringResource(R.string.settings_routing), onClick = onOpenRouting)
                 Divider()

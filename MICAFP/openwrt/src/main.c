@@ -75,6 +75,7 @@ int main(int argc, char* argv[]) {
 
     // Open syslog
     openlog("unifiedshield", LOG_PID | LOG_NDELAY, LOG_DAEMON);
+    setlogmask(LOG_UPTO(verbose ? LOG_DEBUG : LOG_INFO));
 
     // Load UCI configuration
     struct unifiedshield_config config;

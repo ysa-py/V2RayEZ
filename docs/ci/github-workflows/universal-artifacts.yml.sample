@@ -1,0 +1,301 @@
+name: V2RayEZ Universal Artifact Builds
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_openwrt_sdk_url:
+        description: "Optional OpenWrt SDK tarball URL for real .ipk build"
+        required: false
+        type: string
+      build_release_android:
+        description: "Build signed Android release APKs when signing secrets are configured"
+        required: false
+        default: false
+        type: boolean
+      apple_team_id:
+        description: "Optional Apple Development Team ID for signed IPA export"
+        required: false
+        type: string
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+env:
+  BASE_ANDROID_DIR: "V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)"
+  GUI_DIR: V2RayEZ-GUI
+
+jobs:
+  base-android-debug-apk:
+    name: V2RayEZ base Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Create CI Firebase descriptor for debug-only build
+        working-directory: ${{ env.BASE_ANDROID_DIR }}
+        run: |
+          cat > app/google-services.json <<'JSON'
+          {
+            "project_info": {
+              "project_number": "0",
+              "project_id": "v2rayez-ci",
+              "storage_bucket": "v2rayez-ci.appspot.com"
+            },
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:0:android:ci",
+                  "android_client_info": { "package_name": "com.v2rayez.app" }
+                },
+                "api_key": [{ "current_key": "ci-build-placeholder" }]
+              }
+            ],
+            "configuration_version": "1"
+          }
+          JSON
+
+      - name: Build debug universal APK
+        working-directory: ${{ env.BASE_ANDROID_DIR }}
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleDebug
+
+      - name: Upload V2RayEZ debug APK artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: v2rayez-base-android-debug-apks
+          path: ${{ env.BASE_ANDROID_DIR }}/app/build/outputs/apk/**/*.apk
+          if-no-files-found: error
+
+  gui-android-debug-apk:
+    name: V2RayEZ-GUI Android companion APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Build V2RayEZ-GUI Android debug APK
+        working-directory: ${{ env.GUI_DIR }}/android
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleDebug testDebugUnitTest lintDebug
+
+      - name: Upload V2RayEZ-GUI Android APK artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: v2rayez-gui-android-debug-apks
+          path: ${{ env.GUI_DIR }}/android/app/build/outputs/apk/**/*.apk
+          if-no-files-found: error
+
+  windows-installer-and-portable:
+    name: V2RayEZ Windows installer and portable package
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: V2RayEZ-GUI/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install V2RayEZ-GUI dependencies
+        working-directory: ${{ env.GUI_DIR }}
+        run: npm ci
+
+      - name: Fetch verified Windows sidecars
+        working-directory: ${{ env.GUI_DIR }}
+        shell: pwsh
+        run: |
+          npm run fetch:core
+          npm run fetch:routing
+
+      - name: Test and build Windows installer
+        working-directory: ${{ env.GUI_DIR }}
+        run: |
+          npm test
+          cargo test --manifest-path src-tauri/Cargo.toml
+          npm run build
+
+      - name: Stage Windows release artifacts
+        working-directory: ${{ env.GUI_DIR }}
+        shell: pwsh
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-release.ps1
+
+      - name: Upload Windows release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: v2rayez-windows-installer-portable
+          path: ${{ env.GUI_DIR }}/release/*
+          if-no-files-found: error
+
+  dashboard-production:
+    name: Dashboard production bundle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: MICAFP/package-lock.json
+
+      - name: Build dashboard
+        working-directory: MICAFP
+        run: |
+          npm ci --ignore-scripts --workspace dashboard
+          npm run lint --workspace dashboard
+          npm run build --workspace dashboard
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v2rayez-dashboard-next-build
+          path: MICAFP/dashboard/.next
+          if-no-files-found: error
+
+  browser-extensions:
+    name: Browser extension packages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: MICAFP/package-lock.json
+
+      - name: Build Chrome and Firefox extension packages
+        working-directory: MICAFP
+        run: |
+          npm ci --ignore-scripts --workspace extensions/chrome --workspace extensions/firefox
+          npm run lint --workspace extensions/chrome
+          npm run lint --workspace extensions/firefox
+          npm run build --workspace extensions/chrome
+          npm run build --workspace extensions/firefox
+          (cd extensions/chrome/dist && zip -r ../../v2rayez-chrome-extension.zip .)
+          (cd extensions/firefox/dist && zip -r ../../v2rayez-firefox-extension.zip .)
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v2rayez-browser-extensions
+          path: |
+            MICAFP/extensions/v2rayez-chrome-extension.zip
+            MICAFP/extensions/v2rayez-firefox-extension.zip
+          if-no-files-found: error
+
+  openwrt-ipk-with-sdk:
+    name: Optional OpenWrt .ipk build with supplied SDK
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_openwrt_sdk_url != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download OpenWrt SDK
+        run: |
+          curl -fsSL "${{ inputs.build_openwrt_sdk_url }}" -o /tmp/openwrt-sdk.tar.xz
+          mkdir -p /tmp/openwrt-sdk
+          tar -xf /tmp/openwrt-sdk.tar.xz -C /tmp/openwrt-sdk --strip-components=1
+
+      - name: Overlay UnifiedShield package into SDK
+        run: |
+          mkdir -p /tmp/openwrt-sdk/package/v2rayez
+          cp -a MICAFP/openwrt /tmp/openwrt-sdk/package/v2rayez/unifiedshield
+
+      - name: Build universal OpenWrt ipk
+        working-directory: /tmp/openwrt-sdk
+        run: |
+          ./scripts/feeds update -a || true
+          ./scripts/feeds install -a || true
+          make defconfig
+          make package/v2rayez/unifiedshield/compile V=s
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v2rayez-openwrt-ipk
+          path: /tmp/openwrt-sdk/bin/packages/**/*.ipk
+          if-no-files-found: error
+
+  ios-ipa-with-xcodegen:
+    name: iOS IPA with XcodeGen project
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate Swift source balance and iOS plists
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import plistlib
+          roots = [Path('MICAFP/ios/UnifiedShield/App'), Path('MICAFP/ios/UnifiedShield/NetworkExtension')]
+          for path in sorted(p for r in roots for p in r.glob('*.swift')):
+              text = path.read_text()
+              assert text.count('{') == text.count('}'), f'brace imbalance: {path}'
+              print('swift brace pass', path)
+          for path in [Path('MICAFP/ios/Info.plist'), Path('MICAFP/ios/V2RayEZPacketTunnel/Info.plist'), Path('MICAFP/ios/ExportOptions.plist')]:
+              with path.open('rb') as fh:
+                  plistlib.load(fh)
+              print('plist pass', path)
+          PY
+
+      - name: Generate Xcode project
+        run: |
+          brew install xcodegen
+          cd MICAFP/ios
+          xcodegen generate --spec project.yml
+
+      - name: Require Apple signing material for real IPA
+        run: |
+          if [ -z "${{ inputs.apple_team_id }}" ]; then
+            echo 'Apple Team ID/signing material is required for a real .ipa archive/export. Provide workflow input apple_team_id and configure signing certificates/profiles on the macOS runner.' >&2
+            exit 1
+          fi
+
+      - name: Archive and export IPA
+        run: |
+          cd MICAFP/ios
+          xcodebuild \
+            -project V2RayEZ.xcodeproj \
+            -scheme V2RayEZ \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath "$PWD/build/V2RayEZ.xcarchive" \
+            DEVELOPMENT_TEAM="${{ inputs.apple_team_id }}" \
+            archive
+          xcodebuild \
+            -exportArchive \
+            -archivePath "$PWD/build/V2RayEZ.xcarchive" \
+            -exportOptionsPlist ExportOptions.plist \
+            -exportPath "$PWD/build/export"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v2rayez-ios-ipa
+          path: MICAFP/ios/build/export/*.ipa
+          if-no-files-found: error

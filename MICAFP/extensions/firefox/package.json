@@ -1,12 +1,12 @@
 {
-  "name": "unifiedshield-nextgen-firefox",
+  "name": "v2rayez-universal-firefox-extension",
   "version": "2.0.0",
-  "description": "UnifiedShield NextGen Firefox Extension — anti-censorship proxy manager",
+  "description": "V2RayEZ Universal Firefox Extension — anti-censorship proxy manager",
   "private": true,
   "scripts": {
-    "build": "tsc && cp manifest.json dist/ && cp -r popup/ options/ icons/ dist/",
+    "build": "node ../scripts/build-extension.mjs firefox",
     "dev": "tsc --watch",
-    "lint": "eslint 'src/**/*.ts'",
+    "lint": "tsc --noEmit",
     "clean": "rm -rf dist/"
   },
   "devDependencies": {

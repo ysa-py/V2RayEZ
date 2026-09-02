@@ -1,0 +1,233 @@
+name: V2RayEZ Universal Source Gates
+
+on:
+  push:
+    branches:
+      - main
+      - arena/01a05e13-v2rayez
+  pull_request:
+    branches:
+      - main
+      - arena/01a05e13-v2rayez
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: v2rayez-source-gates-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BASE_ANDROID_DIR: "V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)"
+  GUI_DIR: V2RayEZ-GUI
+
+jobs:
+  universal-core-rust:
+    name: Universal Rust core and license gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Test universal core and license gate
+        run: |
+          cargo test --manifest-path universal-core/Cargo.toml
+          cargo build --manifest-path universal-core/Cargo.toml --bin v2rayez-license-gate
+
+  v2rayez-gui-and-source-gates:
+    name: V2RayEZ GUI, license/AI, OpenWrt, and iOS static gates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            V2RayEZ-GUI/package-lock.json
+
+      - name: Install V2RayEZ GUI dependencies
+        working-directory: ${{ env.GUI_DIR }}
+        run: npm ci
+
+      - name: Validate V2RayEZ GUI identity and frontend wiring
+        working-directory: ${{ env.GUI_DIR }}
+        run: |
+          node --check src/app.js
+          node --check src/i18n.js
+          node --check tests/frontend.test.mjs
+          node --check scripts/prepare-sidecar.mjs
+          npm test
+          node -e "JSON.parse(require('fs').readFileSync('src-tauri/tauri.conf.json','utf8')); console.log('tauri config json pass')"
+
+      - name: Validate cross-platform sidecar staging script
+        run: |
+          tmp="${RUNNER_TEMP:-/tmp}/v2rayez-sidecar-test"
+          mkdir -p "$tmp"
+          printf 'aether' > "$tmp/aether"
+          printf 'sing-box' > "$tmp/sing-box"
+          cd V2RayEZ-GUI
+          TAURI_ENV_TARGET_TRIPLE=x86_64-unknown-linux-gnu \
+            AETHER_CORE_BINARY="$tmp/aether" \
+            SING_BOX_BINARY="$tmp/sing-box" \
+            npm run prepare:sidecars
+          test -f src-tauri/binaries/aether-x86_64-unknown-linux-gnu
+          test -f src-tauri/binaries/sing-box-x86_64-unknown-linux-gnu
+          rm -rf src-tauri/binaries
+
+      - name: Assert legacy GUI identity is absent from runtime UI surfaces
+        run: node tools/v2rayez_identity_gate.mjs
+
+      - name: Assert runtime license watchdog hard-cutoff wiring
+        run: node tools/runtime_license_watchdog_gate.mjs
+
+      - name: Assert Android persisted AI settings migrate to V2RayEZ identity
+        run: node tools/android_ai_settings_migration_gate.mjs
+
+      - name: Assert OpenWrt package source pin and .ipk build wrapper
+        run: |
+          node tools/openwrt_packaging_gate.mjs
+          MICAFP/scripts/package-openwrt.sh --check
+
+      - name: Assert release artifact build contract
+        run: |
+          node tools/release_artifact_contract_gate.mjs
+          scripts/build-release-artifacts.sh --check
+
+      - name: Run shared license and AI Provider Gateway self-tests
+        run: |
+          node tools/license_crypto_selftest.mjs
+          node tools/license_serial_e2e_selftest.mjs
+          node tools/ai_provider_gateway_selftest.mjs
+
+      - name: Run base V2RayEZ EN/FA/RU localization parity gate
+        run: bash "$BASE_ANDROID_DIR/scripts/gates/string-key-parity.sh"
+
+      - name: Validate V2RayEZ-GUI Android XML resources
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          for p in [
+              Path('V2RayEZ-GUI/android/app/src/main/res/values/strings.xml'),
+              Path('V2RayEZ-GUI/android/app/src/main/res/values-fa/strings.xml'),
+              Path('V2RayEZ-GUI/android/app/src/main/AndroidManifest.xml'),
+          ]:
+              ET.parse(p)
+              print('xml pass', p)
+          PY
+
+      - name: Validate OpenWrt shell, ACL, netifd, and C syntax
+        run: |
+          sh -n MICAFP/openwrt/files/etc/init.d/unifiedshield
+          sh -n MICAFP/openwrt/files/usr/libexec/unifiedshield/license-gate.sh
+          sh -n MICAFP/openwrt/files/lib/netifd/proto/unifiedshield.sh
+          python3 -m json.tool MICAFP/openwrt/files/usr/share/rpcd/acl.d/luci-app-unifiedshield.json >/dev/null
+          ! grep -R "nullptr" -n MICAFP/openwrt/src
+          gcc -std=gnu99 -Wall -Wextra -fsyntax-only -I MICAFP/openwrt/src \
+            MICAFP/openwrt/src/main.c MICAFP/openwrt/src/netifd_proto.c
+
+      - name: Validate iOS touched-file brace balance and plist metadata
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import plistlib
+          files = [
+              Path('MICAFP/ios/UnifiedShield/App/AIProviderGateway.swift'),
+              Path('MICAFP/ios/UnifiedShield/App/LicenseManager.swift'),
+              Path('MICAFP/ios/UnifiedShield/App/SettingsView.swift'),
+              Path('MICAFP/ios/UnifiedShield/App/StatusView.swift'),
+              Path('MICAFP/ios/UnifiedShield/NetworkExtension/ExtensionAIAdvisor.swift'),
+              Path('MICAFP/ios/UnifiedShield/NetworkExtension/ExtensionLicenseGate.swift'),
+              Path('MICAFP/ios/UnifiedShield/NetworkExtension/PacketTunnelProvider.swift'),
+              Path('MICAFP/ios/UnifiedShield/NetworkExtension/TunnelManager.swift'),
+          ]
+          for path in files:
+              text = path.read_text()
+              assert text.count('{') == text.count('}'), f'brace imbalance: {path}'
+              print('swift brace pass', path)
+          for path in [Path('MICAFP/ios/Info.plist'), Path('MICAFP/ios/V2RayEZPacketTunnel/Info.plist'), Path('MICAFP/ios/ExportOptions.plist')]:
+              with path.open('rb') as fh:
+                  plistlib.load(fh)
+              print('plist pass', path)
+          assert Path('MICAFP/ios/project.yml').exists(), 'XcodeGen project.yml missing'
+          PY
+
+      - name: Regenerate merge inventory and check for drift
+        run: |
+          python3 tools/merge_inventory.py
+          git diff --exit-code MERGE_INVENTORY.json
+
+      - name: Git whitespace check
+        run: git diff --check
+
+  dashboard-build:
+    name: V2RayEZ dashboard lint and production build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: MICAFP/package-lock.json
+
+      - name: Install dashboard dependencies
+        working-directory: MICAFP
+        run: npm ci --ignore-scripts --workspace dashboard
+
+      - name: Lint dashboard
+        working-directory: MICAFP
+        run: npm run lint --workspace dashboard
+
+      - name: Build dashboard
+        working-directory: MICAFP
+        run: npm run build --workspace dashboard
+
+  browser-extension-build:
+    name: V2RayEZ Chrome and Firefox extension build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: MICAFP/package-lock.json
+
+      - name: Install extension dependencies
+        working-directory: MICAFP
+        run: npm ci --ignore-scripts --workspace extensions/chrome --workspace extensions/firefox
+
+      - name: Lint and build extensions
+        working-directory: MICAFP
+        run: |
+          npm run lint --workspace extensions/chrome
+          npm run lint --workspace extensions/firefox
+          npm run build --workspace extensions/chrome
+          npm run build --workspace extensions/firefox
+
+      - name: Validate packaged extension manifests
+        working-directory: MICAFP
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          for (const path of ['extensions/chrome/dist/manifest.json', 'extensions/firefox/dist/manifest.json']) {
+            const manifest = JSON.parse(fs.readFileSync(path, 'utf8'));
+            if (manifest.name !== 'V2RayEZ Universal' || manifest.version !== '2.0.0') throw new Error(`${path} has wrong identity`);
+            console.log('extension manifest pass', path, manifest.name, manifest.version);
+          }
+          NODE

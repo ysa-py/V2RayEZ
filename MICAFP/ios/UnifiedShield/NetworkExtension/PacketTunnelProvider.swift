@@ -2,7 +2,7 @@ import NetworkExtension
 import Foundation
 
 /**
- * PacketTunnelProvider for UnifiedShield VPN on iOS.
+ * PacketTunnelProvider for V2RayEZ on iOS.
  *
  * Implements NEPacketTunnelProvider for VPN functionality without jailbreak.
  * Uses Rust FFI core for protocol handling and packet routing.
@@ -23,11 +23,23 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     private let killSwitch = KillSwitch()
     private var isRunning = false
     private var currentCore = "xray"
+    private var licenseWatchdogTask: Task<Void, Never>?
 
     // Rust FFI function pointers
     private var rustContext: UnsafeMutableRawPointer?
 
     override func startTunnel(options: [String: NSObject]?, completionHandler: @escaping (Error?) -> Void) {
+        Task { [weak self] in
+            let status = await ExtensionLicenseGate.shared.enforce()
+            guard status.allowed else {
+                completionHandler(PacketTunnelError.licenseRequired(status.reason))
+                return
+            }
+            self?.startTunnelAfterLicense(options: options, completionHandler: completionHandler)
+        }
+    }
+
+    private func startTunnelAfterLicense(options: [String: NSObject]?, completionHandler: @escaping (Error?) -> Void) {
         // Configure tunnel settings
         let tunnelSettings = createTunnelSettings()
 
@@ -46,6 +58,11 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             // Start the Rust core daemon via FFI
             self.startCoreDaemon { coreError in
                 if let coreError = coreError {
+                    Task {
+                        if let advice = await ExtensionAIAdvisor.shared.adviseOnFailure("core start failed: \(coreError)") {
+                            NSLog("AI Engine advisor (%@): %@", advice.source, advice.text)
+                        }
+                    }
                     completionHandler(coreError)
                     return
                 }
@@ -62,6 +79,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                 self.killSwitch.enable(provider: self)
 
                 self.isRunning = true
+                self.startLicenseWatchdog()
 
                 // Start reading packets from the tunnel
                 self.readPackets()
@@ -73,11 +91,29 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
 
     override func stopTunnel(with reason: NEProviderStopReason, completionHandler: @escaping () -> Void) {
         isRunning = false
+        licenseWatchdogTask?.cancel()
+        licenseWatchdogTask = nil
         dpiDetector.stopMonitoring()
         killSwitch.disable()
         coreBridge.stopDaemon()
 
         completionHandler()
+    }
+
+    private func startLicenseWatchdog() {
+        licenseWatchdogTask?.cancel()
+        licenseWatchdogTask = Task { [weak self] in
+            while !Task.isCancelled {
+                let status = await ExtensionLicenseGate.shared.enforce()
+                if !status.allowed {
+                    self?.cancelTunnelWithError(PacketTunnelError.licenseRequired(status.reason))
+                    return
+                }
+                let waitSeconds = max(Int64(1), min(status.remainingSeconds > 0 ? status.remainingSeconds : 60, Int64(60)))
+                try? await Task.sleep(nanoseconds: UInt64(waitSeconds) * 1_000_000_000)
+                guard !Task.isCancelled else { return }
+            }
+        }
     }
 
     override func handleAppMessage(_ messageData: Data, completionHandler: ((Data?) -> Void)?) {
@@ -244,6 +280,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
 enum PacketTunnelError: Error {
     case tunnelSetupFailed
     case coreStartFailed
+    case licenseRequired(String)
 }
 
 // Split tunnel helper for Iranian IP ranges
