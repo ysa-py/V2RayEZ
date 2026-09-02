@@ -263,6 +263,14 @@ jobs:
 
           exit "$status"
 
+      - name: Upload cargo test log
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: cargo-test-log
+          path: /tmp/cargo-test.log
+          if-no-files-found: warn
+
       - name: cargo clippy (advisory)
         working-directory: ./universal-core
         run: cargo clippy --release --features "std,post-quantum-lab" -- -W clippy::all || echo "::warning::clippy emitted lints."
