@@ -602,6 +602,8 @@ data class LicenseConfig(
      * receive revocation until validation connectivity returns or signed grace/expiry cuts off.
      */
     val revocationPollSeconds: Int = 10,
+    /** Optional signed serverless revocation-list token distributed via mesh/IPFS/DNS/covert channels. */
+    val revocationListToken: String = "",
     val lastResult: String = "not_validated",
     val lastReason: String = "",
     val lastValidatedAt: Long = 0L,

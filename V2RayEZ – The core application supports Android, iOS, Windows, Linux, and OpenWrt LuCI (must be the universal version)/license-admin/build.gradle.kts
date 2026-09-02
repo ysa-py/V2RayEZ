@@ -28,3 +28,8 @@ android {
         checkReleaseBuilds = true
     }
 }
+
+dependencies {
+    // Pure Java Ed25519 signing for the offline License Manager; the end-user VPN app keeps only verification.
+    implementation(libs.bouncycastle.bcprov)
+}

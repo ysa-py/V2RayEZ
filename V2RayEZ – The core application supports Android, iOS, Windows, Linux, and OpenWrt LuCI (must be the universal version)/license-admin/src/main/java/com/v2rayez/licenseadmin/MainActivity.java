@@ -31,6 +31,7 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.io.File;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -54,14 +55,17 @@ public final class MainActivity extends Activity {
     private final Handler main = new Handler(Looper.getMainLooper());
 
     private SharedPreferences prefs;
+    private OfflineLicenseManager offlineManager;
     private EditText baseUrl;
     private EditText adminToken;
+    private EditText ownerLabel;
     private EditText userId;
     private EditText accountId;
     private EditText expiresAt;
     private EditText maxDevices;
     private EditText offlineGraceHours;
     private EditText featuresCsv;
+    private EditText ledgerPassphrase;
     private EditText licenseId;
     private EditText activationId;
     private EditText deviceIdHash;
@@ -73,6 +77,7 @@ public final class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
+        offlineManager = new OfflineLicenseManager(this);
         setContentView(buildUi());
         loadPrefs();
     }
@@ -90,8 +95,8 @@ public final class MainActivity extends Activity {
         root.setPadding(dp(18), dp(18), dp(18), dp(24));
         scroll.addView(root);
 
-        TextView title = text("V2RayEZ License Admin", 24, Color.WHITE, true);
-        TextView sub = text("Issue, renew, revoke, and validate signed V2RayEZ serials from a separate Android operator app.", 14, Color.WHITE, false);
+        TextView title = text("V2RayEZ License Manager / Admin", 24, Color.WHITE, true);
+        TextView sub = text("Issue offline signed serials, maintain an encrypted local ledger, or operate the dashboard license API from a separate Android operator app.", 14, Color.WHITE, false);
         LinearLayout header = card(DARK);
         header.addView(title);
         header.addView(sub);
@@ -107,21 +112,28 @@ public final class MainActivity extends Activity {
         root.addView(row(button("Save non-secret settings", this::savePrefs), button("Validate settings", () -> postValidateOnly())));
 
         root.addView(section("Issue / renew per-user license"));
+        ownerLabel = field("Owner label", "customer name or internal note", InputType.TYPE_CLASS_TEXT);
         userId = field("User ID", "user_cuid", InputType.TYPE_CLASS_TEXT);
         accountId = field("Account ID", "account-or-user-id", InputType.TYPE_CLASS_TEXT);
         expiresAt = field("Expiry ISO-8601", Instant.now().plus(30, ChronoUnit.DAYS).toString(), InputType.TYPE_CLASS_TEXT);
         maxDevices = field("Max devices", "1", InputType.TYPE_CLASS_NUMBER);
         offlineGraceHours = field("Offline grace hours", "72", InputType.TYPE_CLASS_NUMBER);
         featuresCsv = field("Features CSV", "vpn,dns-tunnel,ai-gateway", InputType.TYPE_CLASS_TEXT);
+        ledgerPassphrase = field("Encrypted ledger passphrase", "at least 8 chars", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
         licenseId = field("License ID for renew/revoke", "lic_...", InputType.TYPE_CLASS_TEXT);
+        root.addView(ownerLabel);
         root.addView(userId);
         root.addView(accountId);
         root.addView(expiresAt);
         root.addView(maxDevices);
         root.addView(offlineGraceHours);
         root.addView(featuresCsv);
+        root.addView(ledgerPassphrase);
         root.addView(licenseId);
-        root.addView(row(button("Issue serial", this::issue), button("Renew", this::renew)));
+        root.addView(row(button("Dashboard issue", this::issue), button("Dashboard renew", this::renew)));
+        root.addView(row(button("Offline issue serial", this::offlineIssue), button("Offline renew serial", this::offlineRenew)));
+        root.addView(row(button("Offline public key", this::offlinePublicKey), button("Ledger summary", this::offlineLedgerSummary)));
+        root.addView(row(button("Export encrypted ledger", this::offlineExportLedger), button("Import encrypted ledger", this::offlineImportLedger)));
 
         root.addView(section("Instant revoke / client activation"));
         activationId = field("Activation ID for device revoke", "act_...", InputType.TYPE_CLASS_TEXT);
@@ -133,11 +145,12 @@ public final class MainActivity extends Activity {
         root.addView(deviceIdHash);
         root.addView(licenseKey);
         root.addView(revokeReason);
-        root.addView(row(button("Revoke license now", this::revoke), button("Revoke device now", this::revokeDevice)));
+        root.addView(row(button("Dashboard revoke license", this::revoke), button("Dashboard revoke device", this::revokeDevice)));
+        root.addView(row(button("Offline revoke license", this::offlineRevoke), button("Export revocation list", this::offlineExportRevocations)));
         root.addView(row(button("Validate serial", this::validateSerial), button("Copy result", this::copyResult)));
 
         TextView note = text(
-            "Hard cutoff note: revocation is immediate on the dashboard and on clients that can reach validation. Offline clients cannot receive an instant revoke packet; they stop at the next server validation or signed grace expiry.",
+            "Hard cutoff note: dashboard revoke is immediate for clients that can reach validation. Offline/serverless revocation is signed and exportable, but it propagates only when the target app reaches a revocation channel; local expiry still works fully offline.",
             13,
             Color.rgb(107, 114, 128),
             false
@@ -213,6 +226,7 @@ public final class MainActivity extends Activity {
     private void loadPrefs() {
         baseUrl.setText(prefs.getString("baseUrl", ""));
         adminToken.setText("");
+        ownerLabel.setText(prefs.getString("ownerLabel", ""));
         userId.setText(prefs.getString("userId", ""));
         accountId.setText(prefs.getString("accountId", ""));
         maxDevices.setText(prefs.getString("maxDevices", "1"));
@@ -225,6 +239,7 @@ public final class MainActivity extends Activity {
     private void savePrefs() {
         prefs.edit()
             .putString("baseUrl", value(baseUrl))
+            .putString("ownerLabel", value(ownerLabel))
             .putString("userId", value(userId))
             .putString("accountId", value(accountId))
             .putString("maxDevices", value(maxDevices))
@@ -234,6 +249,67 @@ public final class MainActivity extends Activity {
             .putString("deviceIdHash", value(deviceIdHash))
             .apply();
         toast("Saved");
+    }
+
+    private void offlineIssue() {
+        runOffline(() -> {
+            String serial = offlineManager.issue(
+                value(ownerLabel),
+                value(userId),
+                value(accountId),
+                value(expiresAt),
+                parseInt(value(maxDevices), 1),
+                parseInt(value(offlineGraceHours), 72),
+                value(deviceIdHash),
+                value(featuresCsv)
+            );
+            licenseKey.setText(serial);
+            setOutput("Offline serial issued and stored in the local ledger. Copy this public key into V2RayEZ License settings:\n\n" + offlineManager.publicKeyPem() + "\n\nSerial:\n" + serial);
+        });
+    }
+
+    private void offlineRenew() {
+        runOffline(() -> {
+            String serial = offlineManager.renew(value(licenseId), value(expiresAt));
+            licenseKey.setText(serial);
+            setOutput("Offline serial renewed with an independent expiry.\n\n" + serial);
+        });
+    }
+
+    private void offlineRevoke() {
+        runOffline(() -> {
+            String revocations = offlineManager.revoke(value(licenseId), value(revokeReason));
+            setOutput("Offline license revoked in the local ledger. Distribute this signed revocation-list token through any configured revocation channel.\n\n" + revocations);
+        });
+    }
+
+    private void offlinePublicKey() {
+        runOffline(() -> setOutput(offlineManager.publicKeyPem()));
+    }
+
+    private void offlineLedgerSummary() {
+        runOffline(() -> setOutput(offlineManager.ledgerSummary()));
+    }
+
+    private void offlineExportLedger() {
+        runOffline(() -> {
+            File file = offlineManager.exportLedger(value(ledgerPassphrase));
+            setOutput("Encrypted ledger exported to:\n" + file.getAbsolutePath());
+        });
+    }
+
+    private void offlineImportLedger() {
+        runOffline(() -> {
+            int imported = offlineManager.importLedger(value(ledgerPassphrase));
+            setOutput("Imported/merged " + imported + " license record(s) from encrypted ledger file.");
+        });
+    }
+
+    private void offlineExportRevocations() {
+        runOffline(() -> {
+            File file = offlineManager.exportRevocationListFile();
+            setOutput("Signed revocation list exported to:\n" + file.getAbsolutePath() + "\n\n" + offlineManager.exportRevocationListToken());
+        });
     }
 
     private void issue() {
@@ -373,6 +449,15 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private void runOffline(OfflineAction action) {
+        savePrefs();
+        try {
+            action.run();
+        } catch (Exception e) {
+            setOutput("OFFLINE MANAGER ERROR: " + e.getMessage());
+        }
+    }
+
     private void copyResult() {
         ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
         clipboard.setPrimaryClip(ClipData.newPlainText("V2RayEZ license admin result", output.getText()));
@@ -405,5 +490,9 @@ public final class MainActivity extends Activity {
 
     private interface JsonSuccess {
         void run(JSONObject json);
+    }
+
+    private interface OfflineAction {
+        void run() throws Exception;
     }
 }

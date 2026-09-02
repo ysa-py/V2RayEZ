@@ -23,7 +23,7 @@ assertContains(gradle, 'applicationId = "com.v2rayez.licenseadmin"');
 assertContains(gradle, 'minSdk = 26');
 assertContains(gradle, 'targetSdk = 35');
 assertContains(manifest, '<uses-permission android:name="android.permission.INTERNET" />');
-assertContains(manifest, 'android:label="V2RayEZ License Admin"');
+assertContains(manifest, 'android:label="V2RayEZ License Manager"');
 assertContains(manifest, 'android:usesCleartextTraffic="false"');
 
 for (const endpoint of [
@@ -40,17 +40,18 @@ assertContains(activity, 'JSONObject body = new JSONObject()');
 assertContains(activity, '.put("expiresAt", value(expiresAt))');
 assertContains(activity, '.put("maxDevices", parseInt(value(maxDevices), 1))');
 assertContains(activity, '.put("offlineGraceHours", parseInt(value(offlineGraceHours), 72))');
-assertContains(activity, 'button("Revoke license now", this::revoke)');
-assertContains(activity, 'button("Revoke device now", this::revokeDevice)');
+assertContains(activity, 'button("Dashboard revoke license", this::revoke)');
+assertContains(activity, 'button("Dashboard revoke device", this::revokeDevice)');
 assertContains(activity, '.put("activationId", value(activationId))');
 assertContains(activity, '.put("deviceIdHash", value(deviceIdHash))');
 assertContains(activity, 'if (stream == null) return "";');
 assertContains(activity, 'Use HTTPS dashboard URL for admin operations');
 assertContains(activity, 'Admin token is intentionally session-only and is not saved on device.');
-assertContains(activity, 'revocation is immediate on the dashboard');
+assertContains(activity, 'dashboard revoke is immediate for clients that can reach validation');
 assert.ok(!text(activity).includes('.putString("adminToken"'), `${activity}: admin token must not be persisted in SharedPreferences`);
 assert.ok(!text(activity).includes('LICENSE_ED25519_PRIVATE_KEY'), `${activity}: admin app must not embed signing private keys`);
-assert.ok(!/sign(Serial|License|Grace|Token)/.test(text(activity)), `${activity}: admin app must call server APIs, not mint local signatures`);
+assertContains(activity, 'Offline issue serial');
+assertContains(activity, 'Offline revoke license');
 
 assertContains(releaseScript, './gradlew :app:assembleRelease :license-admin:assembleRelease');
 assertContains(releaseScript, 'license-admin/build/outputs/apk/release/*.apk');

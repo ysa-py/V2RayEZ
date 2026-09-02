@@ -109,6 +109,8 @@ class AndroidLicenseRepository @Inject constructor(
 
     fun deviceIdForDisplay(): String = deviceId().take(8)
 
+    fun deviceHashForDisplay(config: LicenseConfig): String = hashDeviceId(deviceId(), config)
+
     private fun lastServerTime(): String? = prefs.getString(KEY_LAST_SERVER_TIME, null)?.takeIf { it.isNotBlank() }
 
     private fun validateWithServer(endpoint: String, licenseKey: String, config: LicenseConfig): LicenseValidationResult {
@@ -173,6 +175,15 @@ class AndroidLicenseRepository @Inject constructor(
         if (config.accountId.isNotBlank() && accountId != config.accountId.trim()) {
             return deny("account_mismatch", "Serial belongs to another account")
         }
+        val deviceIdHash = payload.optString("deviceIdHash", "").trim()
+        if (deviceIdHash.isNotBlank() && deviceIdHash != hashDeviceId(deviceId(), config)) {
+            return deny("device_mismatch", "Serial belongs to another device")
+        }
+        revocationDecision(
+            licenseId = payload.optString("licenseId", ""),
+            licenseEpoch = payload.optInt("revocationEpoch", 0),
+            config = config
+        )?.let { return it }
         val notBefore = payload.optString("notBefore", "")
         if (notBefore.isNotBlank() && parseInstant(notBefore)?.isAfter(Instant.now()) == true) {
             return deny("license_not_yet_valid", "License is not valid yet")
@@ -189,6 +200,30 @@ class AndroidLicenseRepository @Inject constructor(
             expiresAt = expiresAt,
             remainingSeconds = remaining
         )
+    }
+
+    private fun revocationDecision(
+        licenseId: String,
+        licenseEpoch: Int,
+        config: LicenseConfig
+    ): LicenseValidationResult? {
+        val token = config.revocationListToken.trim()
+        if (token.isBlank()) return null
+        val parsed = runCatching { verifyCompactToken(token, REVOCATION_TOKEN_TYPE, config) }.getOrElse {
+            return deny("revocation_list_invalid", it.message ?: "Signed revocation list is invalid")
+        }
+        val payload = parsed.payload
+        if (payload.optString("schema") != "v2rayez.license.revocations.v1") {
+            return deny("revocation_list_schema", "Unexpected revocation-list schema")
+        }
+        val revocations = payload.optJSONArray("revocations") ?: return null
+        for (i in 0 until revocations.length()) {
+            val item = revocations.optJSONObject(i) ?: continue
+            if (item.optString("licenseId") == licenseId && item.optInt("revocationEpoch", 1) >= licenseEpoch) {
+                return deny("license_revoked", "Serial is revoked by a signed revocation list")
+            }
+        }
+        return null
     }
 
     private fun verifyStoredGrace(config: LicenseConfig, licenseExpiresAt: String): LicenseValidationResult {
@@ -382,6 +417,7 @@ class AndroidLicenseRepository @Inject constructor(
         private const val KEY_LAST_SERVER_TIME = "license.last_server_time"
         private const val LICENSE_TOKEN_TYPE = "V2RayEZ-License"
         private const val GRACE_TOKEN_TYPE = "V2RayEZ-License-Grace"
+        private const val REVOCATION_TOKEN_TYPE = "V2RayEZ-Revocation-List"
         private const val BC_PROVIDER = "BC"
         private val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()
     }

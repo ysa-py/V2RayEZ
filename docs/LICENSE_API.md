@@ -351,6 +351,20 @@ Production note: final `.ipa` packaging must configure App Group/Keychain Access
 
 ---
 
+
+## Offline Android License Manager
+
+The separate `license-admin` Android module is now a dual-mode **V2RayEZ License Manager / Admin**:
+
+- Dashboard mode still calls `POST /api/licenses/issue`, `renew`, `revoke`, `validate`, and `devices/revoke` without embedding a signing key.
+- Offline mode generates and stores an Ed25519 signing seed inside the operator app only, encrypted by Android Keystore AES-GCM.
+- Offline issue creates a dashboard-compatible `V2RayEZ-License` compact token with stable JSON signing input.
+- Every offline ledger record is independent: changing, renewing, shortening, or revoking one `licenseId` only changes that one record.
+- Offline revoke marks the record `REVOKED`, increments `revocationEpoch`, and exports a signed `V2RayEZ-Revocation-List` token.
+- Ledger export/import writes `v2rayez-license-ledger.enc`, encrypted with PBKDF2-HMAC-SHA256 and AES-256-GCM.
+
+The VPN app can verify the License Manager public key, optional `deviceIdHash`, expiry, and signed revocation-list token locally before tunnel start. Serverless revocation still needs a reachable propagation channel; a fully isolated device cannot receive an instant revoke packet.
+
 ## Android License Admin companion app
 
 A separate Android operator application is now present under:

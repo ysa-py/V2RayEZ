@@ -39,6 +39,8 @@ class LicenseViewModel @Inject constructor(
     val hasSerial: Boolean get() = licenseRepository.hasActivatedLicense()
     val redactedSerial: String get() = licenseRepository.redactedSerial()
     val deviceIdPreview: String get() = licenseRepository.deviceIdForDisplay()
+    fun deviceBindingForDisplay(config: LicenseConfig): String =
+        "${licenseRepository.deviceIdForDisplay()} / ${licenseRepository.deviceHashForDisplay(config)}"
 
     fun updateConfig(update: (LicenseConfig) -> LicenseConfig) {
         viewModelScope.launch {
@@ -59,7 +61,8 @@ class LicenseViewModel @Inject constructor(
         publicKeyPem: String,
         publicKeysJson: String,
         deviceHashSalt: String,
-        revocationPollSeconds: String
+        revocationPollSeconds: String,
+        revocationListToken: String
     ) {
         if (_busy.value) return
         viewModelScope.launch {
@@ -71,7 +74,8 @@ class LicenseViewModel @Inject constructor(
                 publicKeyPem = publicKeyPem.trim(),
                 publicKeysJson = publicKeysJson.trim(),
                 deviceHashSalt = deviceHashSalt.trim().ifBlank { "v2rayez-client-device-binding-v1" },
-                revocationPollSeconds = revocationPollSeconds.toIntOrNull()?.coerceIn(5, 300) ?: 10
+                revocationPollSeconds = revocationPollSeconds.toIntOrNull()?.coerceIn(5, 300) ?: 10,
+                revocationListToken = revocationListToken.trim()
             )
             settingsRepository.update { it.copy(license = baseConfig) }
             val validation = licenseRepository.activate(serial, baseConfig)
@@ -116,7 +120,8 @@ class LicenseViewModel @Inject constructor(
             previous.validationUrl != next.validationUrl ||
             previous.publicKeyPem != next.publicKeyPem ||
             previous.publicKeysJson != next.publicKeysJson ||
-            previous.deviceHashSalt != next.deviceHashSalt
+            previous.deviceHashSalt != next.deviceHashSalt ||
+            previous.revocationListToken != next.revocationListToken
 
     private suspend fun persistResult(result: LicenseValidationResult) {
         settingsRepository.update {

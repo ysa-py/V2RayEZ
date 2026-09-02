@@ -63,6 +63,7 @@ fun LicenseScreen(
     var publicKeysJson by remember { mutableStateOf(config.publicKeysJson) }
     var deviceHashSalt by remember { mutableStateOf(config.deviceHashSalt) }
     var revocationPollSeconds by remember { mutableStateOf(config.revocationPollSeconds.toString()) }
+    var revocationListToken by remember { mutableStateOf(config.revocationListToken) }
     var initialized by remember { mutableStateOf(false) }
 
     LaunchedEffect(config) {
@@ -74,6 +75,7 @@ fun LicenseScreen(
             publicKeysJson = config.publicKeysJson
             deviceHashSalt = config.deviceHashSalt
             revocationPollSeconds = config.revocationPollSeconds.toString()
+            revocationListToken = config.revocationListToken
             initialized = true
         }
     }
@@ -94,7 +96,7 @@ fun LicenseScreen(
                 graceUntil = config.offlineGraceUntil,
                 lastServerTime = config.lastServerTime,
                 redactedSerial = viewModel.redactedSerial,
-                devicePreview = viewModel.deviceIdPreview,
+                devicePreview = viewModel.deviceBindingForDisplay(config),
                 hasSerial = viewModel.hasSerial,
                 busy = busy,
                 onValidate = viewModel::validateNow
@@ -188,6 +190,20 @@ fun LicenseScreen(
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.fillMaxWidth()
                     )
+                    VSpacer(8)
+                    OutlinedTextField(
+                        value = revocationListToken,
+                        onValueChange = { revocationListToken = it.trim() },
+                        label = { Text(stringResource(R.string.license_revocation_list_token)) },
+                        placeholder = { Text("eyJhbGci...") },
+                        minLines = 2,
+                        maxLines = 5,
+                        keyboardOptions = KeyboardOptions(
+                            capitalization = KeyboardCapitalization.None,
+                            keyboardType = KeyboardType.Text
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
                     Text(
                         text = stringResource(R.string.license_public_key_help),
                         style = MaterialTheme.typography.bodySmall,
@@ -213,7 +229,8 @@ fun LicenseScreen(
                                     publicKeyPem,
                                     publicKeysJson,
                                     deviceHashSalt,
-                                    revocationPollSeconds
+                                    revocationPollSeconds,
+                                    revocationListToken
                                 )
                             },
                             enabled = !busy
@@ -229,7 +246,8 @@ fun LicenseScreen(
                                         publicKeyPem = publicKeyPem.trim(),
                                         publicKeysJson = publicKeysJson.trim(),
                                         deviceHashSalt = deviceHashSalt.trim().ifBlank { "v2rayez-client-device-binding-v1" },
-                                        revocationPollSeconds = revocationPollSeconds.toIntOrNull()?.coerceIn(5, 300) ?: 10
+                                        revocationPollSeconds = revocationPollSeconds.toIntOrNull()?.coerceIn(5, 300) ?: 10,
+                                        revocationListToken = revocationListToken.trim()
                                     )
                                 }
                             },

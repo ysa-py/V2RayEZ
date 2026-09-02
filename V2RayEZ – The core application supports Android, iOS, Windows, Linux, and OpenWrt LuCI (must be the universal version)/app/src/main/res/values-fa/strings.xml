@@ -1045,7 +1045,8 @@
     <string name="license_public_keys_json">JSON مجموعه کلیدهای مجوز</string>
     <string name="license_device_hash_salt">نمک هش دستگاه</string>
     <string name="license_revocation_poll_seconds">ثانیه‌های بررسی لغو آنلاین (۵–۳۰۰)</string>
-    <string name="license_public_key_help">برای بررسی محلی سریال امضاشده و مهلت آفلاین لازم است. باید با کلید عمومی داشبورد و نمک دستگاه یکی باشد.</string>
+    <string name="license_revocation_list_token">توکن امضاشدهٔ فهرست لغو</string>
+    <string name="license_public_key_help">برای بررسی محلی سریال امضاشده، مهلت آفلاین، و فهرست لغو بدون سرور لازم است. باید با کلید عمومی داشبورد یا License Manager و نمک دستگاه یکی باشد.</string>
     <string name="license_offline_grace">توکن مهلت آفلاین</string>
     <string name="license_offline_grace_sub">پس از اعتبارسنجی آنلاین، مهلت امضاشده آفلاین مجاز باشد</string>
     <string name="license_activate">فعال‌سازی</string>
@@ -1055,7 +1056,7 @@
     <string name="license_expires_format">انقضا: %1$s</string>
     <string name="license_grace_format">مهلت آفلاین تا: %1$s</string>
     <string name="license_server_time_format">آخرین زمان معتبر سرور: %1$s</string>
-    <string name="license_device_format">اتصال دستگاه: %1$s…</string>
+    <string name="license_device_format">اتصال دستگاه: %1$s</string>
     <string name="license_serial_missing">هیچ سریالی ذخیره نشده است</string>
     <string name="license_serial_active">سریال فعال: %1$s</string>
     <string name="license_validate_now">اعتبارسنجی اکنون</string>

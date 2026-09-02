@@ -33,7 +33,7 @@ has(service, "reason = 'device_revoked'");
 has(adminApp, '/api/licenses/devices/revoke');
 has(adminApp, 'private EditText activationId;');
 has(adminApp, 'private EditText deviceIdHash;');
-has(adminApp, 'button("Revoke device now", this::revokeDevice)');
+has(adminApp, 'button("Dashboard revoke device", this::revokeDevice)');
 has(adminApp, '.put("activationId", value(activationId))');
 has(adminApp, '.put("deviceIdHash", value(deviceIdHash))');
 has(adminApp, 'Admin token is intentionally session-only and is not saved on device.');

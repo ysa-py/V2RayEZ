@@ -1081,7 +1081,8 @@
     <string name="license_public_keys_json">License key set JSON</string>
     <string name="license_device_hash_salt">Device hash salt</string>
     <string name="license_revocation_poll_seconds">Online revoke poll seconds (5–300)</string>
-    <string name="license_public_key_help">Required for local signed-serial and offline-grace verification. Must match the dashboard public key and device salt.</string>
+    <string name="license_revocation_list_token">Signed revocation list token</string>
+    <string name="license_public_key_help">Required for local signed-serial, offline-grace, and serverless revocation-list verification. Must match the dashboard or License Manager public key and device salt.</string>
     <string name="license_offline_grace">Offline grace token</string>
     <string name="license_offline_grace_sub">Allow a signed grace window after online validation</string>
     <string name="license_activate">Activate</string>
@@ -1091,7 +1092,7 @@
     <string name="license_expires_format">Expires: %1$s</string>
     <string name="license_grace_format">Offline grace until: %1$s</string>
     <string name="license_server_time_format">Last trusted server time: %1$s</string>
-    <string name="license_device_format">Device binding: %1$s…</string>
+    <string name="license_device_format">Device binding: %1$s</string>
     <string name="license_serial_missing">No serial stored</string>
     <string name="license_serial_active">Active serial: %1$s</string>
     <string name="license_validate_now">Validate now</string>
