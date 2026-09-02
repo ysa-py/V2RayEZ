@@ -17,6 +17,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 mkdir -p "$OUT_DIR"
+OUT_DIR="$(cd "$OUT_DIR" && pwd)"
 TMPDIR="$(mktemp -d)"
 echo "[manual-ipk] Building IPK for $ARCH version $VERSION in $TMPDIR"
 

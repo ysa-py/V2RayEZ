@@ -13,23 +13,27 @@ OUT_DIR="$ROOT/dist-openwrt"
 JOBS="$(nproc 2>/dev/null || echo 4)"
 SDK_DIR=""
 
+VERSION="2.0.0"
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --target) TARGET="$2"; shift 2 ;;
     --rust-target) RUST_TARGET="$2"; shift 2 ;;
     --out-dir) OUT_DIR="$2"; shift 2 ;;
+    --version) VERSION="$2"; shift 2 ;;
     --sdk) SDK_DIR="$2"; shift 2 ;;
     --jobs) JOBS="$2"; shift 2 ;;
-    *) echo "Unknown arg $1"; exit 2 ;;
+    *) echo "Unknown arg $1, ignoring"; shift ;;
   esac
 done
 
 mkdir -p "$OUT_DIR"
+OUT_DIR="$(cd "$OUT_DIR" && pwd)"
 LOG="$ROOT/openwrt-${TARGET}.log"
 echo "[openwrt] Target=$TARGET Rust=$RUST_TARGET Out=$OUT_DIR" | tee "$LOG"
 
 retry() {
-  local max=3 count=0 delay=10
+  local max=2 count=0 delay=3
   while true; do
     if "$@" 2>&1 | tee -a "$LOG"; then return 0; fi
     count=$((count+1))
@@ -67,12 +71,25 @@ if [[ -z "$SDK_DIR" ]]; then
       echo "[openwrt] Downloading SDK from $URL" | tee -a "$LOG"
       mkdir -p "$ROOT/openwrt-sdk"
       TMP_TAR="$ROOT/openwrt-sdk/${TARGET}.tar.xz"
-      retry wget -O "$TMP_TAR" "$URL" || retry curl -L -o "$TMP_TAR" "$URL" || echo "[openwrt] SDK download failed, will use fallback" | tee -a "$LOG"
-      if [[ -f "$TMP_TAR" ]]; then
-        mkdir -p "$SDK_DIR.tmp"
-        tar -xf "$TMP_TAR" -C "$SDK_DIR.tmp" --strip-components=1 2>&1 | tee -a "$LOG" || true
-        rm -rf "$SDK_DIR"
-        mv "$SDK_DIR.tmp" "$SDK_DIR"
+      rm -f "$TMP_TAR"
+      if retry curl -fSL --connect-timeout 10 --max-time 180 -o "$TMP_TAR" "$URL" || retry wget --timeout=15 --tries=2 -O "$TMP_TAR" "$URL"; then
+        if [[ -s "$TMP_TAR" ]]; then
+          mkdir -p "$SDK_DIR.tmp"
+          if tar -xf "$TMP_TAR" -C "$SDK_DIR.tmp" --strip-components=1 2>&1 | tee -a "$LOG"; then
+            rm -rf "$SDK_DIR"
+            mv "$SDK_DIR.tmp" "$SDK_DIR"
+            echo "[openwrt] SDK unpacked successfully to $SDK_DIR" | tee -a "$LOG"
+          else
+            echo "[openwrt] SDK tar extraction failed, will use fallback" | tee -a "$LOG"
+            rm -rf "$SDK_DIR.tmp"
+          fi
+        else
+          echo "[openwrt] SDK archive is empty, using fallback" | tee -a "$LOG"
+          rm -f "$TMP_TAR"
+        fi
+      else
+        echo "[openwrt] SDK download failed, will use fallback" | tee -a "$LOG"
+        rm -f "$TMP_TAR"
       fi
     else
       echo "[openwrt] No SDK URL for $TARGET, using fallback" | tee -a "$LOG"
@@ -134,7 +151,7 @@ MF
 
   # Build
   (cd "$SDK_DIR" && make defconfig 2>&1 | tee -a "$LOG" || true)
-  retry make -C "$SDK_DIR" package/unifiedshield/compile V=s -j"$JOBS" 2>&1 | tee -a "$LOG" || echo "[openwrt] SDK compile failed" | tee -a "$LOG"
+  timeout 60 make -C "$SDK_DIR" package/unifiedshield/compile V=s -j"$JOBS" 2>&1 | tee -a "$LOG" || echo "[openwrt] SDK compile timed out or failed, falling back to standalone packaging" | tee -a "$LOG"
 
   find "$SDK_DIR/bin" -name "*unifiedshield*.ipk" -exec cp -v {} "$OUT_DIR/" \; 2>&1 | tee -a "$LOG" || true
   find "$SDK_DIR/bin" -name "*luci-app-unifiedshield*.ipk" -exec cp -v {} "$OUT_DIR/" \; 2>&1 | tee -a "$LOG" || true

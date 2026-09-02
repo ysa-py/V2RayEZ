@@ -7,20 +7,21 @@ LIBS="$DIST/libs"
 mkdir -p "$DIST" "$LIBS"
 
 echo "[ios-xcframework] Building XCFramework from libs in $LIBS"
-ls -lh "$LIBS" || true
-find "$ROOT/universal-core/target" -name "libv2rayez_universal_core.a" -exec ls -lh {} \; || true
+ls -lh "$LIBS" 2>/dev/null || true
+mkdir -p "$ROOT/universal-core/target" "$ROOT/core-libs"
+find "$ROOT/universal-core/target" -name "libv2rayez_universal_core.a" -exec ls -lh {} \; 2>/dev/null || true
 
 # Collect libs
 mkdir -p "$DIST/ios-arm64" "$DIST/ios-sim-arm64" "$DIST/ios-sim-x86_64"
 # Find best matching libs
-find "$ROOT/universal-core/target" -path "*aarch64-apple-ios/release/*.a" -exec cp -v {} "$DIST/ios-arm64/libv2rayez_universal_core.a" \; || true
-find "$ROOT/universal-core/target" -path "*x86_64-apple-ios/release/*.a" -exec cp -v {} "$DIST/ios-sim-x86_64/libv2rayez_universal_core.a" \; || true
-find "$ROOT/universal-core/target" -path "*aarch64-apple-ios-sim/release/*.a" -exec cp -v {} "$DIST/ios-sim-arm64/libv2rayez_universal_core.a" \; || true
+find "$ROOT/universal-core/target" -path "*aarch64-apple-ios/release/*.a" -exec cp -v {} "$DIST/ios-arm64/libv2rayez_universal_core.a" \; 2>/dev/null || true
+find "$ROOT/universal-core/target" -path "*x86_64-apple-ios/release/*.a" -exec cp -v {} "$DIST/ios-sim-x86_64/libv2rayez_universal_core.a" \; 2>/dev/null || true
+find "$ROOT/universal-core/target" -path "*aarch64-apple-ios-sim/release/*.a" -exec cp -v {} "$DIST/ios-sim-arm64/libv2rayez_universal_core.a" \; 2>/dev/null || true
 
 # Fallback to darwin libs if ios libs not found
 if [[ ! -f "$DIST/ios-arm64/libv2rayez_universal_core.a" ]]; then
   find "$ROOT/universal-core/target" -path "*aarch64-apple-darwin/release/*.a" -exec cp -v {} "$DIST/ios-arm64/libv2rayez_universal_core.a" \; 2>/dev/null || true
-  find core-libs -name "*.a" -exec cp -v {} "$DIST/ios-arm64/libv2rayez_universal_core.a" \; 2>/dev/null || true
+  find "$ROOT/core-libs" -name "*.a" -exec cp -v {} "$DIST/ios-arm64/libv2rayez_universal_core.a" \; 2>/dev/null || true
 fi
 if [[ ! -f "$DIST/ios-sim-x86_64/libv2rayez_universal_core.a" ]]; then
   find "$ROOT/universal-core/target" -path "*x86_64-apple-darwin/release/*.a" -exec cp -v {} "$DIST/ios-sim-x86_64/libv2rayez_universal_core.a" \; 2>/dev/null || true

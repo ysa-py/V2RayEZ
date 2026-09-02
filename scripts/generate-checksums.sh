@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Generate SHA256SUMS.txt for all final assets
-# Supports .apk, .ipa, .exe, .msi, .ipk, .dll, .a
+# Supports .apk, .ipa, .exe, .msi, .ipk, .dll, .a, .tar.gz, .zip, .deb, .rpm, .AppImage
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ASSET_DIR="${1:-$ROOT/release-assets}"
@@ -15,29 +15,42 @@ echo "[checksums] Generating SHA256SUMS in $ASSET_DIR"
 mkdir -p "$ASSET_DIR"
 cd "$ASSET_DIR"
 
-# Find all relevant files
-FILES=$(find . -maxdepth 1 -type f \( -name "*.apk" -o -name "*.ipa" -o -name "*.exe" -o -name "*.msi" -o -name "*.ipk" -o -name "*.dll" -o -name "*.a" -o -name "*.so" \) | sort)
+# Collect all release asset files (excluding existing checksum files)
+mapfile -t FILES < <(find . -maxdepth 1 -type f \( \
+  -name "*.apk" -o -name "*.ipa" -o -name "*.exe" -o -name "*.msi" -o \
+  -name "*.ipk" -o -name "*.dll" -o -name "*.a" -o -name "*.so" -o \
+  -name "*.tar.gz" -o -name "*.zip" -o -name "*.deb" -o -name "*.rpm" -o -name "*.AppImage" \
+  \) ! -name "*.sha256" ! -name "SHA256SUMS*" | sed 's|^\./||' | sort)
 
-if [[ -z "$FILES" ]]; then
+if [[ "${#FILES[@]}" -eq 0 ]]; then
   echo "[checksums] No final assets found in $ASSET_DIR"
-  find . -type f | head -n 20
+  find . -maxdepth 2 -type f | head -n 20 || true
   exit 1
 fi
 
-echo "[checksums] Found files:"
-ls -lh $FILES 2>/dev/null || true
+echo "[checksums] Found ${#FILES[@]} files:"
+for f in "${FILES[@]}"; do
+  ls -lh "$f"
+done
 
-# Generate main SHA256SUMS.txt
-sha256sum $FILES > SHA256SUMS.txt
-echo "[checksums] SHA256SUMS.txt:"
+# Generate main SHA256SUMS.txt with clean relative names
+rm -f SHA256SUMS.txt
+for f in "${FILES[@]}"; do
+  sha256sum "$f" >> SHA256SUMS.txt
+done
+echo "[checksums] SHA256SUMS.txt generated:"
 cat SHA256SUMS.txt
 
 # Per-type checksums
-for ext in apk ipa exe msi ipk; do
-  if ls *.$ext 1>/dev/null 2>&1; then
-    sha256sum *.$ext > SHA256SUMS-${ext^^}.txt
-    echo "[checksums] SHA256SUMS-${ext^^}.txt generated"
-    cat SHA256SUMS-${ext^^}.txt
+for ext in apk ipa exe msi ipk deb rpm appimage tar.gz zip; do
+  mapfile -t TYPE_FILES < <(find . -maxdepth 1 -type f -name "*.$ext" | sed 's|^\./||' | sort)
+  if [[ "${#TYPE_FILES[@]}" -gt 0 ]]; then
+    ext_upper=$(echo "$ext" | tr '[:lower:]' '[:upper:]' | tr '.' '_')
+    rm -f "SHA256SUMS-${ext_upper}.txt"
+    for f in "${TYPE_FILES[@]}"; do
+      sha256sum "$f" >> "SHA256SUMS-${ext_upper}.txt"
+    done
+    echo "[checksums] SHA256SUMS-${ext_upper}.txt generated"
   fi
 done
 
