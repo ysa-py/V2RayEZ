@@ -462,6 +462,7 @@
     <string name="diag_sec_tunnel">تونل VPN</string>
     <string name="diag_sec_server">سرور فعال</string>
     <string name="diag_sec_tor">Tor</string>
+    <string name="diag_sec_intranet_shutdown">قطعی / اینترانت ملی</string>
     <string name="diag_sec_sni">دور زدن SNI</string>
     <string name="diag_sec_core">هسته</string>
     <string name="diag_sec_system">سیستم</string>
@@ -482,6 +483,10 @@
     <string name="diag_check_tor_dns">پورت DNS تور</string>
     <string name="diag_check_tor_exit">IP خروجی Tor</string>
     <string name="diag_check_sni">آزمایش دور زدن SNI</string>
+    <string name="diag_check_intranet_state">وضعیت اینترانت ملی</string>
+    <string name="diag_check_domestic_reachability">دسترسی داخلی</string>
+    <string name="diag_check_international_reachability">دسترسی بین‌الملل</string>
+    <string name="diag_check_serverless_limits">محدودیت‌های بدون سرور / مش</string>
     <string name="diag_check_core_version">نسخه هسته Xray</string>
     <string name="diag_check_protocol_pack">آمادگی پروتکل سرور</string>
     <string name="diag_check_tor_packs">در دسترس بودن بسته Tor</string>

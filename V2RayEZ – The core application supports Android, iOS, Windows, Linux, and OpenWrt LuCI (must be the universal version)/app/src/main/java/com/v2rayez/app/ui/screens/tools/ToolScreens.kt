@@ -1512,6 +1512,7 @@ private fun diagSectionTitle(id: String): String = stringResource(
         com.v2rayez.app.ui.viewmodel.DiagnosticsViewModel.SEC_SERVER -> R.string.diag_sec_server
         com.v2rayez.app.ui.viewmodel.DiagnosticsViewModel.SEC_TOR -> R.string.diag_sec_tor
         com.v2rayez.app.ui.viewmodel.DiagnosticsViewModel.SEC_SNI -> R.string.diag_sec_sni
+        com.v2rayez.app.ui.viewmodel.DiagnosticsViewModel.SEC_INTRASHUTDOWN -> R.string.diag_sec_intranet_shutdown
         com.v2rayez.app.ui.viewmodel.DiagnosticsViewModel.SEC_SYSTEM -> R.string.diag_sec_system
         else -> R.string.diag_sec_core
     }
@@ -1538,6 +1539,10 @@ private fun diagCheckLabelRes(id: String): Int = when (id) {
     com.v2rayez.app.ui.viewmodel.DiagnosticsViewModel.ID_TOR_DNS -> R.string.diag_check_tor_dns
     com.v2rayez.app.ui.viewmodel.DiagnosticsViewModel.ID_TOR_EXIT_IP -> R.string.diag_check_tor_exit
     com.v2rayez.app.ui.viewmodel.DiagnosticsViewModel.ID_SNI_PROBE -> R.string.diag_check_sni
+    com.v2rayez.app.ui.viewmodel.DiagnosticsViewModel.ID_INTRASTATE -> R.string.diag_check_intranet_state
+    com.v2rayez.app.ui.viewmodel.DiagnosticsViewModel.ID_DOMESTIC_REACHABILITY -> R.string.diag_check_domestic_reachability
+    com.v2rayez.app.ui.viewmodel.DiagnosticsViewModel.ID_INTERNATIONAL_REACHABILITY -> R.string.diag_check_international_reachability
+    com.v2rayez.app.ui.viewmodel.DiagnosticsViewModel.ID_SERVERLESS_LIMITS -> R.string.diag_check_serverless_limits
     com.v2rayez.app.ui.viewmodel.DiagnosticsViewModel.ID_PROTOCOL_PACK -> R.string.diag_check_protocol_pack
     com.v2rayez.app.ui.viewmodel.DiagnosticsViewModel.ID_TOR_PACKS -> R.string.diag_check_tor_packs
     com.v2rayez.app.ui.viewmodel.DiagnosticsViewModel.ID_HOTSPOT -> R.string.diag_check_hotspot

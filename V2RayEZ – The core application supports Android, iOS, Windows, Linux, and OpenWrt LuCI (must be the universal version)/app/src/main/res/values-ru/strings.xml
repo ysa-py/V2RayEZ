@@ -478,6 +478,7 @@
     <string name="diag_sec_tunnel">VPN-туннель</string>
     <string name="diag_sec_server">Активный сервер</string>
     <string name="diag_sec_tor">Tor</string>
+    <string name="diag_sec_intranet_shutdown">Отключение / национальный интранет</string>
     <string name="diag_sec_sni">Обход SNI</string>
     <string name="diag_sec_core">Ядро</string>
     <string name="diag_sec_system">Система</string>
@@ -498,6 +499,10 @@
     <string name="diag_check_tor_dns">DNSPort Tor</string>
     <string name="diag_check_tor_exit">Выходной IP Tor</string>
     <string name="diag_check_sni">Проверка обхода SNI</string>
+    <string name="diag_check_intranet_state">Состояние национального интранета</string>
+    <string name="diag_check_domestic_reachability">Доступность внутренних сервисов</string>
+    <string name="diag_check_international_reachability">Доступность международных сервисов</string>
+    <string name="diag_check_serverless_limits">Ограничения без сервера / mesh</string>
     <string name="diag_check_core_version">Версия ядра Xray</string>
     <string name="diag_check_protocol_pack">Готовность протокола сервера</string>
     <string name="diag_check_tor_packs">Доступность пакета Tor</string>

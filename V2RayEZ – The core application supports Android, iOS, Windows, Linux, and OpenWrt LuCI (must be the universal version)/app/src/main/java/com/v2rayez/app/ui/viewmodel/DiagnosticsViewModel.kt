@@ -13,6 +13,8 @@ import com.v2rayez.app.data.tor.TorState
 import com.v2rayez.app.data.core.CoreBinaryManager
 import com.v2rayez.app.data.diagnostics.SmartRepairAction
 import com.v2rayez.app.data.diagnostics.SmartRepairPlanner
+import com.v2rayez.app.data.intranet.NationalIntranetDetector
+import com.v2rayez.app.data.intranet.NationalIntranetState
 import com.v2rayez.app.data.vpn.PerAppTunnelPolicy
 import com.v2rayez.app.domain.model.CORE_VERSION_BUNDLED
 import com.v2rayez.app.domain.model.ConnectionStatus
@@ -93,6 +95,7 @@ class DiagnosticsViewModel @Inject constructor(
     private val servers: ServerRepository,
     private val addonPacks: AddonPackManager,
     private val binaryManager: CoreBinaryManager,
+    private val intranetDetector: NationalIntranetDetector,
     baseHttp: OkHttpClient
 ) : ViewModel() {
 
@@ -176,6 +179,17 @@ class DiagnosticsViewModel @Inject constructor(
                     )
                 )
                 if (sniActive) add(DiagnosticSection(SEC_SNI, listOf(check(ID_SNI_PROBE))))
+                add(
+                    DiagnosticSection(
+                        SEC_INTRASHUTDOWN,
+                        listOf(
+                            check(ID_INTRASTATE),
+                            check(ID_DOMESTIC_REACHABILITY),
+                            check(ID_INTERNATIONAL_REACHABILITY),
+                            check(ID_SERVERLESS_LIMITS)
+                        )
+                    )
+                )
                 add(DiagnosticSection(SEC_CORE, listOf(check(ID_CORE_VERSION))))
                 // Honesty rows: always shown so the report never silently omits a subsystem the
                 // user configured — each check reports SKIPPED (not hidden) when not applicable.
@@ -219,6 +233,7 @@ class DiagnosticsViewModel @Inject constructor(
                     jobs += async { runTorExitIp(cfg.tor.socksHost, cfg.tor.socksPort) }
                 }
                 if (sniActive) jobs += async { runSniProbe(sniDomain) }
+                jobs += async { runNationalIntranetAwareness() }
                 jobs += async { runProtocolPack(selectedServerId) }
                 jobs += async { runTorPacks(cfg.tor.enabled, cfg.tor.transport) }
                 jobs += async { runHotspot(cfg.allowLan, cfg.enableLanSharing, cfg.socksPort, cfg.httpPort) }
@@ -394,6 +409,63 @@ class DiagnosticsViewModel @Inject constructor(
         }
     }
 
+
+    // ------------------------------------------------------------ national intranet / shutdown awareness
+    private suspend fun runNationalIntranetAwareness() {
+        val start = System.nanoTime()
+        val report = runCatching { intranetDetector.detect() }
+            .getOrElse {
+                updateCheck(ID_INTRASTATE) { c -> c.copy(status = CheckStatus.FAIL, result = "probe failed", detail = it.message, durationMs = elapsedMs(start)) }
+                updateCheck(ID_DOMESTIC_REACHABILITY) { c -> c.copy(status = CheckStatus.SKIPPED, result = "unknown", detail = null, durationMs = elapsedMs(start)) }
+                updateCheck(ID_INTERNATIONAL_REACHABILITY) { c -> c.copy(status = CheckStatus.SKIPPED, result = "unknown", detail = null, durationMs = elapsedMs(start)) }
+                updateCheck(ID_SERVERLESS_LIMITS) { c ->
+                    c.copy(
+                        status = CheckStatus.WARN,
+                        result = "not guaranteed",
+                        detail = "No-server mode cannot create international egress without a reachable peer, relay, or gateway.",
+                        durationMs = elapsedMs(start)
+                    )
+                }
+                return
+            }
+        val elapsed = elapsedMs(start)
+        val stateOutcome = when (report.state) {
+            NationalIntranetState.NORMAL -> pass("normal", "Domestic ${report.domesticSummary}; international ${report.internationalSummary}")
+            NationalIntranetState.PARTIAL_RESTRICTION -> warn("partial restriction", "Some international probes failed. V2RayEZ should prefer adaptive transports and validated working endpoints.")
+            NationalIntranetState.DOMESTIC_ONLY -> warn("domestic only", "Domestic probes answered but international probes failed — likely national-intranet/shutdown conditions.")
+            NationalIntranetState.OFFLINE -> fail("offline", "No domestic or international probe answered from this device.")
+        }
+        updateOutcome(ID_INTRASTATE, stateOutcome, elapsed)
+        updateOutcome(
+            ID_DOMESTIC_REACHABILITY,
+            if (report.domesticReachable > 0) pass(report.domesticSummary, summarizeProbeFailures(report.domestic))
+            else fail(report.domesticSummary, "Domestic probes also failed; device may be offline or captive/blocked."),
+            elapsed
+        )
+        updateOutcome(
+            ID_INTERNATIONAL_REACHABILITY,
+            if (report.internationalReachable > 0) pass(report.internationalSummary, summarizeProbeFailures(report.international))
+            else fail(report.internationalSummary, "No international probe answered directly from this device."),
+            elapsed
+        )
+        updateOutcome(
+            ID_SERVERLESS_LIMITS,
+            when (report.state) {
+                NationalIntranetState.NORMAL -> skip("not needed")
+                NationalIntranetState.PARTIAL_RESTRICTION -> warn("use fallback", "Use adaptive transports, fresh endpoints, Tor bridges, or mesh peers; pure serverless mode cannot bypass a total upstream cut by itself.")
+                NationalIntranetState.DOMESTIC_ONLY -> warn("needs peer/relay", "During total international cutoff, no-server mode only preserves local/domestic/P2P discovery. Global access still requires a reachable peer/relay/gateway with international egress.")
+                NationalIntranetState.OFFLINE -> fail("no path", "Neither domestic nor international probes answered; wait for any network path before V2RayEZ can route traffic.")
+            },
+            elapsed
+        )
+    }
+
+    private fun summarizeProbeFailures(outcomes: List<com.v2rayez.app.data.intranet.ProbeOutcome>): String? =
+        outcomes.filterNot { it.reachable }
+            .take(2)
+            .joinToString("; ") { "${it.target.name}: ${it.error.ifBlank { "HTTP ${it.statusCode}" }}" }
+            .ifBlank { null }
+
     // ------------------------------------------------------------ core
     private suspend fun runCoreVersion() = timed(ID_CORE_VERSION) {
         val v = core.coreVersion()
@@ -504,6 +576,12 @@ class DiagnosticsViewModel @Inject constructor(
         updateCheck(id) { it.copy(status = outcome.status, result = outcome.result, detail = outcome.detail, durationMs = elapsed) }
     }
 
+    private fun updateOutcome(id: String, outcome: Outcome, elapsedMs: Long) {
+        updateCheck(id) { it.copy(status = outcome.status, result = outcome.result, detail = outcome.detail, durationMs = elapsedMs) }
+    }
+
+    private fun elapsedMs(start: Long): Long = (System.nanoTime() - start) / 1_000_000
+
     private fun updateCheck(id: String, transform: (DiagnosticCheck) -> DiagnosticCheck) {
         _state.update { st ->
             st.copy(sections = st.sections.map { sec ->
@@ -558,6 +636,7 @@ class DiagnosticsViewModel @Inject constructor(
         const val SEC_TOR = "tor"
         const val SEC_SNI = "sni"
         const val SEC_CORE = "core"
+        const val SEC_INTRASHUTDOWN = "intranet_shutdown"
         const val SEC_SYSTEM = "system"
 
         const val ID_INTERNET = "internet"
@@ -578,6 +657,10 @@ class DiagnosticsViewModel @Inject constructor(
         const val ID_TOR_EXIT_IP = "tor_exit_ip"
         const val ID_SNI_PROBE = "sni_probe"
         const val ID_CORE_VERSION = "core_version"
+        const val ID_INTRASTATE = "intranet_state"
+        const val ID_DOMESTIC_REACHABILITY = "domestic_reachability"
+        const val ID_INTERNATIONAL_REACHABILITY = "international_reachability"
+        const val ID_SERVERLESS_LIMITS = "serverless_limits"
         const val ID_PROTOCOL_PACK = "protocol_pack"
         const val ID_TOR_PACKS = "tor_packs"
         const val ID_HOTSPOT = "hotspot"

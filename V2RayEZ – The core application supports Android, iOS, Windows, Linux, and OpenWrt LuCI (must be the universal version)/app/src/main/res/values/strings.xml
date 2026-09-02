@@ -480,6 +480,7 @@
     <string name="diag_sec_tunnel">VPN tunnel</string>
     <string name="diag_sec_server">Active server</string>
     <string name="diag_sec_tor">Tor</string>
+    <string name="diag_sec_intranet_shutdown">Shutdown / intranet</string>
     <string name="diag_sec_sni">SNI bypass</string>
     <string name="diag_sec_core">Core</string>
     <string name="diag_sec_system">System</string>
@@ -500,6 +501,10 @@
     <string name="diag_check_tor_dns">Tor DNSPort</string>
     <string name="diag_check_tor_exit">Tor exit IP</string>
     <string name="diag_check_sni">SNI bypass probe</string>
+    <string name="diag_check_intranet_state">National intranet state</string>
+    <string name="diag_check_domestic_reachability">Domestic reachability</string>
+    <string name="diag_check_international_reachability">International reachability</string>
+    <string name="diag_check_serverless_limits">No-server / mesh limits</string>
     <string name="diag_check_core_version">Xray core version</string>
     <string name="diag_check_protocol_pack">Server protocol readiness</string>
     <string name="diag_check_tor_packs">Tor pack availability</string>
