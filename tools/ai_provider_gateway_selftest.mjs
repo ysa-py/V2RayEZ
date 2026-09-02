@@ -57,6 +57,12 @@ try {
   assert.equal(uiStyleProvider.request.headers['X-Test'], 'yes');
   assert.deepEqual(JSON.parse(uiStyleProvider.request.body), { prompt: 'diagnose from ui', model: 'ui-model' });
 
+  const geminiFromPanel = buildAIRequest({ baseUrl, endpoint: '/gemini', providerType: 'gemini', auth: { type: 'none' } }, { prompt: 'hello gemini' });
+  assert.deepEqual(JSON.parse(geminiFromPanel.request.body), {
+    contents: [{ parts: [{ text: 'hello gemini' }] }],
+    generationConfig: { maxOutputTokens: 256 },
+  });
+
   assert.throws(
     () => buildAIRequest({ baseUrl, auth: { type: 'none' }, headersJson: '{bad-json}' }, {}),
     /headers_json must be a valid JSON object/,

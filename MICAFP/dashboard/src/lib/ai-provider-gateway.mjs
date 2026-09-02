@@ -65,7 +65,7 @@ export function normalizeProviderConfig(raw) {
     throw new AIProviderGatewayError('invalid_provider_config', 'Provider config must be an object');
   }
   const id = String(raw.id || raw.name || 'custom-provider').trim();
-  const providerType = String(raw.type || raw.provider || raw.shape || '').trim().toLowerCase();
+  const providerType = String(raw.type || raw.providerType || raw.provider || raw.shape || '').trim().toLowerCase();
   const rawBaseUrl = String(raw.baseUrl || '').trim().replace(/\/+$/, '');
   const isLocalProvider = providerType === 'local'
     || rawBaseUrl.startsWith('local://')
@@ -108,7 +108,7 @@ export function normalizeProviderConfig(raw) {
       secret: isLocalProvider ? undefined : raw.apiKey ? String(raw.apiKey) : auth.secret ? String(auth.secret) : undefined,
     },
     schema: {
-      requestTemplate: schema.requestTemplate || raw.requestTemplate || defaultRequestTemplate(raw.provider || raw.shape),
+      requestTemplate: schema.requestTemplate || raw.requestTemplate || defaultRequestTemplate(raw.type || raw.providerType || raw.provider || raw.shape),
       responsePath: schema.responsePath || raw.responsePath || (isLocalProvider ? 'text' : ''),
       systemPromptPath: schema.systemPromptPath || '',
     },
