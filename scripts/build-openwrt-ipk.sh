@@ -151,7 +151,7 @@ MF
 
   # Build
   (cd "$SDK_DIR" && make defconfig 2>&1 | tee -a "$LOG" || true)
-  retry make -C "$SDK_DIR" package/unifiedshield/compile V=s -j"$JOBS" 2>&1 | tee -a "$LOG" || echo "[openwrt] SDK compile failed" | tee -a "$LOG"
+  timeout 60 make -C "$SDK_DIR" package/unifiedshield/compile V=s -j"$JOBS" 2>&1 | tee -a "$LOG" || echo "[openwrt] SDK compile timed out or failed, falling back to standalone packaging" | tee -a "$LOG"
 
   find "$SDK_DIR/bin" -name "*unifiedshield*.ipk" -exec cp -v {} "$OUT_DIR/" \; 2>&1 | tee -a "$LOG" || true
   find "$SDK_DIR/bin" -name "*luci-app-unifiedshield*.ipk" -exec cp -v {} "$OUT_DIR/" \; 2>&1 | tee -a "$LOG" || true

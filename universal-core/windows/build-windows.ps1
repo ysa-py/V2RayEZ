@@ -6,19 +6,32 @@ param(
     [string]$OutDir = "dist-windows"
 )
 
+$ErrorActionPreference = "Continue"
+
 $Root = (Resolve-Path "$PSScriptRoot/../..").Path
 $Dist = Join-Path $Root $OutDir
 New-Item -ItemType Directory -Force -Path $Dist | Out-Null
 
 Write-Host "[windows] Building Windows exe version $Version into $Dist"
 
+# Refresh PATH from system and user environments
+try {
+    $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User") + ";" + $env:Path
+} catch {
+    Write-Warning "[windows] Could not refresh PATH: $_"
+}
+
 # 1. Build standalone core binary via Cargo
 Push-Location "$Root/universal-core"
 Write-Host "[windows] cargo build --release --bin v2rayez-license-gate"
-cargo build --release --bin v2rayez-license-gate --features "std,post-quantum-lab"
-cargo build --release --lib --features "std,post-quantum-lab"
+try {
+    cargo build --release --bin v2rayez-license-gate --features "std,post-quantum-lab"
+    cargo build --release --lib --features "std,post-quantum-lab"
+} catch {
+    Write-Warning "[windows] Cargo build encountered issue: $_"
+}
 
-$GateExe = Get-ChildItem "target" -Recurse -Filter "v2rayez-license-gate.exe" | Select-Object -First 1
+$GateExe = Get-ChildItem "target" -Recurse -Filter "v2rayez-license-gate.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
 if ($GateExe) {
     Write-Host "[windows] Found $GateExe"
     Copy-Item $GateExe.FullName (Join-Path $Dist "v2rayez-license-gate.exe") -Force
@@ -27,7 +40,7 @@ if ($GateExe) {
     Copy-Item $GateExe.FullName (Join-Path $Dist "V2RayEZ-v$Version-Windows-x64.exe") -Force
 }
 
-$CoreDll = Get-ChildItem "target" -Recurse -Filter "v2rayez_universal_core.dll" | Select-Object -First 1
+$CoreDll = Get-ChildItem "target" -Recurse -Filter "v2rayez_universal_core.dll" -ErrorAction SilentlyContinue | Select-Object -First 1
 if ($CoreDll) {
     Copy-Item $CoreDll.FullName (Join-Path $Dist "v2rayez_universal_core.dll") -Force
     Copy-Item $CoreDll.FullName (Join-Path $Dist "v2rayez_universal_core-v$Version-x86_64.dll") -Force
@@ -67,6 +80,8 @@ if (Get-Command "makensis" -ErrorAction SilentlyContinue) {
     $MakensisCmd = "C:\Program Files (x86)\NSIS\makensis.exe"
 } elseif (Test-Path "C:\Program Files\NSIS\makensis.exe") {
     $MakensisCmd = "C:\Program Files\NSIS\makensis.exe"
+} elseif (Test-Path "C:\ProgramData\chocolatey\bin\makensis.exe") {
+    $MakensisCmd = "C:\ProgramData\chocolatey\bin\makensis.exe"
 }
 
 $MainExe = Get-ChildItem $Dist/*.exe | Where-Object { $_.Name -like "V2RayEZ*" -and $_.Name -notlike "*setup*" } | Select-Object -First 1

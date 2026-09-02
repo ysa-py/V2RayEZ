@@ -362,7 +362,7 @@ jobs:
         shell: pwsh
         run: |
           $Version = "${{ needs.meta.outputs.version }}"
-          & universal-core/windows/build-windows.ps1 -Version $Version -OutDir "dist-windows-final"
+          pwsh -ExecutionPolicy Bypass -File universal-core/windows/build-windows.ps1 -Version "$Version" -OutDir "dist-windows-final"
 
       - name: Stage & Verify Windows deliverables
         shell: pwsh
