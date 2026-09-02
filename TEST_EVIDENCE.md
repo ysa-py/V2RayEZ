@@ -1776,3 +1776,41 @@ Observed:
 Scope note:
 
 - Legacy values remain only as migration aliases for old backups/upgrades; donor capabilities are preserved behind the V2RayEZ UI.
+
+---
+
+## Milestone 34 OpenWrt source pin and SDK .ipk builder — 2026-09-02
+
+Commands:
+
+```bash
+bash -n MICAFP/scripts/package-openwrt.sh
+MICAFP/scripts/package-openwrt.sh --check
+node --check tools/openwrt_packaging_gate.mjs
+node tools/openwrt_packaging_gate.mjs
+node --check tools/runtime_license_watchdog_gate.mjs
+node tools/runtime_license_watchdog_gate.mjs
+node --check tools/android_ai_settings_migration_gate.mjs
+node tools/android_ai_settings_migration_gate.mjs
+node --check tools/v2rayez_identity_gate.mjs
+node tools/v2rayez_identity_gate.mjs
+sh -n MICAFP/openwrt/files/etc/init.d/unifiedshield
+sh -n MICAFP/openwrt/files/usr/libexec/unifiedshield/license-gate.sh
+sh -n MICAFP/openwrt/files/usr/libexec/unifiedshield/license-watchdog.sh
+sh -n MICAFP/openwrt/files/lib/netifd/proto/unifiedshield.sh
+npm test --prefix V2RayEZ-GUI
+git diff --check
+```
+
+Result: PASS.
+
+Observed:
+
+- OpenWrt package source is pinned to validated commit `5263aebfdc4673bba8cd56049de26ae3dd7509e3` instead of the moving Arena branch.
+- `MICAFP/scripts/package-openwrt.sh --check` validates package metadata/tree and refuses fake builds without SDK input.
+- The build wrapper stages the package into a real OpenWrt SDK, compiles `package/unifiedshield`, copies resulting `.ipk` files, and writes `SHA256SUMS` when an SDK is available.
+- New OpenWrt packaging gate passed and is referenced by the CI sample.
+
+Blocked locally:
+
+- Real `.ipk` generation remains blocked because no target-specific OpenWrt SDK/toolchain is installed in the sandbox.

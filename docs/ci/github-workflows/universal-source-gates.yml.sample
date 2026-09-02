@@ -91,6 +91,11 @@ jobs:
       - name: Assert Android persisted AI settings migrate to V2RayEZ identity
         run: node tools/android_ai_settings_migration_gate.mjs
 
+      - name: Assert OpenWrt package source pin and .ipk build wrapper
+        run: |
+          node tools/openwrt_packaging_gate.mjs
+          MICAFP/scripts/package-openwrt.sh --check
+
       - name: Run shared license and AI Provider Gateway self-tests
         run: |
           node tools/license_crypto_selftest.mjs
