@@ -208,7 +208,7 @@ class AndroidLicenseRepository @Inject constructor(
             return deny("offline_grace_device_mismatch", "Offline grace token belongs to another device")
         }
         val graceServerTime = parseInstant(payload.optString("serverTime", ""))
-        val lastSeenServerTime = lastServerTime()?.let(::parseInstant)
+        val lastSeenServerTime = lastServerTime()?.let { parseInstant(it) }
         if (graceServerTime != null && lastSeenServerTime != null && graceServerTime.plusSeconds(300).isBefore(lastSeenServerTime)) {
             return deny("server_time_rollback_detected", "Offline grace token is older than the last trusted server validation")
         }
