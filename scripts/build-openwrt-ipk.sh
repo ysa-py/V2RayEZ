@@ -13,14 +13,17 @@ OUT_DIR="$ROOT/dist-openwrt"
 JOBS="$(nproc 2>/dev/null || echo 4)"
 SDK_DIR=""
 
+VERSION="2.0.0"
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --target) TARGET="$2"; shift 2 ;;
     --rust-target) RUST_TARGET="$2"; shift 2 ;;
     --out-dir) OUT_DIR="$2"; shift 2 ;;
+    --version) VERSION="$2"; shift 2 ;;
     --sdk) SDK_DIR="$2"; shift 2 ;;
     --jobs) JOBS="$2"; shift 2 ;;
-    *) echo "Unknown arg $1"; exit 2 ;;
+    *) echo "Unknown arg $1, ignoring"; shift ;;
   esac
 done
 
