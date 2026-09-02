@@ -94,6 +94,7 @@ class AndroidLicenseRepository @Inject constructor(
     fun clear() {
         secureStore.remove(KEY_LICENSE)
         secureStore.remove(KEY_GRACE)
+        prefs.edit().remove(KEY_LAST_SERVER_TIME).apply()
     }
 
     fun hasActivatedLicense(): Boolean = secureStore.contains(KEY_LICENSE)
@@ -101,6 +102,8 @@ class AndroidLicenseRepository @Inject constructor(
     fun redactedSerial(): String = redact(secureStore.get(KEY_LICENSE).orEmpty())
 
     fun deviceIdForDisplay(): String = deviceId().take(8)
+
+    private fun lastServerTime(): String? = prefs.getString(KEY_LAST_SERVER_TIME, null)?.takeIf { it.isNotBlank() }
 
     private fun validateWithServer(endpoint: String, licenseKey: String, config: LicenseConfig): LicenseValidationResult {
         val payload = JSONObject()
@@ -110,6 +113,7 @@ class AndroidLicenseRepository @Inject constructor(
             .put("platform", "android")
             .put("appVersion", BuildConfig.VERSION_NAME)
             .put("deviceLabel", config.deviceLabel.ifBlank { defaultDeviceLabel() })
+        lastServerTime()?.let { payload.put("clientLastServerTime", it) }
         val request = Request.Builder()
             .url(endpoint)
             .post(payload.toString().toRequestBody(JSON_MEDIA))
@@ -125,6 +129,9 @@ class AndroidLicenseRepository @Inject constructor(
                     json.optString("error", "License server denied this serial"),
                     expiresAt = json.optString("expiresAt", "")
                 )
+            }
+            json.optString("serverTime", "").takeIf { it.isNotBlank() }?.let { serverTime ->
+                prefs.edit().putString(KEY_LAST_SERVER_TIME, serverTime).apply()
             }
             val grace = json.optString("graceToken", "")
             if (grace.isNotBlank()) {
@@ -199,6 +206,11 @@ class AndroidLicenseRepository @Inject constructor(
         }
         if (payload.optString("deviceIdHash", "") != hashDeviceId(deviceId())) {
             return deny("offline_grace_device_mismatch", "Offline grace token belongs to another device")
+        }
+        val graceServerTime = parseInstant(payload.optString("serverTime", ""))
+        val lastSeenServerTime = lastServerTime()?.let(::parseInstant)
+        if (graceServerTime != null && lastSeenServerTime != null && graceServerTime.plusSeconds(300).isBefore(lastSeenServerTime)) {
+            return deny("server_time_rollback_detected", "Offline grace token is older than the last trusted server validation")
         }
         val graceUntil = payload.optString("graceUntil", "")
         val graceExpiry = parseInstant(graceUntil) ?: return deny("offline_grace_invalid_expiry", "Offline grace expiry is invalid")
@@ -344,6 +356,7 @@ class AndroidLicenseRepository @Inject constructor(
         private const val KEY_LICENSE = "license.serial"
         private const val KEY_GRACE = "license.grace"
         private const val KEY_DEVICE_ID = "license.device_id"
+        private const val KEY_LAST_SERVER_TIME = "license.last_server_time"
         private const val LICENSE_TOKEN_TYPE = "V2RayEZ-License"
         private const val GRACE_TOKEN_TYPE = "V2RayEZ-License-Grace"
         private const val BC_PROVIDER = "BC"

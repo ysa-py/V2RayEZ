@@ -76,7 +76,7 @@ pub async fn validate(
         return offline_or_local(&verifier, &settings, &license_key, &state, local);
     }
 
-    match validate_online(&endpoint, &settings, &license_key, &state.device_id).await {
+    match validate_online(&endpoint, &settings, &license_key, &state.device_id, state.last_seen_server_time.as_deref()).await {
         Ok(online) => {
             if let Some(grace) = online
                 .get("graceToken")
@@ -250,8 +250,9 @@ async fn validate_online(
     settings: &Settings,
     license_key: &str,
     device_id: &str,
+    client_last_server_time: Option<&str>,
 ) -> Result<Value, String> {
-    let payload = json!({
+    let mut payload = json!({
         "licenseKey": license_key,
         "deviceId": device_id,
         "accountId": settings.license.account_id.trim(),
@@ -259,6 +260,9 @@ async fn validate_online(
         "appVersion": env!("CARGO_PKG_VERSION"),
         "deviceLabel": device_label(settings),
     });
+    if let Some(last_seen) = client_last_server_time.filter(|value| !value.trim().is_empty()) {
+        payload["clientLastServerTime"] = json!(last_seen.trim());
+    }
     let response = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(20))
         .build()

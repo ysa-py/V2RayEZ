@@ -1929,3 +1929,40 @@ Warnings:
 Scope note:
 
 - Real deployed multi-node/API clock-skew testing remains pending on an external environment.
+
+---
+
+## Milestone 38 cross-platform client last server-time propagation — 2026-09-02
+
+Commands:
+
+```bash
+bash -n MICAFP/openwrt/files/usr/libexec/unifiedshield/license-gate.sh
+node --check tools/runtime_license_watchdog_gate.mjs
+node tools/runtime_license_watchdog_gate.mjs
+node --check tools/license_serial_e2e_selftest.mjs
+node tools/license_serial_e2e_selftest.mjs
+node --check tools/openwrt_packaging_gate.mjs
+node tools/openwrt_packaging_gate.mjs
+MICAFP/scripts/package-openwrt.sh --check
+npm run lint --prefix MICAFP/dashboard
+npm run build --prefix MICAFP/dashboard
+node tools/v2rayez_identity_gate.mjs
+node tools/release_artifact_contract_gate.mjs
+git diff --check
+```
+
+Result: PASS.
+
+Observed:
+
+- Desktop validation sends `clientLastServerTime` and preserves successful `serverTime` for offline rollback checks.
+- Android validation sends/stores last server time and rejects stale grace tokens with `server_time_rollback_detected`.
+- iOS app and Network Extension validation send/store last server time and reject stale grace tokens.
+- OpenWrt shell/native gates send `clientLastServerTime`; the native gate passes the value into universal-core offline grace rollback detection and stores trusted `serverTime` only for allowed decisions.
+- Dashboard lint/build remained green.
+- Runtime watchdog/static gate now enforces server-time propagation across platform clients.
+
+Blockers:
+
+- `cargo`, `rustc`, Gradle/JDK, Xcode, and a target OpenWrt SDK are unavailable locally, so native/mobile/router compile and package generation remain pending on proper runners.

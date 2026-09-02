@@ -19,6 +19,45 @@ function assertOrder(path, first, second) {
   assert.ok(a < b, `${path}: expected ${first} before ${second}`);
 }
 
+
+const licenseService = 'MICAFP/dashboard/src/lib/license-service.ts';
+assertContains(licenseService, 'clientLastServerTimeRaw');
+assertContains(licenseService, 'invalid_client_last_server_time');
+assertContains(licenseService, 'server_time_rollback_detected');
+
+const desktopLicense = 'V2RayEZ-GUI/src-tauri/src/license.rs';
+assertContains(desktopLicense, 'client_last_server_time: Option<&str>');
+assertContains(desktopLicense, 'payload["clientLastServerTime"] = json!(last_seen.trim());');
+assertContains(desktopLicense, 'state.last_seen_server_time = Some(server_time.to_string());');
+assertContains(desktopLicense, '.last_seen_server_time');
+assertContains(desktopLicense, 'DateTime::parse_from_rfc3339(value)');
+
+const androidLicense = 'V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/app/src/main/java/com/v2rayez/app/data/license/AndroidLicenseRepository.kt';
+assertContains(androidLicense, 'payload.put("clientLastServerTime", it)');
+assertContains(androidLicense, 'KEY_LAST_SERVER_TIME');
+assertContains(androidLicense, 'server_time_rollback_detected');
+
+const iosLicense = 'MICAFP/ios/UnifiedShield/App/LicenseManager.swift';
+assertContains(iosLicense, 'body["clientLastServerTime"] = lastServerTime');
+assertContains(iosLicense, 'defaults.set(serverTime, forKey: "licenseLastServerTime")');
+assertContains(iosLicense, 'server_time_rollback_detected');
+
+const iosExtensionLicense = 'MICAFP/ios/UnifiedShield/NetworkExtension/ExtensionLicenseGate.swift';
+assertContains(iosExtensionLicense, 'body["clientLastServerTime"] = lastServerTime');
+assertContains(iosExtensionLicense, 'defaults.set(serverTime, forKey: "licenseLastServerTime")');
+assertContains(iosExtensionLicense, 'graceServerDate.addingTimeInterval(300) < lastServerDate');
+
+const openwrtGate = 'MICAFP/openwrt/files/usr/libexec/unifiedshield/license-gate.sh';
+assertContains(openwrtGate, 'LAST_SERVER_TIME=$(uci_get license_last_server_time)');
+assertContains(openwrtGate, '"clientLastServerTime":"%s"');
+assertContains(openwrtGate, 'SERVER_TIME=$(printf');
+
+const nativeGate = 'universal-core/src/bin/v2rayez-license-gate.rs';
+assertContains(nativeGate, 'client_last_server_time: String');
+assertContains(nativeGate, 'payload_value["clientLastServerTime"] = json!(args.client_last_server_time.trim());');
+assertContains(nativeGate, 'parse_rfc3339_utc(&args.client_last_server_time)');
+assertContains(nativeGate, 'server_time: value.get("serverTime")');
+
 const desktop = 'V2RayEZ-GUI/src-tauri/src/lib.rs';
 assertContains(desktop, 'let license_status = license::enforce(app.clone(), &settings).await?;');
 assertContains(desktop, 'license_status.remaining_seconds');

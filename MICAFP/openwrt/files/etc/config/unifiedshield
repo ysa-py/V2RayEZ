@@ -59,6 +59,7 @@ config unifiedshield 'default'
     option license_last_reason ''
     option license_expires_at ''
     option license_offline_grace_until ''
+    option license_last_server_time ''
 
     # AI Provider Gateway (no-code external provider additions + local fallback)
     option ai_engine_enabled '1'

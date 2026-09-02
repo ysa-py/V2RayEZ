@@ -21,6 +21,7 @@ struct Args {
     device_id: String,
     platform: String,
     device_label: String,
+    client_last_server_time: String,
     uci_config: String,
     uci_section: String,
     allow_offline_grace: bool,
@@ -37,6 +38,7 @@ struct GateStatus {
     offline_grace_until: String,
     remaining_seconds: i64,
     device_id_preview: String,
+    server_time: String,
 }
 
 fn main() {
@@ -113,14 +115,17 @@ fn run(args: &Args) -> Result<GateStatus, String> {
 
 fn validate_online(args: &Args, license_key: &str) -> Result<GateStatus, String> {
     let endpoint = validation_endpoint(&args.validation_url);
-    let payload = json!({
+    let mut payload_value = json!({
         "licenseKey": license_key,
         "deviceId": args.device_id,
         "accountId": args.account_id,
         "platform": args.platform,
         "deviceLabel": args.device_label,
-    })
-    .to_string();
+    });
+    if !args.client_last_server_time.trim().is_empty() {
+        payload_value["clientLastServerTime"] = json!(args.client_last_server_time.trim());
+    }
+    let payload = payload_value.to_string();
 
     let body = post_json(&endpoint, &payload)?;
     let value: Value = serde_json::from_str(&body).map_err(|error| format!("invalid_validation_response:{error}"))?;
@@ -146,6 +151,7 @@ fn validate_online(args: &Args, license_key: &str) -> Result<GateStatus, String>
         offline_grace_until: value.get("offlineGraceUntil").and_then(Value::as_str).unwrap_or_default().to_string(),
         remaining_seconds: value.get("remainingSeconds").and_then(Value::as_i64).unwrap_or(0).max(0),
         device_id_preview: preview(&args.device_id),
+        server_time: value.get("serverTime").and_then(Value::as_str).unwrap_or_default().to_string(),
     })
 }
 
@@ -162,7 +168,7 @@ fn offline_decision(
         &args.platform,
         license_key,
         grace.as_deref(),
-        None,
+        parse_rfc3339_utc(&args.client_last_server_time),
         Utc::now(),
     );
     status_from_decision(args, decision, allowed_reason)
@@ -179,6 +185,11 @@ fn status_from_decision(args: &Args, decision: LicenseDecision, allowed_reason: 
         .as_ref()
         .map(|grace| grace.grace_until.to_rfc3339())
         .unwrap_or_default();
+    let server_time = decision
+        .verified_grace
+        .as_ref()
+        .map(|grace| grace.server_time.to_rfc3339())
+        .unwrap_or_default();
     let remaining = decision
         .hard_cutoff_at
         .as_ref()
@@ -194,6 +205,7 @@ fn status_from_decision(args: &Args, decision: LicenseDecision, allowed_reason: 
         offline_grace_until: grace_until,
         remaining_seconds: remaining,
         device_id_preview: preview(&args.device_id),
+        server_time,
     }
 }
 
@@ -270,6 +282,7 @@ fn parse_args() -> Result<Args, String> {
         device_id: String::new(),
         platform: "openwrt".to_string(),
         device_label: "OpenWrt router".to_string(),
+        client_last_server_time: String::new(),
         uci_config: "unifiedshield".to_string(),
         uci_section: "default".to_string(),
         allow_offline_grace: false,
@@ -288,6 +301,7 @@ fn parse_args() -> Result<Args, String> {
             "--device-id" => args.device_id = next_value(&mut it, &flag)?,
             "--platform" => args.platform = next_value(&mut it, &flag)?,
             "--device-label" => args.device_label = next_value(&mut it, &flag)?,
+            "--client-last-server-time" => args.client_last_server_time = next_value(&mut it, &flag)?,
             "--uci-config" => args.uci_config = next_value(&mut it, &flag)?,
             "--uci-section" => args.uci_section = next_value(&mut it, &flag)?,
             _ => return Err(format!("unknown_arg:{flag}")),
@@ -318,8 +332,12 @@ fn update_uci(args: &Args, status: &GateStatus) {
         ("license_last_reason", status.reason.clone()),
         ("license_expires_at", status.expires_at.clone()),
         ("license_offline_grace_until", status.offline_grace_until.clone()),
+        ("license_last_server_time", status.server_time.clone()),
     ];
     for (key, value) in values {
+        if key == "license_last_server_time" && (!status.allowed || value.is_empty()) {
+            continue;
+        }
         let _ = Command::new("uci").args(["-q", "set", &format!("{prefix}.{key}={value}")]).status();
     }
     let _ = Command::new("uci").args(["-q", "commit", &args.uci_config]).status();
@@ -341,7 +359,16 @@ fn deny(
         offline_grace_until: offline_grace_until.unwrap_or_default(),
         remaining_seconds: 0,
         device_id_preview: preview(device_id),
+        server_time: String::new(),
     }
+}
+
+fn parse_rfc3339_utc(value: &str) -> Option<chrono::DateTime<Utc>> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    chrono::DateTime::parse_from_rfc3339(trimmed).ok().map(|time| time.with_timezone(&Utc))
 }
 
 fn read_trimmed(path: &Path) -> Result<String, String> {

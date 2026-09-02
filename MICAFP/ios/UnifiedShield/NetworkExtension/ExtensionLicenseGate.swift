@@ -62,13 +62,16 @@ final class ExtensionLicenseGate {
         request.timeoutInterval = 20
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
         request.addValue("application/json", forHTTPHeaderField: "Accept")
-        let body: [String: Any] = [
+        var body: [String: Any] = [
             "licenseKey": serial,
             "deviceId": deviceId(),
             "accountId": defaults.string(forKey: "licenseAccountId") ?? "",
             "platform": "ios",
             "deviceLabel": defaults.string(forKey: "licenseDeviceLabel") ?? "iOS device"
         ]
+        if let lastServerTime = defaults.string(forKey: "licenseLastServerTime"), !lastServerTime.isEmpty {
+            body["clientLastServerTime"] = lastServerTime
+        }
         guard let bodyData = try? JSONSerialization.data(withJSONObject: body) else { return nil }
         request.httpBody = bodyData
         guard let (data, response) = try? await URLSession.shared.data(for: request),
@@ -76,6 +79,9 @@ final class ExtensionLicenseGate {
               (200..<300).contains(http.statusCode),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               (json["success"] as? Bool) == true else { return nil }
+        if let serverTime = json["serverTime"] as? String, !serverTime.isEmpty {
+            defaults.set(serverTime, forKey: "licenseLastServerTime")
+        }
         if let grace = json["graceToken"] as? String, !grace.isEmpty {
             keychainSet(grace, account: graceKey)
         }
@@ -89,6 +95,13 @@ final class ExtensionLicenseGate {
         guard let payload = try? verifyCompactToken(token, expectedType: "V2RayEZ-License-Grace") else { return nil }
         guard (payload["status"] as? String ?? "ACTIVE") == "ACTIVE" else { return nil }
         guard (payload["deviceIdHash"] as? String) == hashDeviceId(deviceId()) else { return nil }
+        if let graceServerTime = payload["serverTime"] as? String,
+           let graceServerDate = iso.date(from: graceServerTime),
+           let lastServerTime = defaults.string(forKey: "licenseLastServerTime"),
+           let lastServerDate = iso.date(from: lastServerTime),
+           graceServerDate.addingTimeInterval(300) < lastServerDate {
+            return nil
+        }
         guard let graceUntil = payload["graceUntil"] as? String,
               let graceDate = iso.date(from: graceUntil), graceDate > Date() else { return nil }
         return ExtensionLicenseStatus(

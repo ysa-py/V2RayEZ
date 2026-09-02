@@ -99,6 +99,7 @@ final class LicenseManager {
     func clear() -> LicenseStatus {
         keychainDelete(account: serialKey)
         keychainDelete(account: graceKey)
+        defaults.removeObject(forKey: "licenseLastServerTime")
         return persist(.denied("serial_cleared"))
     }
 
@@ -151,6 +152,13 @@ final class LicenseManager {
             let account = defaults.string(forKey: "licenseAccountId")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             if !account.isEmpty && (payload["accountId"] as? String) != account { return .denied("offline_grace_account_mismatch") }
             if (payload["deviceIdHash"] as? String) != hashDeviceId(deviceId()) { return .denied("offline_grace_device_mismatch") }
+            if let graceServerTime = payload["serverTime"] as? String,
+               let graceServerDate = iso.date(from: graceServerTime),
+               let lastServerTime = defaults.string(forKey: "licenseLastServerTime"),
+               let lastServerDate = iso.date(from: lastServerTime),
+               graceServerDate.addingTimeInterval(300) < lastServerDate {
+                return .denied("server_time_rollback_detected")
+            }
             guard let graceUntil = payload["graceUntil"] as? String,
                   let graceDate = iso.date(from: graceUntil) else { return .denied("offline_grace_invalid_expiry") }
             guard graceDate > Date() else { return status(false, "offline_grace_expired", "offline_grace", local.expiresAt, graceUntil, 0, serial) }
@@ -170,7 +178,7 @@ final class LicenseManager {
         request.timeoutInterval = 20
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
         request.addValue("application/json", forHTTPHeaderField: "Accept")
-        let body: [String: Any] = [
+        var body: [String: Any] = [
             "licenseKey": serial,
             "deviceId": deviceId(),
             "accountId": defaults.string(forKey: "licenseAccountId") ?? "",
@@ -178,12 +186,18 @@ final class LicenseManager {
             "appVersion": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0",
             "deviceLabel": defaults.string(forKey: "licenseDeviceLabel") ?? UIDeviceName.current
         ]
+        if let lastServerTime = defaults.string(forKey: "licenseLastServerTime"), !lastServerTime.isEmpty {
+            body["clientLastServerTime"] = lastServerTime
+        }
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw LicenseError.invalidResponse }
         let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:]
         guard (200..<300).contains(http.statusCode), (json["success"] as? Bool) == true else {
             throw LicenseError.serverDenied((json["reason"] as? String) ?? "license_denied")
+        }
+        if let serverTime = json["serverTime"] as? String, !serverTime.isEmpty {
+            defaults.set(serverTime, forKey: "licenseLastServerTime")
         }
         if let grace = json["graceToken"] as? String, !grace.isEmpty {
             keychainSet(grace, account: graceKey)
