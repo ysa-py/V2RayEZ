@@ -1,5 +1,6 @@
-[build]
-target = "x86_64-unknown-linux-gnu"
+# Do not set [build].target — a host default of x86_64-unknown-linux-gnu would
+# produce glibc objects when Android Bionic (NDK clang) is intended.
+# CI always passes --target via ci/build-target.sh.
 
 [target.x86_64-unknown-linux-gnu]
 linker = "gcc"
@@ -8,13 +9,16 @@ linker = "gcc"
 linker = "aarch64-linux-gnu-gcc"
 
 [target.armv7-linux-androideabi]
-linker = "arm-linux-androideabi-gcc"
+linker = "armv7a-linux-androideabi24-clang"
+ar = "llvm-ar"
 
 [target.aarch64-linux-android]
-linker = "aarch64-linux-android-gcc"
+linker = "aarch64-linux-android24-clang"
+ar = "llvm-ar"
 
 [target.x86_64-linux-android]
-linker = "x86_64-linux-android-gcc"
+linker = "x86_64-linux-android24-clang"
+ar = "llvm-ar"
 
 [target.aarch64-apple-darwin]
 linker = "clang"
@@ -29,7 +33,10 @@ linker = "link"
 linker = "x86_64-w64-mingw32-gcc"
 
 [target.mipsel-unknown-linux-musl]
-linker = "mipsel-openwrt-linux-musl-gcc"
+linker = "mipsel-linux-gnu-gcc"
+
+[target.mipsel-unknown-linux-gnu]
+linker = "mipsel-linux-gnu-gcc"
 
 [target.armv7-unknown-linux-musleabihf]
 linker = "arm-openwrt-linux-musleabihf-gcc"
