@@ -186,7 +186,13 @@ build_dashboard() {
 
 build_extensions() {
     require_tool npm extensions
+    require_tool cargo extensions
+    require_tool wasm-pack extensions
     mkdir -p "$ARTIFACT_DIR/extensions"
+    (
+        cd "$REPO_ROOT/MICAFP/extensions/wasm-obfuscator"
+        wasm-pack build --target web --out-dir pkg
+    )
     (
         cd "$REPO_ROOT/MICAFP"
         npm ci --ignore-scripts --workspace extensions/chrome --workspace extensions/firefox

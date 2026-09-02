@@ -28,6 +28,8 @@ for (const required of [
   '"$OPENWRT_PACKAGE_SCRIPT" --out-dir "$ARTIFACT_DIR/openwrt"',
   '*unifiedshield*.ipk',
   'SHA256SUMS.txt',
+  'require_tool wasm-pack extensions',
+  'wasm-pack build --target web --out-dir pkg',
 ]) {
   assert.ok(script.includes(required), `${scriptPath} missing ${required}`);
 }
@@ -45,6 +47,7 @@ const extensionBuilderPath = 'MICAFP/extensions/scripts/build-extension.mjs';
 const extensionBuilder = readFileSync(extensionBuilderPath, 'utf8');
 assert.ok(extensionBuilder.includes('runTypeScriptEmit()'), `${extensionBuilderPath}: explicit TypeScript emit helper missing`);
 assert.ok(extensionBuilder.includes('node_modules'), `${extensionBuilderPath}: local TypeScript compiler path missing`);
+assert.ok(extensionBuilder.includes('shield_obfuscator_bg.wasm'), `${extensionBuilderPath}: wasm-pack output artifact candidate missing`);
 assert.ok(extensionBuilder.includes('V2RAYEZ_ALLOW_EMPTY_EXTENSION_WASM'), `${extensionBuilderPath}: development-only WASM override missing`);
 assert.ok(extensionBuilder.includes('throw new Error('), `${extensionBuilderPath}: missing fail-closed WASM artifact error`);
 assert.ok(extensionBuilder.includes('release artifact builds do not set'), `${extensionBuilderPath}: WASM placeholder must be documented as non-release only`);

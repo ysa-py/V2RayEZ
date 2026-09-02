@@ -141,6 +141,7 @@ function stageWasmPlaceholderOrArtifact() {
   const wasmDestination = resolve(wasmDir, "obfuscator.wasm");
   const wasmCandidates = [
     resolve(extensionDir, "wasm", "obfuscator.wasm"),
+    resolve(extensionsRoot, "wasm-obfuscator", "pkg", "shield_obfuscator_bg.wasm"),
     resolve(extensionsRoot, "wasm-obfuscator", "pkg", "obfuscator_bg.wasm"),
     resolve(extensionsRoot, "wasm-obfuscator", "pkg", "obfuscator.wasm"),
   ];

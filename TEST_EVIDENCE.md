@@ -2244,3 +2244,39 @@ Observed:
 Blocker:
 
 - Real `.ipk` generation remains pending on a target OpenWrt SDK/Rust cross-toolchain.
+
+---
+
+## Milestone 49 extension release WASM build wiring — 2026-09-02
+
+Commands:
+
+```bash
+npm run lint --prefix MICAFP/extensions/chrome
+V2RAYEZ_ALLOW_EMPTY_EXTENSION_WASM=1 npm run build --prefix MICAFP/extensions/chrome
+npm run lint --prefix MICAFP/extensions/firefox
+V2RAYEZ_ALLOW_EMPTY_EXTENSION_WASM=1 npm run build --prefix MICAFP/extensions/firefox
+node --check MICAFP/extensions/scripts/build-extension.mjs
+node --check tools/release_artifact_contract_gate.mjs
+node tools/release_artifact_contract_gate.mjs
+scripts/build-release-artifacts.sh --check
+node tools/runtime_license_watchdog_gate.mjs
+node tools/v2rayez_identity_gate.mjs
+node tools/ai_provider_gateway_selftest.mjs
+git diff --check
+```
+
+Result: PASS.
+
+Observed:
+
+- Extension release target now requires `cargo` and `wasm-pack` before packaging Chrome/Firefox artifacts.
+- Release script runs `wasm-pack build --target web --out-dir pkg` in `MICAFP/extensions/wasm-obfuscator` before extension packaging.
+- Extension builder now recognizes the crate's wasm-pack output `shield_obfuscator_bg.wasm`.
+- Chrome/Firefox TypeScript lint passed.
+- Chrome/Firefox package flow passed with `V2RAYEZ_ALLOW_EMPTY_EXTENSION_WASM=1` only for local development fallback validation.
+- Release artifact contract check passed and still fails closed for missing real toolchains/artifacts.
+
+Blockers:
+
+- Real release extension packages still require `cargo` and `wasm-pack` on a proper build runner.
