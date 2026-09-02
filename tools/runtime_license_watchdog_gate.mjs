@@ -37,14 +37,35 @@ assertContains(androidLicense, 'payload.put("clientLastServerTime", it)');
 assertContains(androidLicense, 'KEY_LAST_SERVER_TIME');
 assertContains(androidLicense, 'server_time_rollback_detected');
 assertContains(androidLicense, 'serverTime = serverTime');
+assertContains(androidLicense, 'publicKeyFor(header.optString("kid", "default"), config)');
+assertContains(androidLicense, 'mergePublicKeys(config.publicKeysJson, keys)');
+assertContains(androidLicense, 'val configuredPem = config.publicKeyPem.trim()');
+assertContains(androidLicense, 'config.deviceHashSalt.ifBlank { BuildConfig.LICENSE_DEVICE_HASH_SALT }');
+assertContains(androidLicense, 'fun clearGrace()');
 
 
 const androidLicenseScreen = 'V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/app/src/main/java/com/v2rayez/app/ui/screens/settings/LicenseScreen.kt';
 assertContains(androidLicenseScreen, 'lastServerTime = config.lastServerTime');
 assertContains(androidLicenseScreen, 'license_server_time_format');
+assertContains(androidLicenseScreen, 'config.publicKeyPem');
+assertContains(androidLicenseScreen, 'R.string.license_public_key_pem');
+assertContains(androidLicenseScreen, 'R.string.license_public_keys_json');
+assertContains(androidLicenseScreen, 'R.string.license_device_hash_salt');
+assertContains(androidLicenseScreen, 'R.string.license_public_key_help');
 
 const androidConfigModel = 'V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/app/src/main/java/com/v2rayez/app/domain/model/ConfigModels.kt';
+assertContains(androidConfigModel, 'val publicKeyPem: String = ""');
+assertContains(androidConfigModel, 'val publicKeysJson: String = ""');
+assertContains(androidConfigModel, 'val deviceHashSalt: String = "v2rayez-client-device-binding-v1"');
 assertContains(androidConfigModel, 'val lastServerTime: String = ""');
+
+
+const androidLicenseViewModel = 'V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/app/src/main/java/com/v2rayez/app/ui/viewmodel/LicenseAiViewModels.kt';
+assertContains(androidLicenseViewModel, 'licenseRepository.clearGrace()');
+assertContains(androidLicenseViewModel, 'previous.publicKeyPem != next.publicKeyPem');
+assertContains(androidLicenseViewModel, 'previous.publicKeysJson != next.publicKeysJson');
+assertContains(androidLicenseViewModel, 'previous.deviceHashSalt != next.deviceHashSalt');
+assertContains(androidLicenseViewModel, 'lastServerTime = result.serverTime.ifBlank { it.license.lastServerTime }');
 
 const iosLicense = 'MICAFP/ios/UnifiedShield/App/LicenseManager.swift';
 assertContains(iosLicense, 'body["clientLastServerTime"] = lastServerTime');

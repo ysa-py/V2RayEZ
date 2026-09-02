@@ -1388,8 +1388,32 @@ fun DiagnosticsScreen(onBack: () -> Unit, viewModel: DiagnosticsViewModel = hilt
         PrimaryButton(
             stringResource(if (state.running) R.string.diag_running else R.string.diag_run),
             onClick = viewModel::run,
+            enabled = !state.repair.running,
             modifier = Modifier.fillMaxWidth()
         )
+        VSpacer(8)
+        PrimaryButton(
+            stringResource(if (state.repair.running) R.string.diag_repair_running else R.string.diag_smart_repair),
+            onClick = viewModel::autoRepair,
+            enabled = !state.running && !state.repair.running,
+            modifier = Modifier.fillMaxWidth()
+        )
+        if (state.repair.touched) {
+            val repairSummary = state.repair.summary.ifBlank { stringResource(R.string.diag_repair_no_changes) }
+            VSpacer(8)
+            CardSurface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp)) {
+                Text(
+                    text = stringResource(
+                        R.string.diag_repair_summary_format,
+                        state.repair.applied.size,
+                        state.repair.warnings.size,
+                        repairSummary
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(16.dp)
+                )
+            }
+        }
         VSpacer(16)
         if (state.sections.isEmpty()) {
             CardSurface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp)) {
@@ -1525,6 +1549,10 @@ private fun diagCheckLabelRes(id: String): Int = when (id) {
 private fun buildDiagnosticsReport(context: android.content.Context, state: com.v2rayez.app.ui.viewmodel.DiagnosticsUiState): String =
     buildString {
         appendLine("V2RayEz diagnostics report")
+        if (state.repair.touched) {
+            appendLine("Smart repair: ${state.repair.applied.size} applied, ${state.repair.warnings.size} warnings")
+            if (state.repair.summary.isNotBlank()) appendLine(state.repair.summary)
+        }
         state.sections.forEach { section ->
             appendLine()
             section.checks.forEach { c ->

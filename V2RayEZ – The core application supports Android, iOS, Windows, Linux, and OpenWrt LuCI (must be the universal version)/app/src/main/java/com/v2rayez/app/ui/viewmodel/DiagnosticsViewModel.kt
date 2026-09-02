@@ -11,6 +11,8 @@ import com.v2rayez.app.data.sni.SniScanner
 import com.v2rayez.app.data.tor.TorController
 import com.v2rayez.app.data.tor.TorState
 import com.v2rayez.app.data.core.CoreBinaryManager
+import com.v2rayez.app.data.diagnostics.SmartRepairAction
+import com.v2rayez.app.data.diagnostics.SmartRepairPlanner
 import com.v2rayez.app.data.vpn.PerAppTunnelPolicy
 import com.v2rayez.app.domain.model.CORE_VERSION_BUNDLED
 import com.v2rayez.app.domain.model.ConnectionStatus
@@ -58,9 +60,20 @@ data class DiagnosticCheck(
 
 data class DiagnosticSection(val id: String, val checks: List<DiagnosticCheck>)
 
+data class DiagnosticsRepairState(
+    val running: Boolean = false,
+    val applied: List<SmartRepairAction> = emptyList(),
+    val warnings: List<SmartRepairAction> = emptyList(),
+    val reconnectRequested: Boolean = false
+) {
+    val touched: Boolean get() = applied.isNotEmpty() || warnings.isNotEmpty() || reconnectRequested
+    val summary: String get() = (applied + warnings).joinToString(" · ") { it.detail }
+}
+
 data class DiagnosticsUiState(
     val running: Boolean = false,
-    val sections: List<DiagnosticSection> = emptyList()
+    val sections: List<DiagnosticSection> = emptyList(),
+    val repair: DiagnosticsRepairState = DiagnosticsRepairState()
 )
 
 /**
@@ -90,6 +103,35 @@ class DiagnosticsViewModel @Inject constructor(
         .connectTimeout(6, TimeUnit.SECONDS)
         .readTimeout(6, TimeUnit.SECONDS)
         .build()
+
+
+    fun autoRepair() {
+        if (_state.value.running || _state.value.repair.running) return
+        viewModelScope.launch {
+            _state.update { it.copy(repair = DiagnosticsRepairState(running = true)) }
+            val before = settings.current()
+            val conn = vpn.connectionState.value
+            val plan = SmartRepairPlanner.plan(before, connected = conn.status == ConnectionStatus.CONNECTED)
+            if (plan.applied.isNotEmpty() || plan.warnings.isNotEmpty()) {
+                settings.update { plan.settings }
+            }
+            val shouldReconnect = plan.reconnectRequired && conn.status == ConnectionStatus.CONNECTED && conn.server != null
+            if (shouldReconnect) {
+                vpn.connect(conn.server)
+            }
+            _state.update {
+                it.copy(
+                    repair = DiagnosticsRepairState(
+                        running = false,
+                        applied = plan.applied,
+                        warnings = plan.warnings,
+                        reconnectRequested = shouldReconnect
+                    )
+                )
+            }
+            run()
+        }
+    }
 
     fun run() {
         if (_state.value.running) return
@@ -150,7 +192,7 @@ class DiagnosticsViewModel @Inject constructor(
                     )
                 )
             }
-            _state.value = DiagnosticsUiState(running = true, sections = sections)
+            _state.value = DiagnosticsUiState(running = true, sections = sections, repair = _state.value.repair)
 
             coroutineScope {
                 val jobs = mutableListOf(

@@ -590,6 +590,12 @@ data class LicenseConfig(
     val deviceLabel: String = "",
     /** Allows signed offline grace tokens after a successful online validation. */
     val allowOfflineGrace: Boolean = true,
+    /** Optional no-code Ed25519 public key PEM used for local signed-serial/grace verification. */
+    val publicKeyPem: String = "",
+    /** Optional no-code key set JSON: {"kid":"-----BEGIN PUBLIC KEY-----..."}. */
+    val publicKeysJson: String = "",
+    /** Salt shared with the dashboard when binding grace tokens to this device. */
+    val deviceHashSalt: String = "v2rayez-client-device-binding-v1",
     val lastResult: String = "not_validated",
     val lastReason: String = "",
     val lastValidatedAt: Long = 0L,

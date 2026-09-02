@@ -42,18 +42,34 @@ class LicenseViewModel @Inject constructor(
 
     fun updateConfig(update: (LicenseConfig) -> LicenseConfig) {
         viewModelScope.launch {
-            settingsRepository.update { it.copy(license = update(it.license)) }
+            val previous = config.value
+            val next = update(previous)
+            if (licenseGraceRotationChanged(previous, next)) {
+                licenseRepository.clearGrace()
+            }
+            settingsRepository.update { it.copy(license = next) }
         }
     }
 
-    fun activate(serial: String, accountId: String, endpoint: String, deviceLabel: String) {
+    fun activate(
+        serial: String,
+        accountId: String,
+        endpoint: String,
+        deviceLabel: String,
+        publicKeyPem: String,
+        publicKeysJson: String,
+        deviceHashSalt: String
+    ) {
         if (_busy.value) return
         viewModelScope.launch {
             _busy.value = true
             val baseConfig = config.value.copy(
                 accountId = accountId.trim(),
                 validationUrl = endpoint.trim(),
-                deviceLabel = deviceLabel.trim()
+                deviceLabel = deviceLabel.trim(),
+                publicKeyPem = publicKeyPem.trim(),
+                publicKeysJson = publicKeysJson.trim(),
+                deviceHashSalt = deviceHashSalt.trim().ifBlank { "v2rayez-client-device-binding-v1" }
             )
             settingsRepository.update { it.copy(license = baseConfig) }
             val validation = licenseRepository.activate(serial, baseConfig)
@@ -84,13 +100,21 @@ class LicenseViewModel @Inject constructor(
                         lastReason = "serial_cleared",
                         lastValidatedAt = System.currentTimeMillis(),
                         expiresAt = "",
-                        offlineGraceUntil = ""
+                        offlineGraceUntil = "",
+                        lastServerTime = ""
                     )
                 )
             }
         }
         _result.value = null
     }
+
+    private fun licenseGraceRotationChanged(previous: LicenseConfig, next: LicenseConfig): Boolean =
+        previous.accountId != next.accountId ||
+            previous.validationUrl != next.validationUrl ||
+            previous.publicKeyPem != next.publicKeyPem ||
+            previous.publicKeysJson != next.publicKeysJson ||
+            previous.deviceHashSalt != next.deviceHashSalt
 
     private suspend fun persistResult(result: LicenseValidationResult) {
         settingsRepository.update {
@@ -100,7 +124,8 @@ class LicenseViewModel @Inject constructor(
                     lastReason = result.reason,
                     lastValidatedAt = result.checkedAt,
                     expiresAt = result.expiresAt,
-                    offlineGraceUntil = result.offlineGraceUntil
+                    offlineGraceUntil = result.offlineGraceUntil,
+                    lastServerTime = result.serverTime.ifBlank { it.license.lastServerTime }
                 )
             )
         }

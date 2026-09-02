@@ -451,6 +451,10 @@
     <string name="diag_title">عیب‌یابی</string>
     <string name="diag_running">در حال اجرا…</string>
     <string name="diag_run">اجرای عیب‌یابی</string>
+    <string name="diag_smart_repair">رفع هوشمند</string>
+    <string name="diag_repair_running">در حال رفع…</string>
+    <string name="diag_repair_no_changes">نیازی به تغییر محلی نبود.</string>
+    <string name="diag_repair_summary_format">رفع هوشمند: %1$d مورد اعمال شد، %2$d هشدار. %3$s</string>
     <string name="diag_no_results">هنوز نتیجه‌ای نیست</string>
     <string name="diag_copy_report">کپی گزارش</string>
     <string name="diag_copied">گزارش در کلیپ‌بورد کپی شد</string>
@@ -1026,6 +1030,10 @@
     <string name="license_account_id">شناسه حساب</string>
     <string name="license_validation_url">نشانی سرور اعتبارسنجی</string>
     <string name="license_device_label">برچسب دستگاه</string>
+    <string name="license_public_key_pem">کلید عمومی مجوز (PEM)</string>
+    <string name="license_public_keys_json">JSON مجموعه کلیدهای مجوز</string>
+    <string name="license_device_hash_salt">نمک هش دستگاه</string>
+    <string name="license_public_key_help">برای بررسی محلی سریال امضاشده و مهلت آفلاین لازم است. باید با کلید عمومی داشبورد و نمک دستگاه یکی باشد.</string>
     <string name="license_offline_grace">توکن مهلت آفلاین</string>
     <string name="license_offline_grace_sub">پس از اعتبارسنجی آنلاین، مهلت امضاشده آفلاین مجاز باشد</string>
     <string name="license_activate">فعال‌سازی</string>

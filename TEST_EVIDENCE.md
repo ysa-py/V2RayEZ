@@ -2370,3 +2370,24 @@ Observed:
 - `node tools/release_artifact_contract_gate.mjs` — passed.
 - `scripts/build-release-artifacts.sh --check` — passed.
 - `git diff --check` — passed.
+
+## Milestone 55 — Android No-Code Signed License Verification Controls
+- `bash 'V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/scripts/gates/string-key-parity.sh'` — passed with EN/FA/RU full string-key parity.
+- Android string XML parse for `values/strings.xml`, `values-fa/strings.xml`, and `values-ru/strings.xml` — passed.
+- `node tools/runtime_license_watchdog_gate.mjs` — passed with assertions for Android runtime public-key PEM/key-set JSON, device-hash salt, stale grace clearing, and last server-time persistence.
+- `node tools/v2rayez_identity_gate.mjs` — passed.
+- `node tools/release_artifact_contract_gate.mjs` — passed.
+- `scripts/build-release-artifacts.sh --check` — passed.
+- `git diff --check` — passed.
+- `bash ./gradlew testDebugUnitTest` inside the core V2RayEZ app folder — blocked by sandbox environment: `JAVA_HOME is not set and no 'java' command could be found in your PATH.`
+
+## Milestone 56 — Android Smart Diagnostics Auto-Repair
+- `node tools/android_smart_repair_gate.mjs` — passed.
+- `bash 'V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)/scripts/gates/string-key-parity.sh'` — passed with EN/FA/RU full string-key parity.
+- Android string XML parse for `values/strings.xml`, `values-fa/strings.xml`, and `values-ru/strings.xml` — passed.
+- `node tools/runtime_license_watchdog_gate.mjs` — passed.
+- `node tools/v2rayez_identity_gate.mjs` — passed.
+- `node tools/release_artifact_contract_gate.mjs` — passed.
+- `scripts/build-release-artifacts.sh --check` — passed.
+- `git diff --check` — passed.
+- `bash ./gradlew testDebugUnitTest` inside the core V2RayEZ app folder — blocked by sandbox environment: `JAVA_HOME is not set and no 'java' command could be found in your PATH.`

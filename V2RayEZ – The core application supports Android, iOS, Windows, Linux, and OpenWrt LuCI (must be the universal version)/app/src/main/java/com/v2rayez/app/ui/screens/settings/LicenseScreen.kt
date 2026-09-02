@@ -59,6 +59,9 @@ fun LicenseScreen(
     var accountId by remember { mutableStateOf(config.accountId) }
     var endpoint by remember { mutableStateOf(config.validationUrl) }
     var deviceLabel by remember { mutableStateOf(config.deviceLabel) }
+    var publicKeyPem by remember { mutableStateOf(config.publicKeyPem) }
+    var publicKeysJson by remember { mutableStateOf(config.publicKeysJson) }
+    var deviceHashSalt by remember { mutableStateOf(config.deviceHashSalt) }
     var initialized by remember { mutableStateOf(false) }
 
     LaunchedEffect(config) {
@@ -66,6 +69,9 @@ fun LicenseScreen(
             accountId = config.accountId
             endpoint = config.validationUrl
             deviceLabel = config.deviceLabel
+            publicKeyPem = config.publicKeyPem
+            publicKeysJson = config.publicKeysJson
+            deviceHashSalt = config.deviceHashSalt
             initialized = true
         }
     }
@@ -136,6 +142,47 @@ fun LicenseScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
                     VSpacer(8)
+                    OutlinedTextField(
+                        value = publicKeyPem,
+                        onValueChange = { publicKeyPem = it },
+                        label = { Text(stringResource(R.string.license_public_key_pem)) },
+                        placeholder = { Text("-----BEGIN PUBLIC KEY-----") },
+                        minLines = 2,
+                        maxLines = 5,
+                        keyboardOptions = KeyboardOptions(
+                            capitalization = KeyboardCapitalization.None,
+                            keyboardType = KeyboardType.Text
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    VSpacer(8)
+                    OutlinedTextField(
+                        value = publicKeysJson,
+                        onValueChange = { publicKeysJson = it },
+                        label = { Text(stringResource(R.string.license_public_keys_json)) },
+                        placeholder = { Text("{\"default\":\"-----BEGIN PUBLIC KEY-----...\"}") },
+                        minLines = 2,
+                        maxLines = 4,
+                        keyboardOptions = KeyboardOptions(
+                            capitalization = KeyboardCapitalization.None,
+                            keyboardType = KeyboardType.Text
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    VSpacer(8)
+                    OutlinedTextField(
+                        value = deviceHashSalt,
+                        onValueChange = { deviceHashSalt = it.trim() },
+                        label = { Text(stringResource(R.string.license_device_hash_salt)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Text(
+                        text = stringResource(R.string.license_public_key_help),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    VSpacer(8)
                     SettingSwitchRow(
                         icon = Icons.Filled.CloudDone,
                         title = stringResource(R.string.license_offline_grace),
@@ -146,7 +193,17 @@ fun LicenseScreen(
                     VSpacer(12)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Button(
-                            onClick = { viewModel.activate(serial, accountId, endpoint, deviceLabel) },
+                            onClick = {
+                                viewModel.activate(
+                                    serial,
+                                    accountId,
+                                    endpoint,
+                                    deviceLabel,
+                                    publicKeyPem,
+                                    publicKeysJson,
+                                    deviceHashSalt
+                                )
+                            },
                             enabled = !busy
                         ) { Text(stringResource(R.string.license_activate)) }
                         Spacer(Modifier.width(10.dp))
@@ -156,7 +213,10 @@ fun LicenseScreen(
                                     it.copy(
                                         accountId = accountId.trim(),
                                         validationUrl = endpoint.trim(),
-                                        deviceLabel = deviceLabel.trim()
+                                        deviceLabel = deviceLabel.trim(),
+                                        publicKeyPem = publicKeyPem.trim(),
+                                        publicKeysJson = publicKeysJson.trim(),
+                                        deviceHashSalt = deviceHashSalt.trim().ifBlank { "v2rayez-client-device-binding-v1" }
                                     )
                                 }
                             },

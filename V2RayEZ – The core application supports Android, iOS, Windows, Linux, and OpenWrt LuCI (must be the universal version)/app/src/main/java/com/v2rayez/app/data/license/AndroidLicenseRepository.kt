@@ -61,6 +61,7 @@ class AndroidLicenseRepository @Inject constructor(
         withContext(Dispatchers.IO) {
             val key = licenseKey.trim()
             if (key.isBlank()) return@withContext deny("empty_license", "Serial number is empty")
+            clearGrace()
             secureStore.put(KEY_LICENSE, key)
             val result = validate(config, forceServer = validationUrl(config).isNotBlank())
             if (!result.allowed) secureStore.remove(KEY_LICENSE)
@@ -94,8 +95,12 @@ class AndroidLicenseRepository @Inject constructor(
 
     fun clear() {
         secureStore.remove(KEY_LICENSE)
-        secureStore.remove(KEY_GRACE)
+        clearGrace()
         prefs.edit().remove(KEY_LAST_SERVER_TIME).apply()
+    }
+
+    fun clearGrace() {
+        secureStore.remove(KEY_GRACE)
     }
 
     fun hasActivatedLicense(): Boolean = secureStore.contains(KEY_LICENSE)
@@ -152,7 +157,7 @@ class AndroidLicenseRepository @Inject constructor(
     }
 
     private fun verifyLicenseToken(licenseKey: String, config: LicenseConfig): LicenseValidationResult {
-        val parsed = runCatching { verifyCompactToken(licenseKey, LICENSE_TOKEN_TYPE) }.getOrElse {
+        val parsed = runCatching { verifyCompactToken(licenseKey, LICENSE_TOKEN_TYPE, config) }.getOrElse {
             val message = it.message ?: "Serial signature verification failed"
             val reason = if (message.contains("public key", ignoreCase = true)) "license_not_configured" else "bad_signature"
             return deny(reason, message)
@@ -192,7 +197,7 @@ class AndroidLicenseRepository @Inject constructor(
     }
 
     private fun verifyGraceToken(token: String, config: LicenseConfig, licenseExpiresAt: String): LicenseValidationResult {
-        val parsed = runCatching { verifyCompactToken(token, GRACE_TOKEN_TYPE) }.getOrElse {
+        val parsed = runCatching { verifyCompactToken(token, GRACE_TOKEN_TYPE, config) }.getOrElse {
             val message = it.message ?: "Offline grace token is invalid"
             val reason = if (message.contains("public key", ignoreCase = true)) "license_not_configured" else "offline_grace_invalid"
             return deny(reason, message)
@@ -207,7 +212,7 @@ class AndroidLicenseRepository @Inject constructor(
         if (config.accountId.isNotBlank() && payload.optString("accountId", "") != config.accountId.trim()) {
             return deny("offline_grace_account_mismatch", "Offline grace token belongs to another account")
         }
-        if (payload.optString("deviceIdHash", "") != hashDeviceId(deviceId())) {
+        if (payload.optString("deviceIdHash", "") != hashDeviceId(deviceId(), config)) {
             return deny("offline_grace_device_mismatch", "Offline grace token belongs to another device")
         }
         val graceServerTime = parseInstant(payload.optString("serverTime", ""))
@@ -237,14 +242,14 @@ class AndroidLicenseRepository @Inject constructor(
 
     private data class ParsedToken(val header: JSONObject, val payload: JSONObject)
 
-    private fun verifyCompactToken(token: String, expectedType: String): ParsedToken {
+    private fun verifyCompactToken(token: String, expectedType: String, config: LicenseConfig): ParsedToken {
         val parts = token.split('.')
         require(parts.size == 3 && parts.none { it.isBlank() }) { "Invalid compact token format" }
         val header = JSONObject(String(base64UrlDecode(parts[0]), Charsets.UTF_8))
         val payload = JSONObject(String(base64UrlDecode(parts[1]), Charsets.UTF_8))
         require(header.optString("alg") == "EdDSA") { "Unsupported license algorithm" }
         require(header.optString("typ") == expectedType) { "Unexpected token type" }
-        val pem = publicKeyFor(header.optString("kid", "default"))
+        val pem = publicKeyFor(header.optString("kid", "default"), config)
             ?: throw IllegalStateException("License public key is not configured")
         BouncyCastleInstaller.ensureInstalled()
         val signature = Signature.getInstance("Ed25519", BC_PROVIDER)
@@ -264,22 +269,33 @@ class AndroidLicenseRepository @Inject constructor(
         return KeyFactory.getInstance("Ed25519", BC_PROVIDER).generatePublic(X509EncodedKeySpec(bytes))
     }
 
-    private fun publicKeyFor(kid: String): String? {
+    private fun publicKeyFor(kid: String, config: LicenseConfig): String? {
         val keys = linkedMapOf<String, String>()
-        val keysJson = BuildConfig.LICENSE_ED25519_PUBLIC_KEYS_JSON.trim()
-        if (keysJson.isNotBlank()) {
-            runCatching {
-                val json = JSONObject(keysJson)
-                val names = json.keys()
-                while (names.hasNext()) {
-                    val name = names.next()
-                    keys[name] = json.optString(name)
-                }
+        mergePublicKeys(BuildConfig.LICENSE_ED25519_PUBLIC_KEYS_JSON, keys)
+        val buildPem = BuildConfig.LICENSE_ED25519_PUBLIC_KEY_PEM.trim()
+        if (buildPem.isNotBlank()) keys.putIfAbsent("default", buildPem)
+
+        // No-code runtime configuration intentionally overlays build defaults so an enterprise
+        // dashboard can rotate license keys without shipping a new APK.
+        mergePublicKeys(config.publicKeysJson, keys)
+        val configuredPem = config.publicKeyPem.trim()
+        if (configuredPem.isNotBlank()) keys["default"] = configuredPem
+
+        return keys[kid] ?: keys["default"] ?: keys.values.firstOrNull()
+    }
+
+    private fun mergePublicKeys(rawJson: String, keys: MutableMap<String, String>) {
+        val keysJson = rawJson.trim()
+        if (keysJson.isBlank()) return
+        runCatching {
+            val json = JSONObject(keysJson)
+            val names = json.keys()
+            while (names.hasNext()) {
+                val name = names.next()
+                val pem = json.optString(name).trim()
+                if (pem.isNotBlank()) keys[name] = pem
             }
         }
-        val pem = BuildConfig.LICENSE_ED25519_PUBLIC_KEY_PEM.trim()
-        if (pem.isNotBlank()) keys.putIfAbsent("default", pem)
-        return keys[kid] ?: keys["default"] ?: keys.values.firstOrNull()
     }
 
     private fun validationUrl(config: LicenseConfig): String {
@@ -295,8 +311,9 @@ class AndroidLicenseRepository @Inject constructor(
         return generated
     }
 
-    private fun hashDeviceId(value: String): String {
-        val salt = BuildConfig.LICENSE_DEVICE_HASH_SALT.ifBlank { "v2rayez-client-device-binding-v1" }
+    private fun hashDeviceId(value: String, config: LicenseConfig): String {
+        val salt = config.deviceHashSalt.ifBlank { BuildConfig.LICENSE_DEVICE_HASH_SALT }
+            .ifBlank { "v2rayez-client-device-binding-v1" }
         val input = buildString {
             append("v2rayez-device")
             append(Char(0))
