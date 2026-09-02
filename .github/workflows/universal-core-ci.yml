@@ -1,4 +1,4 @@
-name: Universal-Core Release & Cross-Compilation
+name: "Release Pipeline"
 
 on:
   push:
@@ -26,7 +26,6 @@ on:
         default: false
 
 env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   CARGO_TERM_COLOR: always
 
 permissions:
@@ -211,7 +210,7 @@ jobs:
           submodules: recursive
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
