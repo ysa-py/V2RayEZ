@@ -38,6 +38,34 @@ real APK**:
 So the literal message is **container validation failure**, not the native code —
 the APK was structurally malformed before it could ever be installed.
 
+### 1.1b Native build failure — "is incompatible with armelf_linux_eabi"
+
+**Symptom (CI):** `build-android` fails with
+
+```
+ld.lld: error: .../target/aarch64-linux-android/release/libv2rayez_universal_core.a(...rcgu.o) is incompatible with armelf_linux_eabi
+ninja: build stopped: subcommand failed.
+C++ build system [build] failed ... ninja -C .../.cxx/Debug/.../armeabi-v7a v2rayez_core
+```
+
+**Root cause:** `app/build.gradle` declared `externalNativeBuild { cmake { ... } }`,
+and `jni/CMakeLists.txt` searched for staticlibs with **`aarch64-linux-android`
+hard-coded first**. For every ABI build (including `armeabi-v7a`), CMake found and
+linked the **arm64** staticlib, which is incompatible with `armelf_linux_eabi`.
+
+**Why it "worked" before:** the old pipeline ran Gradle, which failed here, then the
+old `manual-apk-fallback.sh` quietly produced a **dummy/naive APK**, masking the
+error and yielding the `Archive is not a ZIP archive` failures the user saw.
+
+**Fix:** the CI `Build Android JNI native libraries` step already compiles the
+**correct per-ABI** `libv2rayez_core.so` (from the matching Rust staticlib via NDK
+clang) straight into `src/main/jniLibs/<abi>/`. The redundant `externalNativeBuild`
+step (which picked the wrong-arch staticlib and duplicated the `.so`) is removed,
+so Gradle packages the correct pre-built `jniLibs/*.so` for `arm64-v8a`,
+`armeabi-v7a` and `x86_64` — **no native library is dropped**. As a defensive
+measure, `jni/CMakeLists.txt` is also made ABI-aware, mapping `ANDROID_ABI` to the
+correct Cargo target triple.
+
 ### 1.2 MIUI / Android OS install & rootless warnings
 
 - **Split/XAPK confusion:** the build emitted `arm64-v8a`, `armeabi-v7a`,

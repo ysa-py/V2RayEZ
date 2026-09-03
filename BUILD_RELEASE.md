@@ -176,7 +176,11 @@ Uses `universal-core/ci/build-target.sh` which handles:
 
 - **Gradle project**: `universal-core/android/` - minimal app with `MainActivity.kt`, `VpnService.kt`, `NativeBridge.java`, `CoreStateViewModel.kt`
 - **JNI**: `android/jni/v2rayez_core_jni.c` bridges Java to Rust FFI
-- **CMake**: Links staticlib + `log` to `libv2rayez_core.so` per ABI with `-O3 -flto`
+- **Native libs**: built per-ABI by the CI `Build Android JNI native libraries`
+  step (NDK clang linking the matching Rust staticlib with `-O3 -flto`) into
+  `app/src/main/jniLibs/<abi>/libv2rayez_core.so`. `app/build.gradle` packages
+  these directly (the redundant `externalNativeBuild`/CMake step that linked the
+  wrong-arch staticlib for `armeabi-v7a` is removed).
 - **Single universal fat APK**: ABI splitting is disabled; `ndk.abiFilters` keeps
   `arm64-v8a`, `armeabi-v7a`, `x86_64` so ONE standalone `V2RayEZ-<version>-universal.apk`
   is produced (no separate split APKs to confuse MIUI/rootless installers).
