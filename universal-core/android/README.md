@@ -4,12 +4,14 @@ This directory now produces **installable APKs** with multi-ABI support, not jus
 
 ## Outputs
 
-- `V2RayEZ-<version>-arm64-v8a.apk` - aarch64 (most modern devices)
-- `V2RayEZ-<version>-armeabi-v7a.apk` - armv7 (older devices)
-- `V2RayEZ-<version>-x86_64.apk` - x86_64 (emulator, Chromebook)
-- `V2RayEZ-<version>-universal.apk` - Universal APK containing all ABIs
+- `V2RayEZ-<version>-universal.apk` - **single universal fat APK** containing all
+  ABIs (`arm64-v8a`, `armeabi-v7a`, `x86_64`). No per-ABI split APKs are emitted;
+  a single cohesive standalone APK avoids MIUI/rootless split-install problems.
 
-All APKs are built via Gradle + NDK r26c.
+All APKs are built via Gradle + NDK r26c, then **zipaligned (`zipalign -v -p 4`)**,
+signed with **APK Signature Scheme v1 + v2 + v3 + v4** using a **4096-bit RSA**
+release keystore, and verified with `apksigner verify --verbose` and
+`tools/apk_structural_validate.py`. See `scripts/build-apk-fix.sh`.
 
 ## Architecture Mapping
 
@@ -35,13 +37,15 @@ Job `build-android` in `release.yml` runs on `ubuntu-latest`:
      -o app/src/main/jniLibs/arm64-v8a/libv2rayez_core.so
    ```
    (Repeated for each ABI)
-4. Gradle build with retry:
+4. Automated build + structural fix + align + sign (single universal APK):
    ```bash
-   ./gradlew assembleDebug --stacktrace
-   ./gradlew assembleRelease --stacktrace || echo "Release needs signing, using debug"
+   bash scripts/build-apk-fix.sh --out dist-android-final
    ```
-5. Rename to `V2RayEZ-<version>-<abi>.apk`
-6. Generate SHA256SUMS.txt
+   This builds the universal fat APK, validates the binary AXML manifest + real
+   ELF `.so` (rejects dummy libs), runs `zipalign -v -p 4`, generates a 4096-bit
+   RSA release keystore, signs with v1+v2+v3+v4, and verifies.
+5. Output: `dist-android-final/V2RayEZ-<version>-universal.apk` + `SHA256SUMS.txt`
+   + `VERIFICATION_REPORT.md`.
 
 ## JNI Layer
 
@@ -66,6 +70,13 @@ ls dist-android/*.apk
 ## Verification
 
 ```bash
+# Signature (must list v1, v2, v3, v4 as verified)
+apksigner verify --verbose V2RayEZ-2.0.0-universal.apk
+# Structure (binary manifest, real ELF .so for all ABIs, classes.dex present)
+python3 tools/apk_structural_validate.py V2RayEZ-2.0.0-universal.apk --verbose
+# Alignment
+zipalign -c -v -p 4 V2RayEZ-2.0.0-universal.apk
+# Checksums
 sha256sum -c SHA256SUMS.txt
 # Install
 adb install V2RayEZ-2.0.0-universal.apk

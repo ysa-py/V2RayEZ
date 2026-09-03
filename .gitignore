@@ -1,0 +1,24 @@
+# ── Generated / ephemeral outputs (never commit these) ────────────────
+dist-android/
+dist-android-final/
+dist-*/
+*.log
+*.idsig
+*.keystore
+*.pass
+*.jks
+
+# Kotlin / Gradle
+.gradle/
+build/
+*/build/
+!**/src/**/build/
+local.properties
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Local tooling caches
+.vscode/
+.idea/

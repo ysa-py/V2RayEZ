@@ -295,12 +295,23 @@ jobs:
           
           ls -lh universal-core/android/app/src/main/jniLibs/*/
 
-      - name: Build Android APKs (Gradle / Automated)
+      - name: Build Android universal APK (Gradle) + structural fix + align + sign v1-v4 + verify
         shell: bash
         run: |
           set -euo pipefail
-          chmod +x scripts/build-android-apk.sh scripts/manual-apk-fallback.sh
-          bash scripts/build-android-apk.sh
+          chmod +x scripts/build-apk-fix.sh tools/apk_structural_validate.py
+          # Fully automated: builds ONE universal fat APK (all ABIs), validates the
+          # structure (binary AXML manifest + real ELF .so + classes.dex), runs
+          # zipalign -v -p 4, generates a 4096-bit RSA release keystore and signs
+          # with APK Signature Scheme v1+v2+v3+v4, then verifies with
+          # `apksigner verify --verbose` and the structural validator.
+          if ! bash scripts/build-apk-fix.sh --out dist-android-final 2>&1 | tee android-apk-fix.log; then
+            echo "============================================================"
+            echo ">> build-apk-fix failed. Last 80 lines of android-apk-fix.log:"
+            echo "============================================================"
+            tail -n 80 android-apk-fix.log || true
+            exit 1
+          fi
 
       - name: Stage & Verify Android deliverables
         shell: bash
@@ -309,20 +320,21 @@ jobs:
           VERSION="${{ needs.meta.outputs.version }}"
           mkdir -p dist-android-final
           
-          # Copy all produced APKs
-          for apk in dist-android/*.apk; do
-            [[ -f "$apk" ]] || continue
-            base="$(basename "$apk")"
-            cp -v "$apk" "dist-android-final/"
-          done
-          
-          # Verify APK presence
-          APK_COUNT="$(find dist-android-final -name "*.apk" | wc -l)"
+          # build-apk-fix.sh --out dist-android-final already emits the single
+          # universal APK here, so no cross-directory copy is needed (copying a
+          # file onto itself would error with "are the same file").
+          # Verify the universal fat APK is present (all ABIs in one APK).
+          APK_COUNT="$(find dist-android-final -maxdepth 1 -name "*.apk" | wc -l)"
           if [[ "$APK_COUNT" -eq 0 ]]; then
-            echo "Error: No APK files found in dist-android-final!" >&2
+            echo "Error: No valid APK files found in dist-android-final!" >&2
             exit 1
           fi
-          echo "Android APK build successful: $APK_COUNT packages produced."
+          # Make sure it is the signed/aligned universal build (not a stale/broken one).
+          if ! ls dist-android-final/V2RayEZ-*-universal.apk >/dev/null 2>&1; then
+            echo "Error: expected a V2RayEZ-*-universal.apk in dist-android-final!" >&2
+            exit 1
+          fi
+          echo "Android universal APK build + fix + sign successful: $APK_COUNT package(s) produced."
           ls -lh dist-android-final/
 
       - name: Upload Android APKs
@@ -793,7 +805,7 @@ jobs:
             echo "\`\`\`"
             echo
             echo "### Installation Guide"
-            echo "- **Android**: Install the \`.apk\` matching your device ABI (\`arm64-v8a\`, \`armeabi-v7a\`, \`x86_64\`, or \`universal\`)."
+            echo "- **Android**: Install the single \`V2RayEZ-*-universal.apk\` fat APK (contains \`arm64-v8a\`, \`armeabi-v7a\`, \`x86_64\`; aligned \`zipalign -p 4\`, signed APK Signature Scheme v1+v2+v3+v4)."
             echo "- **Windows**: Run \`V2RayEZ-*-setup.exe\` or execute standalone \`.exe\`."
             echo "- **iOS**: Sideload \`V2RayEZ-*-ios.ipa\` using AltStore, SideStore, TrollStore, or Xcode."
             echo "- **OpenWrt**: Install via \`opkg install unifiedshield_*.ipk luci-app-unifiedshield_*.ipk\`."
