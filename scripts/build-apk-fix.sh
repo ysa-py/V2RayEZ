@@ -280,7 +280,7 @@ find_universal_apk() {
   if [ -n "$ADHOC_APK" ] && [ -f "$ADHOC_APK" ]; then
     echo "$ADHOC_APK"; return 0
   fi
-  find "$ANDROID_PROJECT/app/build/outputs/apk" -iname "*universal*.apk" 2>/dev/null | head -n1
+  find "$ANDROID_PROJECT/app/build/outputs/apk" -iname "*universal*.apk" 2>/dev/null | head -n1 || true
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -378,11 +378,18 @@ verify() {
   python3 "$PY_VALIDATE" "$apk" --verbose 2>&1 | tee -a "$LOG" \
     || die "Structural validation FAILED for $apk."
   log "=== VERIFICATION: zipinfo ==="
+  # Avoid `head` in a pipefail pipeline (head exits after N lines -> SIGPIPE to
+  # upstream -> pipeline returns non-zero -> set -e aborts). Buffer to a temp
+  # file first, then slice it.
+  local ztmp
+  ztmp="$(mktemp)"
   if command -v zipinfo >/dev/null 2>&1; then
-    zipinfo -v "$apk" 2>&1 | grep -E "compression method|file name|extra field|central directory" | head -n 40 | tee -a "$LOG"
+    zipinfo -v "$apk" > "$ztmp" 2>&1 || true
   else
-    unzip -l "$apk" | tee -a "$LOG"
+    unzip -l "$apk" > "$ztmp" 2>&1 || true
   fi
+  grep -E "compression method|file name|extra field|central directory|entries" "$ztmp" | head -n 40 | tee -a "$LOG" || true
+  rm -f "$ztmp"
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
