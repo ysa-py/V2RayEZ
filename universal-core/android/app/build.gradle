@@ -31,14 +31,12 @@ android {
         }
     }
 
-    splits {
-        abi {
-            enable true
-            reset()
-            include 'arm64-v8a', 'armeabi-v7a', 'x86_64'
-            universalApk true
-        }
-    }
+    // Single, cohesive Universal standalone fat APK: all ABIs are packaged into
+    // ONE .apk (arm64-v8a, armeabi-v7a, x86_64) via ndk.abiFilters above. ABI
+    // splitting is intentionally disabled so the release never emits separate
+    // per-ABI splits that confuse MIUI/rootless installers; the single universal
+    // APK is what gets aligned, signed (v1+v2+v3+v4) and verified.
+    // (Splits removed for a single universal artifact.)
 
     signingConfigs {
         debug {
@@ -76,7 +74,11 @@ android {
             jniDebuggable true
         }
         release {
-            minifyEnabled true
+            // minifyEnabled = false guarantees ZERO functionality is stripped or
+            // obfuscated away. The JNI bridge (NativeBridge / CoreStateViewModel)
+            // and all reflection-driven feature paths stay intact. Shrinking is
+            // intentionally disabled to honor the "no feature deletion" rule.
+            minifyEnabled false
             shrinkResources false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             signingConfig signingConfigs.release
