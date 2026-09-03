@@ -1,5 +1,6 @@
 package com.v2rayez.app.ui.screens.home
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -46,6 +47,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -368,15 +370,15 @@ private fun IranGeoCta(onOpenAssets: () -> Unit) {
 @Composable
 private fun HomeWordmark() {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Box(
+        Image(
+            painter = painterResource(R.drawable.ic_logo_v),
+            contentDescription = stringResource(R.string.app_name),
             modifier = Modifier
                 .size(30.dp)
                 .clip(RoundedCornerShape(9.dp))
-                .background(Brush.linearGradient(accentGradient(MaterialTheme.colorScheme.primary))),
-            contentAlignment = Alignment.Center
-        ) {
-            Text("V", color = Color.White, fontWeight = FontWeight.Black)
-        }
+                .background(Brush.linearGradient(accentGradient(MaterialTheme.colorScheme.primary)))
+                .padding(5.dp)
+        )
         Text("V2RayEz", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
     }
 }

@@ -39,3 +39,4 @@ body{min-width:0}
 [dir=rtl] .app-header strong{letter-spacing:0}.modal-sheet{background:#f5f8fd;color:var(--ink)}
 .status-pill.connected .status-dot{background:#20b98a;box-shadow:0 0 0 4px #20b98a22}.status-pill.connecting .status-dot,.status-pill.scanning .status-dot,.status-pill.reconnecting .status-dot,.status-pill.disconnecting .status-dot{background:#4f78ed;box-shadow:0 0 0 4px #4f78ed22;animation:breathe 1.2s ease-in-out infinite}
 #pingValue{font-weight:700}
+.brand-mark,.about-mark{background-image:url(v2rayez-logo.svg);background-size:cover;background-position:center;background-repeat:no-repeat;color:transparent;text-indent:100%;overflow:hidden;white-space:nowrap}

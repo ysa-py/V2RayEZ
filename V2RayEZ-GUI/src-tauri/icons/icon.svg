@@ -1,23 +1,32 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="V2RayEZ">
   <defs>
-    <linearGradient id="surface" x1="72" y1="54" x2="444" y2="466" gradientUnits="userSpaceOnUse">
+    <linearGradient id="surface" x1="72" y1="40" x2="440" y2="470" gradientUnits="userSpaceOnUse">
       <stop stop-color="#111827"/>
       <stop offset="1" stop-color="#050816"/>
     </linearGradient>
-    <linearGradient id="signal" x1="156" y1="378" x2="372" y2="130" gradientUnits="userSpaceOnUse">
+    <linearGradient id="vFill" x1="148" y1="118" x2="364" y2="404" gradientUnits="userSpaceOnUse">
       <stop stop-color="#22D3A7"/>
-      <stop offset=".5" stop-color="#2AA8FF"/>
+      <stop offset=".45" stop-color="#2AA8FF"/>
       <stop offset="1" stop-color="#7C5CFF"/>
     </linearGradient>
-    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
-      <feGaussianBlur stdDeviation="12" result="blur"/>
-      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    <linearGradient id="signal" x1="126" y1="270" x2="386" y2="200" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#22D3A7"/>
+      <stop offset=".5" stop-color="#7EE9FF"/>
+      <stop offset="1" stop-color="#7C5CFF"/>
+    </linearGradient>
+    <filter id="glow" x="-28%" y="-28%" width="156%" height="156%">
+      <feGaussianBlur stdDeviation="10" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
     </filter>
   </defs>
   <rect width="512" height="512" rx="116" fill="url(#surface)"/>
-  <path d="M256 91 407 178v156L256 421 105 334V178L256 91Z" fill="none" stroke="#FFFFFF" stroke-opacity=".1" stroke-width="12"/>
-  <path d="M149 343 241 145c6-13 24-13 30 0l92 198h-58l-19-43h-71l-19 43h-47Zm87-92h29l-14-35-15 35Z" fill="url(#signal)" filter="url(#glow)"/>
-  <path d="M129 245c35-42 78-63 127-63s92 21 127 63" fill="none" stroke="#F8FAFC" stroke-width="18" stroke-linecap="round" opacity=".94"/>
-  <circle cx="129" cy="245" r="13" fill="#22D3A7"/>
-  <circle cx="383" cy="245" r="13" fill="#7C5CFF"/>
+  <rect x="16" y="16" width="480" height="480" rx="102" fill="none" stroke="#F8FAFC" stroke-opacity=".14" stroke-width="3"/>
+  <path d="M256 92 394 172v168L256 420 118 340V172L256 92Z" fill="none" stroke="#FFFFFF" stroke-opacity=".12" stroke-width="10"/>
+  <path d="M150 132h62l44 214 44-214h62L278 404h-44Z" fill="url(#vFill)" filter="url(#glow)"/>
+  <path d="M126 262c40-48 88-72 130-72s90 24 130 72" fill="none" stroke="url(#signal)" stroke-width="16" stroke-linecap="round"/>
+  <circle cx="126" cy="262" r="13" fill="#22D3A7"/>
+  <circle cx="386" cy="262" r="13" fill="#7C5CFF"/>
 </svg>

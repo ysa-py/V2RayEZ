@@ -149,3 +149,15 @@ No iOS screen redesign was performed; the existing MICAFP SwiftUI form structure
 | Added dashboard AI Gateway tab/panel | `MICAFP/dashboard/src/app/page.tsx`, `src/components/ai-provider-gateway-panel.tsx` | Additive no-code provider test panel next to existing AI orchestration tab | lint/build blocked by missing dependencies |
 
 No existing dashboard tab/module was intentionally removed.
+
+---
+
+## 11) Milestone 67 enterprise identity UI impact
+
+| Change | Files | UI impact | Status |
+|---|---|---|---|
+| Replaced donor Aether "A" desktop icon with V2RayEZ enterprise V mark | `brand/`, `V2RayEZ-GUI/src-tauri/icons/**`, Android launcher art | Identity-only; no navigation/routes removed | brand gate added |
+| Home wordmark uses `ic_logo_v` instead of a plain letter | `HomeScreen.kt` | Additive visual; Home layout unchanged | complete |
+| Desktop drawer/about marks use enterprise SVG | `V2RayEZ-GUI/src/styles.css`, `src/v2rayez-logo.svg` | Compact nav preserved; letter V remains in HTML for a11y/tests | complete |
+
+No existing screen, tab, or capability was removed. Donor project logos outside product surfaces were left in place.

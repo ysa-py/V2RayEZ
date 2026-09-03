@@ -14,6 +14,7 @@ const base = 'V2RayEZ – The core application supports Android, iOS, Windows, L
 const planner = `${base}/app/src/main/java/com/v2rayez/app/data/diagnostics/SmartRepairPlanner.kt`;
 const diagnosticsVm = `${base}/app/src/main/java/com/v2rayez/app/ui/viewmodel/DiagnosticsViewModel.kt`;
 const diagnosticsUi = `${base}/app/src/main/java/com/v2rayez/app/ui/screens/tools/ToolScreens.kt`;
+const vpnController = `${base}/app/src/main/java/com/v2rayez/app/data/repository/RealVpnController.kt`;
 
 for (const id of [
   'ENABLE_TUN_DNS',
@@ -46,6 +47,10 @@ assertContains(diagnosticsUi, 'R.string.diag_smart_repair');
 assertContains(diagnosticsUi, 'viewModel::autoRepair');
 assertContains(diagnosticsUi, 'R.string.diag_repair_summary_format');
 assertContains(diagnosticsUi, 'Smart repair: ${state.repair.applied.size} applied');
+
+assertContains(vpnController, 'SmartRepairPlanner.plan');
+assertContains(vpnController, 'startLicensedForegroundService');
+assert.ok(!/delete(Server|Subscription|All|\()/i.test(text(vpnController)), `${vpnController}: connect preflight must not delete user data`);
 
 for (const rel of ['values/strings.xml', 'values-fa/strings.xml', 'values-ru/strings.xml']) {
   const path = `${base}/app/src/main/res/${rel}`;
