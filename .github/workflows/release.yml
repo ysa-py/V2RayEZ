@@ -320,17 +320,18 @@ jobs:
           VERSION="${{ needs.meta.outputs.version }}"
           mkdir -p dist-android-final
           
-          # build-apk-fix.sh already produced the single universal APK + report.
-          for apk in dist-android-final/*.apk; do
-            [[ -f "$apk" ]] || continue
-            base="$(basename "$apk")"
-            cp -v "$apk" "dist-android-final/"
-          done
-          
-          # Verify APK presence (must be exactly the universal fat APK).
-          APK_COUNT="$(find dist-android-final -name "*.apk" | wc -l)"
+          # build-apk-fix.sh --out dist-android-final already emits the single
+          # universal APK here, so no cross-directory copy is needed (copying a
+          # file onto itself would error with "are the same file").
+          # Verify the universal fat APK is present (all ABIs in one APK).
+          APK_COUNT="$(find dist-android-final -maxdepth 1 -name "*.apk" | wc -l)"
           if [[ "$APK_COUNT" -eq 0 ]]; then
             echo "Error: No valid APK files found in dist-android-final!" >&2
+            exit 1
+          fi
+          # Make sure it is the signed/aligned universal build (not a stale/broken one).
+          if ! ls dist-android-final/V2RayEZ-*-universal.apk >/dev/null 2>&1; then
+            echo "Error: expected a V2RayEZ-*-universal.apk in dist-android-final!" >&2
             exit 1
           fi
           echo "Android universal APK build + fix + sign successful: $APK_COUNT package(s) produced."
