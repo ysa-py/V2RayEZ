@@ -2554,3 +2554,11 @@ Observed:
 - `node tools/requirement_map_gate.mjs` — passed.
 - `git diff --check` — passed.
 - `cargo test --manifest-path universal-core/Cargo.toml` — blocked because this sandbox has no Rust toolchain: `cargo: command not found`.
+
+## Milestone 67 — Enterprise identity and automatic connect preflight
+- `node tools/v2rayez_brand_gate.mjs`
+- `node tools/android_smart_repair_gate.mjs`
+- `node tools/v2rayez_identity_gate.mjs`
+- `node tools/requirement_map_gate.mjs`
+- `bash -n scripts/rasterize-brand-icons.sh`
+- `git diff --check`

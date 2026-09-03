@@ -100,7 +100,13 @@ class RealVpnController @Inject constructor(
             stateHolder.setError(it.message ?: "Settings unavailable")
             return
         }
-        val decision = runCatching { licenseRepository.enforce(settings.license) }.getOrElse {
+        // Silent, non-destructive preflight: normalize local DNS/ports/MTU/AI fallback so
+        // a connect attempt is not doomed by inconsistent settings. Never deletes servers.
+        val repair = SmartRepairPlanner.plan(settings, connected = false)
+        if (repair.applied.isNotEmpty()) {
+            runCatching { settingsRepository.update { repair.settings } }
+        }
+        val decision = runCatching { licenseRepository.enforce(repair.settings.license) }.getOrElse {
             LicenseValidationResult(
                 allowed = false,
                 result = "DENIED",

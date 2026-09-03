@@ -1,6 +1,6 @@
 # V2RayEZ Universal Requirement Map
 
-Status date: 2026-09-02. This document is the live, explicit map from the reviewed donor repos and the user's engineering directive into the unified V2RayEZ codebase. It is not a claim that the whole universal product is finished.
+Status date: 2026-09-03. This document is the live, explicit map from the reviewed donor repos and the user's engineering directive into the unified V2RayEZ codebase. It is not a claim that the whole universal product is finished.
 
 Legend:
 
@@ -30,6 +30,7 @@ Legend:
 | V2RayEZ Android UI/UX remains canonical | Android Compose app only | PARTIAL — recent Android features were added without donor UI |
 | Do not port AetherGUI/EasySNI/MICAFP/MSN/UAC UI trees | Design/identity gates | PARTIAL — `tools/v2rayez_identity_gate.mjs` protects identity |
 | New screens must use V2RayEZ language | Android Compose app components | PARTIAL |
+| Enterprise V2RayEZ V mark (not donor A/Aether letter) | `brand/`, Android launcher, desktop icons, dashboard favicon, browser extensions | MERGED M67; donor project logos intentionally preserved |
 | iOS/Windows/Linux/OpenWrt native shells share design tokens/terminology | future `apps/ios`, desktop, LuCI, shared tokens | SOURCE-PRESENT / not complete |
 | LuCI/iOS containers may be platform-native but content remains V2RayEZ | OpenWrt/iOS shells | SOURCE-PRESENT / not complete |
 
@@ -202,6 +203,7 @@ Legend:
 
 | Requirement line | Target home | Status |
 |---|---|---|
+| Automatic non-destructive Smart Repair preflight before Android tunnel start | `RealVpnController` + `SmartRepairPlanner` | MERGED M67; still never deletes servers/subscriptions |
 | Watchdog debounce / one-shot reconnect | Android VPN/service | PARTIAL |
 | Circuit breaker/retry/fallback chains | dashboard/core selector | PARTIAL |
 | Weighted RR + EWMA + affinity | core/adaptive routing | PARTIAL |
