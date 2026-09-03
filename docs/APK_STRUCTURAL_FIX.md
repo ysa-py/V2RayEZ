@@ -132,6 +132,30 @@ correct Cargo target triple.
 </manifest>
 ```
 
+### 1.1c Remaining CI failures found & fixed during verification
+
+Running the actual GitHub Actions `Release Pipeline` uncovered three additional,
+scripted-only bugs (all in `scripts/build-apk-fix.sh` / `release.yml`), each
+fixed in follow-up commits:
+
+1. **`verify` returned a corrupted path.** `FINAL="$(align_and_sign "$APK")"`
+   captured `zipalign -v` / `apksigner sign --verbose` stdout (via `tee`) into
+   the function's return value, so `verify "$FINAL"` received a multi-line
+   garbage path → "No such file". Fixed by returning the result via the global
+   `APK_FINAL` and writing tool noise directly to the log file.
+2. **SIGPIPE under `pipefail` in the `zipinfo` verification.** `zipinfo -v … |
+   grep … | head -n 40 | tee` — once `head` read 40 lines it SIGPIPEd `grep`
+   (exit 141) and `set -e` aborted right after the zipinfo output. Fixed by
+   buffering to a temp file and guarding with `|| true`.
+3. **`Stage & Verify` self-copy.** `build-apk-fix.sh --out dist-android-final`
+   writes the APK there directly, so the old `cp "$apk" dist-android-final/`
+   copied a file onto itself (`are the same file`). Replaced with an idempotent
+   presence check.
+
+After these, `build-android` **passes**: a single real
+`V2RayEZ-<version>-universal.apk` (~12 MB, 862 entries, 3 native ABIs) is built,
+structurally validated, zipaligned, signed v1+v2+v3+v4 and verified.
+
 > **Package identity.** The canonical package is **`com.v2rayez.core`** and it is
 > owned by the Gradle build (`namespace` + `applicationId`), because the Java
 > sources, the JNI symbol prefixes (`Java_com_v2rayez_core_NativeBridge_*`) and
