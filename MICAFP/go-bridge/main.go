@@ -5,6 +5,13 @@
 // calls to manage the Yggdrasil node, and it provides a SOCKS5 proxy
 // interface for tunneling traffic through the mesh.
 //
+// Ported to yggdrasil-go v0.5.x:
+//   * `src/tuntap` + `tuntap.Tuntap` were removed upstream; the modern module
+//     exposes `src/tun` + `tun.TunAdapter`.
+//   * `core.New(...)` constructs AND starts the node (there is no `Start()`).
+//   * `SendTo` / `Dial` were removed; packet egress uses `(*Core).WriteTo`.
+//   * Peer management takes `*url.URL` instead of raw strings.
+//
 // Build as c-archive:
 //   CGO_ENABLED=1 go build -buildmode=c-archive -o libshield_bridge.a .
 //
@@ -27,12 +34,16 @@ extern void FreeCString(char* s);
 import "C"
 
 import (
+	"crypto/ed25519"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net"
+	"net/url"
 	"os"
 	"os/signal"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -40,9 +51,12 @@ import (
 	"time"
 	"unsafe"
 
+	gologme "github.com/gologme/log"
+	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 	"github.com/yggdrasil-network/yggdrasil-go/src/core"
+	"github.com/yggdrasil-network/yggdrasil-go/src/ipv6rwc"
 	"github.com/yggdrasil-network/yggdrasil-go/src/multicast"
-	"github.com/yggdrasil-network/yggdrasil-go/src/tuntap"
+	"github.com/yggdrasil-network/yggdrasil-go/src/tun"
 )
 
 // ---------------------------------------------------------------------------
@@ -52,12 +66,13 @@ import (
 var (
 	node        *core.Core
 	multicastIF *multicast.Multicast
-	tap         *tuntap.Tuntap
+	tap         *tun.TunAdapter
 	socks5Ln    net.Listener
 	mu          sync.Mutex
 	running     bool
 	nodeAddr    string
 	peers       map[string]PeerInfo
+	logger      *log.Logger
 )
 
 // PeerInfo tracks a Yggdrasil peer.
@@ -68,15 +83,15 @@ type PeerInfo struct {
 	LastSeen  time.Time `json:"last_seen"`
 }
 
-// NodeConfig mirrors the Yggdrasil configuration.
+// NodeConfig mirrors the simple configuration accepted by the C API.
 type NodeConfig struct {
-	Listen         []string `json:"listen"`
-	Peers          []string `json:"peers"`
-	PrivateKey     string   `json:"private_key,omitempty"`
-	IfName         string   `json:"if_name"`
-	IfMTU          int      `json:"if_mtu"`
-	Encryption     string   `json:"encryption"`
-	MulticastListen bool    `json:"multicast_listen"`
+	Listen          []string `json:"listen"`
+	Peers           []string `json:"peers"`
+	PrivateKey      string   `json:"private_key,omitempty"`
+	IfName          string   `json:"if_name"`
+	IfMTU           int      `json:"if_mtu"`
+	Encryption      string   `json:"encryption"`
+	MulticastListen bool     `json:"multicast_listen"`
 }
 
 // ---------------------------------------------------------------------------
@@ -105,46 +120,88 @@ func StartNode(configJSON *C.char, configLen C.int) {
 
 	// Set defaults
 	if len(cfg.Listen) == 0 {
-		cfg.Listen = []string{"tcp://0.0.0.0:0"}
+		cfg.Listen = []string{"tls://0.0.0.0:0"}
 	}
 	if cfg.IfName == "" {
-		cfg.IfName = "tun0"
+		cfg.IfName = "auto"
 	}
 	if cfg.IfMTU == 0 {
-		cfg.IfMTU = 65535
+		cfg.IfMTU = 0 // let Yggdrasil pick the platform default
+	}
+	logger = gologme.New(os.Stderr, "", gologme.Flags())
+
+	// Build a v0.5.x config. `GenerateConfig()` supplies sane defaults and a
+	// fresh identity; `GenerateSelfSignedCertificate()` is run by the config
+	// postprocessor so `core.New` can use cfg.Certificate.
+	ycfg := config.GenerateConfig()
+	ycfg.AdminListen = "none"
+	ycfg.Listen = append([]string{}, cfg.Listen...)
+	ycfg.Peers = append([]string{}, cfg.Peers...)
+	ycfg.IfName = cfg.IfName
+	if cfg.IfMTU > 0 {
+		ycfg.IfMTU = uint64(cfg.IfMTU)
+	}
+	if cfg.PrivateKey != "" {
+		if raw, err := hex.DecodeString(cfg.PrivateKey); err == nil && len(raw) == ed25519.PrivateKeySize {
+			ycfg.PrivateKey = config.KeyBytes(raw)
+			if err := ycfg.GenerateSelfSignedCertificate(); err != nil {
+				log.Printf("[Bridge] failed to rebuild certificate from supplied key: %v", err)
+				return
+			}
+		} else {
+			log.Printf("[Bridge] supplied private key is not valid ed25519 hex; using generated identity")
+		}
 	}
 
-	// Create Yggdrasil node state
-	state := &core.Configuration{}
-	state.Listen = cfg.Listen
-	state.Peers = cfg.Peers
-	state.IfName = cfg.IfName
-	state.IfMTU = cfg.IfMTU
+	// Core options: listeners, peers and group password.
+	coreOpts := []core.SetupOption{}
+	for _, addr := range ycfg.Listen {
+		coreOpts = append(coreOpts, core.ListenAddress(addr))
+	}
+	for _, peer := range ycfg.Peers {
+		coreOpts = append(coreOpts, core.Peer{URI: peer})
+	}
+	if ycfg.GroupPassword != "" {
+		coreOpts = append(coreOpts, core.GroupPassword(ycfg.GroupPassword))
+	}
 
-	// Initialize the core
 	var err error
-	node, err = core.New(state)
+	node, err = core.New(ycfg.Certificate, logger, coreOpts...)
 	if err != nil {
 		log.Printf("[Bridge] Failed to create Yggdrasil node: %v", err)
+		node = nil
 		return
 	}
 
-	// Start the node
-	if err := node.Start(); err != nil {
-		log.Printf("[Bridge] Failed to start Yggdrasil node: %v", err)
-		return
-	}
-
-	// Get our address
+	// The v0.5.x core starts as part of construction; there is no Start().
 	nodeAddr = node.Address().String()
 	log.Printf("[Bridge] Yggdrasil node started, address: %s", nodeAddr)
 
-	// Set up multicast discovery if enabled
+	// Set up multicast discovery if enabled.
 	if cfg.MulticastListen {
-		multicastIF = &multicast.Multicast{Core: node}
-		if err := multicastIF.Start(); err != nil {
-			log.Printf("[Bridge] Multicast start failed: %v", err)
+		mult := []multicast.SetupOption{
+			multicast.MulticastInterface{
+				Regex:    regexp.MustCompile(".*"),
+				Beacon:   true,
+				Listen:   true,
+				Priority: 0,
+			},
 		}
+		multicastIF, err = multicast.New(node, logger, mult...)
+		if err != nil {
+			log.Printf("[Bridge] Multicast start failed: %v", err)
+			multicastIF = nil
+		}
+	}
+
+	// Set up the TUN adapter (also started by tun.New in v0.5.x).
+	tap, err = tun.New(ipv6rwc.NewReadWriteCloser(node), logger,
+		tun.InterfaceName(ycfg.IfName),
+		tun.InterfaceMTU(ycfg.IfMTU),
+	)
+	if err != nil {
+		log.Printf("[Bridge] TUN setup failed: %v", err)
+		tap = nil
 	}
 
 	// Initialize peer tracking
@@ -185,6 +242,11 @@ func StopNode() {
 		multicastIF.Stop()
 	}
 
+	// Stop TUN adapter
+	if tap != nil {
+		tap.Stop()
+	}
+
 	// Stop the node
 	if node != nil {
 		node.Stop()
@@ -192,6 +254,9 @@ func StopNode() {
 
 	running = false
 	nodeAddr = ""
+	multicastIF = nil
+	tap = nil
+	node = nil
 	log.Println("[Bridge] Node stopped")
 }
 
@@ -223,9 +288,14 @@ func SendPacket(dest *C.char, destLen C.int, data *C.char, dataLen C.int) C.int 
 
 	destStr := C.GoStringN(dest, destLen)
 	dataBytes := C.GoBytes(unsafe.Pointer(data), dataLen)
+	meshAddr := &net.IPAddr{IP: net.ParseIP(destStr)}
+	if meshAddr.IP == nil {
+		log.Printf("[Bridge] SendPacket: invalid destination %q", destStr)
+		return -1
+	}
 
-	// Send via Yggdrasil
-	if err := node.SendTo(destStr, dataBytes); err != nil {
+	// v0.5.x packet egress: core nets are addressed by Yggdrasil IPv6.
+	if _, err := node.WriteTo(dataBytes, meshAddr); err != nil {
 		log.Printf("[Bridge] SendPacket error: %v", err)
 		return -1
 	}
@@ -324,18 +394,14 @@ func handleSOCKS5Connection(conn net.Conn) {
 	port := int(buf[n-2])<<8 | int(buf[n-1])
 	target := net.JoinHostPort(targetAddr, strconv.Itoa(port))
 
-	// Connect through Yggdrasil
-	var remote net.Conn
-	if node != nil {
-		remote, err = node.Dial(targetAddr, strconv.Itoa(port))
-	}
-	if err != nil || remote == nil {
-		// Fallback to direct connection
-		remote, err = net.DialTimeout("tcp", target, 10*time.Second)
-		if err != nil {
-			conn.Write([]byte{0x05, 0x05, 0x00, 0x01, 0, 0, 0, 0, 0, 0}) // Connection refused
-			return
-		}
+	// Note: the removed v0.4.x `(*Core).Dial` stream API is not present in
+	// v0.5.x. Use the direct TCP path here; full mesh-TCP SOCKS forwarding is
+	// tracked as a follow-up. Outbound packet egress is available via the
+	// exported SendPacket (`(*Core).WriteTo`).
+	remote, err := net.DialTimeout("tcp", target, 10*time.Second)
+	if err != nil {
+		conn.Write([]byte{0x05, 0x05, 0x00, 0x01, 0, 0, 0, 0, 0, 0}) // Connection refused
+		return
 	}
 	defer remote.Close()
 
@@ -371,7 +437,11 @@ func AddPeer(peerAddr string) error {
 	if node == nil {
 		return fmt.Errorf("node not running")
 	}
-	return node.AddPeer(peerAddr, "")
+	u, err := url.Parse(peerAddr)
+	if err != nil {
+		return err
+	}
+	return node.AddPeer(u, "")
 }
 
 // RemovePeer disconnects from a Yggdrasil peer.
@@ -379,10 +449,14 @@ func RemovePeer(peerAddr string) error {
 	if node == nil {
 		return fmt.Errorf("node not running")
 	}
-	return node.RemovePeer(peerAddr, "")
+	u, err := url.Parse(peerAddr)
+	if err != nil {
+		return err
+	}
+	return node.RemovePeer(u, "")
 }
 
-// GetPeers returns the list of connected peers.
+// GetPeers returns the list of configured peers.
 func GetPeers() []PeerInfo {
 	mu.Lock()
 	defer mu.Unlock()
@@ -407,11 +481,11 @@ func main() {
 
 	if os.Args[1] == "--generate-config" {
 		cfg := NodeConfig{
-			Listen:         []string{"tcp://0.0.0.0:0"},
-			Peers:          []string{},
-			IfName:         "tun0",
-			IfMTU:          65535,
-			Encryption:     "nacl",
+			Listen:          []string{"tls://0.0.0.0:0"},
+			Peers:           []string{},
+			IfName:          "auto",
+			IfMTU:           0,
+			Encryption:      "nacl",
 			MulticastListen: true,
 		}
 		data, _ := json.MarshalIndent(cfg, "", "  ")
