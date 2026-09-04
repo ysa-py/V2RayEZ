@@ -585,6 +585,45 @@ Real artifact synthesis is still gated to `workflow_dispatch`/tag runs with
 `build=true` (and real signing secrets for iOS), so no fake SHA-256 hashes are
 claimed in this report.
 
+### Full-build trigger attempt (2026-09-05)
+
+A `workflow_dispatch` run with `signed=true` was attempted against
+`Vor Phase 3 Native Tests & Binaries` on `arena/01a06de6-v2rayez`, but the
+session token is not permitted to dispatch workflows:
+
+```
+could not create workflow dispatch event: HTTP 403: Resource not accessible by integration
+```
+
+The same token also cannot read signing secrets (`gh secret list` → HTTP 403).
+Therefore the full `build-android`, `build-ios`, `build-desktop`,
+`build-openwrt`, `checksum-ledger` execution and a genuine `SHA256SUMS.txt`
+cannot be produced from this session. This is a permission/secrets boundary,
+not a pipeline defect; no fabricated hashes are claimed.
+
+To run the real signed build from a properly-permissioned context:
+
+1. Grant the acting GitHub token `workflow: write` / `actions: write`.
+2. Configure the release secrets (Android: `VOR_ANDROID_KEYSTORE_B64`,
+   `VOR_ANDROID_KEYSTORE_PASSWORD`, `VOR_ANDROID_KEY_ALIAS`,
+   `VOR_ANDROID_KEY_PASSWORD`; iOS: `APPLE_TEAM_ID`,
+   `APPLE_PROVISIONING_PROFILE`, plus the export/signing material the taper
+   workflow uses).
+3. Dispatch with `signed=true`:
+
+   ```bash
+   gh workflow run "Vor Phase 3 Native Tests & Binaries" \
+     --ref arena/01a06de6-v2rayez -f signed=true
+   # or, without a signing token:
+   gh workflow run "Vor Phase 3 Native Tests & Binaries" \
+     --ref arena/01a06de6-v2rayez -f signed=false
+   ```
+
+4. After a successful `checksum-ledger` job, copy the uploaded
+   `SHA256SUMS.txt` into `CONTINUATION_REPORT.md` and
+   `MERGE_TRACEABILITY.md` (with the run ID), and update the Phase 3 rows to
+   `signed artifacts produced`.
+
 ### Local evidence now
 
 - `node tools/vor_phase3_pipeline_gate.mjs` → **PASS**.
