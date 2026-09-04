@@ -410,49 +410,16 @@ if [ -z "$APK" ]; then
 fi
 [ -f "$APK" ] || die "No APK found to process."
 
-# Always structurally validate BEFORE aligning/signing (fail fast).
-log "=== Pre-flight structural validation ==="
-python3 "$PY_VALIDATE" "$APK" 2>&1 | tee -a "$LOG" || die "Pre-flight structural validation FAILED. The supplied APK is not a valid installable APK."
-
-APK_FINAL=""
-align_and_sign "$APK"
-[ -n "$APK_FINAL" ] && [ -f "$APK_FINAL" ] || die "align_and_sign did not produce a signed APK."
-FINAL="$APK_FINAL"
-verify "$FINAL"
-
-# Final naming + checksum + report.
 VERSION="$(sed -n 's/^version[[:space:]]*=[[:space:]]*"\(.*\)"/\1/p' "$ROOT/universal-core/Cargo.toml" | head -n1 || true)"
-VERSION="${VERSION:-2.0.0}"
-OUT_APK="$DIST/V2RayEZ-${VERSION}-universal.apk"
-cp -f "$FINAL" "$OUT_APK"
-if [ -f "$FINAL.idsig" ]; then cp -f "$FINAL.idsig" "$OUT_APK.idsig"; fi
-rm -f "$DIST"/*-aligned.apk "$DIST"/*-final.apk "$DIST"/_merged-universal.apk 2>/dev/null || true
-(cd "$DIST" && sha256sum -- *.apk > SHA256SUMS.txt 2>/dev/null || sha256sum -- *.apk 2>/dev/null | tee SHA256SUMS.txt)
+VERSION="${VERSION:-0.1.0}"
 
-cat > "$DIST/VERIFICATION_REPORT.md" <<'REPORT'
-# V2RayEZ Universal APK — Packaging Verification Report
-
-This APK was produced & verified by `scripts/build-apk-fix.sh`:
-
-- **One universal fat APK** containing all native ABIs (arm64-v8a, armeabi-v7a,
-  x86_64) — split APKs are not emitted separately.
-- **`android:extractNativeLibs="true"`** set, so native libs are extracted at
-  install time (no page-alignment install parse errors on MIUI / rootless).
-- **`android:installLocation="auto"`** set for broad storage compatibility.
-- Native libs are **real ELF .so** (never dummy/plain text).
-- **zipalign -v -p 4** applied (4-byte page alignment).
-- Signed with **APK Signature Scheme v1 + v2 + v3 + v4** using a **4096-bit RSA**
-  release keystore (not the debug keystore).
-- Verified with **`apksigner verify --verbose`** and the structural validator.
-
-## Verification commands
-```bash
-apksigner verify --verbose V2RayEZ-2.0.0-universal.apk
-zipinfo -v V2RayEZ-2.0.0-universal.apk | head
-python3 tools/apk_structural_validate.py V2RayEZ-2.0.0-universal.apk --verbose
-sha256sum -c SHA256SUMS.txt
-```
-REPORT
-
-log "DONE. Final universal APK: $OUT_APK"
-ls -lh "$DIST" | tee -a "$LOG"
+# Delegate ALL of structural-validation + unpack/repair + zipalign -p 4 +
+# 4096-bit RSA keystore + apksigner v1+v2+v3+v4 + verify + SHA256 + report to
+# the canonical, self-contained fix_apk.sh pipeline. This keeps a single source
+# of truth for the align/sign/verify stage so the two entry points can never
+# diverge.
+log "Delegating align + sign + verify to scripts/fix_apk.sh ..."
+exec bash "$ROOT/scripts/fix_apk.sh" \
+  --apk "$APK" \
+  --out "$DIST" \
+  --version "$VERSION"

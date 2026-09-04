@@ -12,6 +12,7 @@ pub mod ffi;
 pub mod ui_state;
 pub mod license;
 pub mod route_matrix;
+pub mod smart_route;
 
 // Connectivity test suites live under `tests/connectivity/` but are written as
 // in-crate `#[cfg(test)] mod` blocks using `crate::...` paths. Cargo only
@@ -38,6 +39,10 @@ pub use route_matrix::{
     build_route_matrix, final_abba_candidates, route_matrix_score, select_winner, RouteDnsPreset,
     RouteEdge, RouteFragmentPreset, RouteMatrixCandidate, RouteMatrixPhase, RouteMatrixResult,
     RouteMatrixSettingsOverride, RouteProbeSample, FINAL_ABBA_ORDER, ROUTE_MATRIX_MTU_PRESETS,
+};
+pub use smart_route::{
+    front_rank, AntiDpiRecommendation, DpiSignals, DynamicFront, EvasionProfile, IranCarrier,
+    SmartRouteDecision,
 };
 
 pub use ffi::{v2rayez_core_init, v2rayez_core_shutdown, v2rayez_core_status, v2rayez_core_start,

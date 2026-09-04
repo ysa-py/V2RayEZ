@@ -175,6 +175,6 @@ class SniScanner @Inject constructor() {
         const val DEFAULT_TRIES = 2
         const val DEFAULT_TIMEOUT_MS = 4000
         const val UNREACHABLE_MS = 9999
-        const val USER_AGENT = "Mozilla/5.0 V2RayEz-SNI"
+        const val USER_AGENT = "Mozilla/5.0 V2RayEZ-SNI"
     }
 }

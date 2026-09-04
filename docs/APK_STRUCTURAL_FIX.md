@@ -102,13 +102,14 @@ correct Cargo target triple.
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
     <application
         android:allowBackup="true"
         android:extractNativeLibs="true"   <!-- .so extracted at install; no page-alignment install errors -->
         android:icon="@mipmap/ic_launcher"
-        android:label="@string/app_name"
+        android:label="@string/app_name"   <!-- = V2RayEZ -->
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.AppCompat.Light.DarkActionBar">
@@ -123,11 +124,21 @@ correct Cargo target triple.
             </intent-filter>
         </activity>
 
-        <!-- Preserved 100%: the single real VpnService (foreground by nature). -->
+        <!-- Preserved 100%: the single real VpnService (foreground by nature).
+             Android 14 (API 34) requires an explicit foregroundServiceType; we use
+             specialUse + the subtype property, exactly like the full V2RayEZ app. -->
         <service
             android:name=".VpnService"
+            android:foregroundServiceType="specialUse"
             android:permission="android.permission.BIND_VPN_SERVICE"
-            android:exported="false" />
+            android:exported="false">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="VPN tunnel through the V2RayEZ Universal Core" />
+            <intent-filter>
+                <action android:name="android.net.VpnService" />
+            </intent-filter>
+        </service>
     </application>
 </manifest>
 ```
@@ -187,7 +198,8 @@ Two parts, both committed under `scripts/` and `tools/`:
 
 | File | Purpose |
 |------|---------|
-| `scripts/build-apk-fix.sh` | **Fully automated** pipeline: validate toolchain → verify real ELF `.so` per ABI (never dummy) → build one universal fat APK with Gradle → structural validation → `zipalign -v -p 4` → generate a **4096-bit RSA** release keystore → sign with **v1+v2+v3+v4** via `apksigner` → `apksigner verify --verbose` → emit `SHA256SUMS.txt` + `VERIFICATION_REPORT.md`. |
+| `scripts/fix_apk.sh` | **Canonical, fully automated** align + sign + verify pipeline: optional `--unpack` container repair → structural validation → `zipalign -v -p 4` → load/generate a **4096-bit RSA** release keystore → sign with **v1+v2+v3+v4** via `apksigner` (with automatic v4 fallback) → `apksigner verify --verbose` + `zipalign -c 4` + structural validator → emit `SHA256SUMS.txt` + `VERIFICATION_REPORT.md`. Also checks `installLocation="auto"` / `extractNativeLibs="true"` in the final binary manifest. |
+| `scripts/build-apk-fix.sh` | Builds the one universal fat APK with Gradle (validating real ELF `.so` per ABI, never dummy) then **delegates** all alignment + signing + verification to `scripts/fix_apk.sh`, so the two entry points share a single source of truth. |
 | `tools/apk_structural_validate.py` | "Magnifying glass" validator: checks ZIP magic, **binary** AXML manifest, `resources.arsc`, `classes.dex`, real ELF `.so` for every ABI, and per-entry compression. Exit code 0 = PASS, 1 = FAIL. |
 | `scripts/manual-apk-fallback.sh` | Strict last-resort assembler — **never** emits a text manifest or dummy `.so`; if it cannot produce a real APK it deletes stale broken packages and **fails loudly** rather than shipping a corrupt APK. |
 | `scripts/build-android-apk.sh` | Backwards-compatible wrapper that delegates to `build-apk-fix.sh`. |
@@ -197,6 +209,9 @@ Run it (fully automated, no manual steps):
 ```bash
 # On a machine with JDK 17 + Android SDK + build-tools + NDK:
 bash scripts/build-apk-fix.sh --out dist-android-final
+
+# ...or drive the align/sign/verify stage directly against an existing APK:
+bash scripts/fix_apk.sh --apk path/to/input.apk --out dist-android-final
 ```
 
 `ANDROID_HOME` / `ANDROID_SDK_ROOT` are auto-detected. The keystore is created
@@ -241,3 +256,27 @@ so a malformed `Archive is not a ZIP archive` package can never be published.
   and the full JNI/FFI bridge are untouched.
 - No feature, UI component, permission (needed for a VPN foreground service), or
   native binary is removed. The changes are purely in **packaging & identity**.
+
+## 6. Iran anti-censorship / AI anti-DPI / dynamic-domain engine (smart_route)
+
+The universal-core now also ships a **dependency-free, shared smart-route brain**
+(`universal-core/src/smart_route.rs`) that is **purely additive** — it does not
+remove, stub, or alter any existing feature, native lib, or FFI symbol. Platform
+shells probe the network, then ask this engine for a decision; it returns a
+serialisable `SmartRouteDecision` (carrier + blocked-score + evasion profile +
+dynamic front rotation + heuristic).
+
+- **Iran anti-censorship**: per-carrier classification (`IranCarrier`): MCI /
+  Hamrahe Aval, Irancell (MTN), Rightel, TCI / fixed, other Iranian ISP.
+- **Anti-DPI**: a signal-driven escalation ladder (`DpiSignals` →
+  `EvasionProfile`): Direct → uTLS Chrome → TLS record fragmentation →
+  Domain fronting / SNI rotation → Stealth (tls-in-tls + padding) → Pluggable
+  transport. Confidence and blocked-score are bounded in `[0,1]` and never panic.
+- **Dynamic domain**: an Iran-reachable front/CDN rotation set (`DynamicFront`,
+  `iran_default()` with ArvanCloud, Cloudflare, Derak, jsDelivr, …) ranked
+  best-first by health + preference, used as the dynamic SNI/front rotation for
+  domain fronting.
+- Tested with `#[cfg(test)]` unit tests (clean→Direct, SNI block→DomainFront,
+  throttle→Pluggable, high blocked→Stealth, moderate→uTLS/Frag, front ranking,
+  carrier detection, boundedness, serde round-trip) — verified by the
+  `smart_route_core_gate` and run in CI `cargo test`.

@@ -92,7 +92,7 @@ class V2RayTileService : TileService() {
         val state = stateHolder.connectionState.value
         val connected = state.status == ConnectionStatus.CONNECTED
         tile.state = if (connected) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
-        tile.label = "V2RayEz"
+        tile.label = "V2RayEZ"
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             tile.subtitle = com.v2rayez.app.data.widget.VpnWidgetUpdater.tileSubtitle(
                 this,

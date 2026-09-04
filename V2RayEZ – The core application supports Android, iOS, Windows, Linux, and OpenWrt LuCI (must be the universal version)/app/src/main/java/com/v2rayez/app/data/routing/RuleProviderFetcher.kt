@@ -80,7 +80,7 @@ object RuleProviderFetcher {
                 connectTimeout = 15000
                 readTimeout = 20000
                 instanceFollowRedirects = false
-                setRequestProperty("User-Agent", "V2RayEz")
+                setRequestProperty("User-Agent", "V2RayEZ")
             }
             try {
                 val code = conn.responseCode

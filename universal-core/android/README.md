@@ -11,7 +11,11 @@ This directory now produces **installable APKs** with multi-ABI support, not jus
 All APKs are built via Gradle + NDK r26c, then **zipaligned (`zipalign -v -p 4`)**,
 signed with **APK Signature Scheme v1 + v2 + v3 + v4** using a **4096-bit RSA**
 release keystore, and verified with `apksigner verify --verbose` and
-`tools/apk_structural_validate.py`. See `scripts/build-apk-fix.sh`.
+`tools/apk_structural_validate.py`. The canonical, fully automated align + sign +
+verify pipeline is `scripts/fix_apk.sh` (it also performs structural repair /
+`--unpack` for corrupt containers and verifies `installLocation="auto"` +
+`extractNativeLibs="true"` in the final binary manifest). `scripts/build-apk-fix.sh`
+builds the universal APK and delegates to it.
 
 ## Architecture Mapping
 

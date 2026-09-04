@@ -147,6 +147,8 @@ jobs:
           missing=0
           for required in \
             scripts/build-android-apk.sh \
+            scripts/build-apk-fix.sh \
+            scripts/fix_apk.sh \
             scripts/build-ios-ipa.sh \
             scripts/build-ios-xcframework.sh \
             scripts/build-openwrt-ipk.sh \
