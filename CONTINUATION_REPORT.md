@@ -533,12 +533,14 @@ yggdrasil-go v0.5.8` carries its own correct module graph; the corrupt block was
 removed from `MICAFP/go-bridge/go.mod`.
 
 This could not be repaired fully in the sandbox (`proxy.golang.org` is
-unreachable here), so the native-tests step also runs `go mod download all`
-before `go test ./...` in every discovered module: the runner resolves and
-verifies the real module graph and records the required sums, and a
-missing/unreachable dependency or bad sum still fails the module. This is a
-fail-closed fetch, not a placeholder — the sums are produced by Go from real
-remote modules and are re-verified on every run.
+unreachable here), so the native-tests step also runs `go mod tidy` before
+`go test ./...` in every discovered module: the runner resolves and verifies
+the real module graph and records the required requires/sums, and a
+missing/unreachable dependency or bad checksum still fails the module. This is
+a fail-closed resolution, not a placeholder — the sums are produced by Go from
+real remote modules and are re-verified on every run. A failed Go step also
+emits its first 120 lines as `::error::` annotations so the exact compiler/resolver
+diagnostic is visible even when log artifacts cannot be downloaded.
 
 ### Local evidence now
 

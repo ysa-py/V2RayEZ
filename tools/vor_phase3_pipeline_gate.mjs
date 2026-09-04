@@ -50,9 +50,9 @@ const required = [
   // Native validation must be part of the pipeline.
   'cargo test --workspace --all-targets',
   'cargo test --workspace --all-targets --features "std,post-quantum-lab"',
-  // Go modules without a committed go.sum still need their real module graph
-  // materialized before tests; the fetch itself is fail-closed.
-  'go mod download all',
+  // Go modules without a correct go.mod/go.sum still need their real module graph
+  // materialized before tests; the resolution itself is fail-closed.
+  'go mod tidy',
   'go test ./...',
   './gradlew testDebugUnitTest',
   // Toolchain provisioning on the specific runners.

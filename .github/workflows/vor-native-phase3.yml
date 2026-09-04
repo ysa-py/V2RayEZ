@@ -150,25 +150,35 @@ jobs:
           # Discover every real Go module in the tree rather than hard-coding a
           # fallible list; nested third-party modules are included.
           mapfile -t mods < <(find . -name go.mod -not -path '*/node_modules/*' -printf '%h\n' | sort)
-          failed=()
           if [[ "${#mods[@]}" -eq 0 ]]; then
             echo "::error::no go.mod found; Go test coverage cannot be verified" >&2
             exit 1
           fi
+          stage=0
           for mod in "${mods[@]}"; do
-            echo "── go mod download all + go test ./... in $mod"
-            # Some Go modules in this tree do not ship a committed go.sum yet.
-            # Downloading resolves/verifies the real module graph and records the
-            # required sums; this is still fail-closed because a missing/unreachable
-            # dependency or an existing bad sum aborts the module.
-            if ! ( cd "$mod" && go mod download all && go test ./... ); then
-              failed+=("$mod")
+            echo "── go mod tidy + go test ./... in $mod"
+            # Some Go modules in this tree do not ship a correct, complete
+            # go.mod/go.sum yet (the corrupted hand-copied indirect block was a
+            # real CI failure). `go mod tidy` lets Go resolve and verify the
+            # real module graph, then writes only the correct requires/sums in
+            # the runner. It is still fail-closed: a missing/unreachable
+            # dependency or an existing bad checksum aborts the module.
+            if ! ( cd "$mod" && go mod tidy && go test ./... ) >"go-module.log" 2>&1; then
+              # Surface the actual Go diagnostics in the job annotation; this is
+              # the only reliable way to inspect a failed native step when log
+              # artifacts cannot be downloaded (e.g. from a restricted runner).
+              echo "::error::Go test failure in $mod"
+              sed -n '1,120p' go-module.log | sed 's/^/::error::  /'
+              tail -n 120 go-module.log
+              stage=1
+              break
             fi
           done
-          if [[ "${#failed[@]}" -gt 0 ]]; then
-            echo "::error::Go test failure in: ${failed[*]}" >&2
+          if [[ "$stage" == "1" ]]; then
+            rm -f go-module.log
             exit 1
           fi
+          rm -f go-module.log
           echo "All Go modules passed (${#mods[@]} modules)."
 
       - name: Android Kotlin unit tests (testDebugUnitTest)
