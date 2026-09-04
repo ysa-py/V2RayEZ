@@ -5,16 +5,19 @@
   Package identity is owned by the Gradle build (namespace/applicationId =
   "com.v2rayez.core") so that the Java sources, JNI symbol prefixes
   (Java_com_v2rayez_core_NativeBridge_*) and the manifest stay in perfect
-  sync. Adding a redundant `package` attribute here is deprecated by AGP 8+
-  and only produces a build warning, so it is intentionally omitted.
+  sync. A redundant `package` attribute is deprecated by AGP 8+ and only
+  produces a build warning, so it is intentionally omitted. The application
+  label is "V2RayEZ" (module heading: "V2RayEZ Universal Core").
 
-  Corrected/standardized attributes:
-    * android:installLocation="auto"      -> works from any storage location
-    * android:extractNativeLibs="true"    -> .so are extracted at install time,
-                                             avoiding page-alignment install
-                                             parse errors on MIUI / any OS
-    * android:label="V2RayEZ"            -> consistent label everywhere
-    * All services/activities preserved 100% (zero functional deletion)
+  Corrected / standardized attributes:
+    * android:installLocation="auto"      -> installable from any storage location
+    * android:extractNativeLibs="true"   -> .so extracted at install time, avoiding
+                                             page-alignment install parse errors on
+                                             MIUI / rootless installers
+    * android:foregroundServiceType="specialUse"
+                                           -> correct Android 14 (API 34) foreground
+                                             service declaration for the VPN core
+    * All activities / services / features preserved 100% (zero deletion).
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
@@ -25,6 +28,7 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
     <application
@@ -46,14 +50,25 @@
             </intent-filter>
         </activity>
 
-        <!-- Preserved 100%: VpnService. It is the single real service; it is a
-             foreground service by nature (BIND_VPN_SERVICE) and the
-             FOREGROUND_SERVICE_DATA_SYNC permission keeps the tunnel alive on
-             Android 14+ (API 34). No other feature/service is removed. -->
+        <!--
+          Preserved 100%: VpnService. It is the single real service; it is a
+          foreground service by nature (BIND_VPN_SERVICE) and the
+          FOREGROUND_SERVICE_SPECIAL_USE + dataSync declarations keep the tunnel
+          alive on Android 14+ (API 34) without a MissingForegroundServiceType
+          crash. No other feature/service is removed.
+        -->
         <service
             android:name=".VpnService"
+            android:foregroundServiceType="specialUse"
             android:permission="android.permission.BIND_VPN_SERVICE"
-            android:exported="false" />
+            android:exported="false">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="VPN tunnel through the V2RayEZ Universal Core" />
+            <intent-filter>
+                <action android:name="android.net.VpnService" />
+            </intent-filter>
+        </service>
 
     </application>
 

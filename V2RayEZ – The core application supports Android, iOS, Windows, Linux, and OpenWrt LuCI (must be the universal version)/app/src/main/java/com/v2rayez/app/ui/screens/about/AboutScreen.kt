@@ -81,7 +81,7 @@ fun AboutScreen(onBack: () -> Unit, onDonate: () -> Unit) {
                 Text("V", color = Color.White, style = MaterialTheme.typography.displayLarge, fontWeight = FontWeight.Black)
             }
             VSpacer(14)
-            Text("V2RayEz", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+            Text("V2RayEZ", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
             Text(BuildConfig.VERSION_NAME, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             VSpacer(10)
             Text(

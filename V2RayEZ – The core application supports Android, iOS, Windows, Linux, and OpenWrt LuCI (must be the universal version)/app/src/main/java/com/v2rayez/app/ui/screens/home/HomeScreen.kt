@@ -379,7 +379,7 @@ private fun HomeWordmark() {
                 .background(Brush.linearGradient(accentGradient(MaterialTheme.colorScheme.primary)))
                 .padding(5.dp)
         )
-        Text("V2RayEz", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+        Text("V2RayEZ", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
     }
 }
 
