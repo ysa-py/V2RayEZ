@@ -38,7 +38,7 @@
 - **Apple XCFramework:** `universal-core/apple/` (module map + Swift `NativeBridge.swift` / `ObservableGlue.swift`)
 - **Windows:** `universal-core/windows/` (C++ RAII header + C# `V2RayEZCore.cs` P/Invoke)
 - **OpenWrt:** `universal-core/openwrt/` (init.d + UCI config + `ffi_validate.sh`)
-- **UI Glue:** `V2RayEZ-GUI/src-tauri/src/ui_state_glue.rs`; `universal-core/android/.../CoreStateViewModel.kt`; `apple/Swift/ObservableGlue.swift`
+- **UI Glue:** `V2RayEZ-GUI/src-tauri/src/ui_state_glue.rs`; `universal-core/android/.../CoreStateViewModel.java`; `apple/Swift/ObservableGlue.swift`
 
 ## Release Profile (LTO + Minimal Size)
 

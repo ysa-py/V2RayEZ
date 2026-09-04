@@ -6,8 +6,13 @@ public class NativeBridge {
     public native String coreStatus(long handle);
     public native String coreStart(long handle, String requestJson);
     public native String coreStop(long handle);
-    /* Memory ownership: all String results from coreStart/coreStatus/coreStop
-       are Java String copies; the underlying native char* is freed by JNI
-       before return (see jni implementation). For full FFI parity, expose
-       a freeNativeString helper if passing raw pointers back to Java. */
+    /**
+     * FFI parity counterpart of v2rayez_free_string. JNI-managed String results
+     * from coreStart/coreStatus/coreStop never need it — the JNI layer copies
+     * them into Java Strings and frees the native char* before returning.
+     * This method exists so raw-pointer helpers added in the future have a
+     * declared Java entry point matching the JNI implementation (keeping the
+     * Java declaration and the JNI symbol table in lock-step).
+     */
+    public native void freeString(String s);
 }

@@ -56,7 +56,7 @@ Job `build-android` in `release.yml` runs on `ubuntu-latest`:
 - `jni/v2rayez_core.h` - FFI header
 - `jni/v2rayez_core_jni.c` - JNI bridge that calls `v2rayez_core_init`, `v2rayez_core_start`, etc., and frees strings via `v2rayez_free_string`
 - `src/com/v2rayez/core/NativeBridge.java` - Java wrapper loading `libv2rayez_core.so`
-- `src/com/v2rayez/core/CoreStateViewModel.kt` - Kotlin ViewModel binding FFI to LiveData
+- `src/com/v2rayez/core/CoreStateViewModel.java` - Java ViewModel binding FFI to LiveData
 
 ## Local Build
 

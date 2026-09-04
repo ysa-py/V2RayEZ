@@ -6,6 +6,8 @@ plugins {
     id 'org.jetbrains.kotlin.android' version '1.9.22' apply false
 }
 
-task clean(type: Delete) {
-    delete rootProject.buildDir
+// Gradle 8+: `rootProject.buildDir` is deprecated (emits a deprecation
+// warning); the build-directory location is provided by `layout` instead.
+tasks.register('clean', Delete) {
+    delete rootProject.layout.buildDirectory
 }

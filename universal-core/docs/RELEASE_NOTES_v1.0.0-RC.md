@@ -33,7 +33,7 @@
 
 6. **UI Integration Glue**
    - `ui_state.rs`: `CoreUIStateMachine` with async `std::thread` polling.
-   - Tauri commands (`ui_state_glue.rs`), Kotlin `CoreStateViewModel.kt`, Swift `ObservableGlue.swift`.
+   - Tauri commands (`ui_state_glue.rs`), Java `CoreStateViewModel.java`, Swift `ObservableGlue.swift`.
 
 7. **Artifact Verification**
    - `scripts/verify-artifacts.sh`: symbol + binary + CI + profile checks.

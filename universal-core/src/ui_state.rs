@@ -7,6 +7,7 @@
 //! dropped via `v2rayez_core_shutdown` only by the owning manager.
 
 use std::ffi::{c_void, CStr, CString};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
@@ -41,6 +42,9 @@ pub struct CoreUIStateMachine {
     poll_handle: Arc<Mutex<Option<JoinHandle<()>>>>,
     poll_interval_ms: u64,
     last_status: Arc<Mutex<Option<String>>>,
+    /// Cooperative stop flag for the background status-poll thread. The thread
+    /// observes this every loop iteration; `stop_polling` sets it and joins.
+    poll_stop: Arc<AtomicBool>,
 }
 
 impl CoreUIStateMachine {
@@ -51,6 +55,7 @@ impl CoreUIStateMachine {
             poll_handle: Arc::new(Mutex::new(None)),
             poll_interval_ms,
             last_status: Arc::new(Mutex::new(None)),
+            poll_stop: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -120,10 +125,16 @@ impl CoreUIStateMachine {
         // re-plumbing the Arc. Nothing is removed.
         let _state_clone = self.state.clone();
         let last_clone = self.last_status.clone();
+        let stop_flag = self.poll_stop.clone();
         let interval = self.poll_interval_ms;
+        // Reset the cooperative stop flag BEFORE publishing the new thread so
+        // a start→stop→start cycle always spawns a live poller.
+        stop_flag.store(false, Ordering::SeqCst);
         let jh = thread::spawn(move || {
             loop {
                 thread::sleep(Duration::from_millis(interval));
+                // Cooperative, prompt shutdown: checked every iteration.
+                if stop_flag.load(Ordering::SeqCst) { return; }
                 let h_guard = handle_clone.lock().unwrap();
                 if let Some(ref wrapper) = *h_guard {
                     let resp = unsafe { crate::ffi::v2rayez_core_status(wrapper.0) };
@@ -141,8 +152,13 @@ impl CoreUIStateMachine {
     }
 
     pub fn stop_polling(&self) {
+        // Signal the poll thread to exit, then join it (outside the lock: the
+        // poll thread never takes the poll_handle mutex, so this cannot
+        // deadlock). Previously the JoinHandle was dropped without joining,
+        // leaking a detached thread that kept calling FFI after shutdown.
+        self.poll_stop.store(true, Ordering::SeqCst);
         if let Some(jh) = self.poll_handle.lock().unwrap().take() {
-            let _ = jh;
+            let _ = jh.join();
         }
     }
 
@@ -152,6 +168,16 @@ impl CoreUIStateMachine {
 
     pub fn current_state(&self) -> CoreLifecycleState {
         self.state.lock().unwrap().clone()
+    }
+}
+
+impl Drop for CoreUIStateMachine {
+    fn drop(&mut self) {
+        // Never leak the poll thread: signal it and join before teardown.
+        self.poll_stop.store(true, Ordering::SeqCst);
+        if let Some(jh) = self.poll_handle.lock().unwrap().take() {
+            let _ = jh.join();
+        }
     }
 }
 
@@ -181,5 +207,35 @@ mod ui_state_tests {
         assert!(status.is_ok());
         m.stop_polling();
         m.shutdown().unwrap();
+    }
+
+    /// Regression: stop_polling must actually stop AND join the poll thread
+    /// (previously the JoinHandle was dropped and the thread leaked), and a
+    /// later start_polling must be able to spawn a fresh poller.
+    #[test]
+    fn polling_stop_is_cooperative_and_restartable() {
+        let m = CoreUIStateMachine::new(50);
+        m.init().unwrap();
+        m.start_polling();
+        // Double-start is a no-op while a poller is live.
+        m.start_polling();
+        m.stop_polling();
+        // After stop the thread is joined; stopping again is a safe no-op.
+        m.stop_polling();
+        // Restart works (flag is reset on start).
+        m.start_polling();
+        thread::sleep(Duration::from_millis(80));
+        assert!(m.last_polled_status().is_some(), "poller must publish status after restart");
+        m.stop_polling();
+        m.shutdown().unwrap();
+    }
+
+    /// Dropping the state machine must not detach a live poll thread.
+    #[test]
+    fn drop_joins_polling_thread() {
+        let m = CoreUIStateMachine::new(50);
+        m.init().unwrap();
+        m.start_polling();
+        drop(m); // Drop sets the stop flag and joins the thread.
     }
 }
