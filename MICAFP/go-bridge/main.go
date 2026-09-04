@@ -74,7 +74,7 @@ var (
 	running     bool
 	nodeAddr    string
 	peers       map[string]PeerInfo
-	logger      *log.Logger
+	logger      *gologme.Logger
 )
 
 // PeerInfo tracks a Yggdrasil peer.
