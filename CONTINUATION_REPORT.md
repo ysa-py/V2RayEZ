@@ -571,14 +571,15 @@ A donor module failure is treated the same as a Vor-owned failure: the job is
 fatal and the exact Go diagnostics are emitted as a single encoded
 `::error::` annotation for inspection.
 
-**Latest real result (2026-09-05):** push run `33922862820` on commit `7b56f9f`
-completed **successfully** for the `native-tests` job on a GitHub-hosted runner:
+**Latest real results (2026-09-05)** on GitHub-hosted runners:
 
-- `meta` ✓
-- `cargo test --workspace --all-targets` ✓
-- `Go tests (all Go modules)` ✓ (donor denylist confirmed with warnings)
-- `Android testDebugUnitTest` ✓
-- Build/checksum jobs correctly skipped on push (`build=false`).
+- Push run `33922862820` (commit `7b56f9f`): `meta` ✓, `cargo test
+  --workspace --all-targets` ✓, Go tests ✓, `Android testDebugUnitTest` ✓;
+  build/checksum jobs correctly skipped on push.
+- Push run `33924012937` (commit `6861024`, donor integration): `meta` ✓,
+  `cargo test --workspace --all-targets` ✓, `Go tests (all Go modules)` ✓ with
+  **no donor skip-list**, `Android testDebugUnitTest` ✓; build/checksum jobs
+  correctly skipped on push (`build=false`).
 
 Real artifact synthesis is still gated to `workflow_dispatch`/tag runs with
 `build=true` (and real signing secrets for iOS), so no fake SHA-256 hashes are
