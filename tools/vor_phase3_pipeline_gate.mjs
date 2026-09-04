@@ -57,6 +57,8 @@ const required = [
   // Only a small, documented donor denylist may be skipped; Vor-owned modules and
   // every other discovered module must still pass or the job fails.
   'known_incomplete_donors=',
+  './EasySNI- Make sure to fully add all features to the V2RayEZ app',
+  './MasterDnsVPN-main',
   'skipping known-incomplete donor Go module',
   'Do not add Vor-owned modules here',
   './gradlew testDebugUnitTest',

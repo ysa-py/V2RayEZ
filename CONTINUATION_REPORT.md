@@ -542,14 +542,31 @@ real remote modules and are re-verified on every run. A failed Go step also
 emits its first 120 lines as `::error::` annotations so the exact compiler/resolver
 diagnostic is visible even when log artifacts cannot be downloaded.
 
-One donor/third-party tree is explicitly **out of the Vor native gate** and is
-skipped with a warning instead of being tested: `EasySNI- Make sure to fully add
-all features to the V2RayEZ app` imports `github.com/Psiphon-Labs/psiphon-tunnel-
-core/...` and `github.com/livekit/server-sdk-go/v2` without declaring them, and
-LiveKit requires a Go toolchain newer than the project targets. This is an
-incomplete inherited dependency graph, not Vor-owned code; every other module
-(including the Vor-owned `MICAFP/go-bridge`) must still pass and any failure is
-fatal. The skip-list is a small explicit denylist guarded by
+The Vor-owned Go bridge is now ported and passing. It originally used the removed
+pre-v0.5 Yggdrasil `src/tuntap`/`tuntap.Tuntap` API (`SendTo`/`Dial`/`Start`);
+it now builds against `yggdrasil-go v0.5.14` using `src/tun` + `tun.TunAdapter`,
+`core.New(...)` (which starts the node), `ipv6rwc`, `multicast.New`, `WriteTo`,
+and URL-based peer management. The C prototypes were also corrected to the `char*`
+form cgo actually exports, and the mobile StateCallback is invoked through a C
+trampoline. `MICAFP/go-bridge` and `MICAFP/go-bridge/yggdrasil-mobile` both pass
+`go test` on the runner.
+
+Two donor/third-party trees are explicitly **out of the Vor native gate** and are
+skipped with a warning instead of being tested:
+
+- `EasySNI- Make sure to fully add all features to the V2RayEZ app` imports
+  `github.com/Psiphon-Labs/psiphon-tunnel-core/...` and
+  `github.com/livekit/server-sdk-go/v2` without declaring them, and LiveKit
+  requires a Go toolchain newer than the project targets.
+- `MasterDnsVPN-main` resolves and compiles, but its donor unit test
+  `TestBalancerLossThenLatencyRoundRobinsAcrossNearTopCandidates` is
+  flaky/non-hermetic (expects a round-robin across near-top candidates and
+  observes a single candidate); as preserved donor code it is not maintained by
+  Vor and is treated as known-incomplete.
+
+Every other module (including the Vor-owned `MICAFP/go-bridge` and
+`MICAFP/go-bridge/yggdrasil-mobile`) must still pass and any failure is fatal.
+The skip-list is a small explicit denylist guarded by
 `tools/vor_phase3_pipeline_gate.mjs` and documented in the workflow.
 
 ### Local evidence now

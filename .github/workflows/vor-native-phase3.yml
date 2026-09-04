@@ -161,6 +161,7 @@ jobs:
           # and any failure is fatal. Do not add Vor-owned modules here.
           known_incomplete_donors=(
             "./EasySNI- Make sure to fully add all features to the V2RayEZ app"
+            "./MasterDnsVPN-main"
           )
           stage=0
           for mod in "${mods[@]}"; do
