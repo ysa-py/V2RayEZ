@@ -27,15 +27,25 @@ package main
 // state: 0=stopped, 1=starting, 2=running, 3=error
 typedef void (*StateCallback)(int state, const char* message);
 
+// cgo cannot invoke a C function pointer from Go directly, so forward the
+// stored callback through a small C trampoline instead.
+static void vorInvokeStateCallback(StateCallback cb, int state, const char* message) {
+  if (cb != NULL) {
+    cb(state, message);
+  }
+}
+
 // Exported C functions (defined in Go below)
-extern int YggdrasilStart(const char* config_json);
+// NOTE: cgo exports these as `char*` (never `const char*`), so the prototype
+// must match or the C compiler rejects the generated header.
+extern int YggdrasilStart(char* config_json);
 extern int YggdrasilStop();
 extern int YggdrasilRestart();
 extern int YggdrasilGetStatus();
 extern int YggdrasilGetPeerCount();
 extern int YggdrasilCheckReachability();
 extern char* YggdrasilGetConfig();
-extern int YggdrasilSetConfig(const char* config_json);
+extern int YggdrasilSetConfig(char* config_json);
 extern char* YggdrasilGetStats();
 extern void YggdrasilSetStateCallback(StateCallback cb);
 extern void YggdrasilFreeString(char* s);
@@ -144,11 +154,12 @@ func setState(state NodeState, message string) {
 	currentState = state
 	errorMessage = message
 
-	// Invoke the C callback if registered
+	// Invoke the C callback if registered (through the C trampoline; Go cannot
+	// call a C function pointer directly).
 	if stateCallback != nil {
 		cMsg := C.CString(message)
 		defer C.free(unsafe.Pointer(cMsg))
-		C.stateCallback(C.int(state), cMsg)
+		C.vorInvokeStateCallback(stateCallback, C.int(state), cMsg)
 	}
 }
 

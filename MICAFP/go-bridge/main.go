@@ -25,10 +25,12 @@ package main
 #include <stdlib.h>
 
 // Forward declarations for exported functions
-extern void StartNode(const char* configJSON, int configLen);
+// NOTE: cgo exports these as `char*` (never `const char*`), so the prototype
+// must match or the C compiler rejects the generated header.
+extern void StartNode(char* configJSON, int configLen);
 extern void StopNode();
 extern char* GetAddress();
-extern int SendPacket(const char* dest, int destLen, const char* data, int dataLen);
+extern int SendPacket(char* dest, int destLen, char* data, int dataLen);
 extern void FreeCString(char* s);
 */
 import "C"
