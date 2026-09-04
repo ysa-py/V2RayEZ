@@ -61,7 +61,7 @@ jobs:
       signed: ${{ steps.meta.outputs.signed }}
       build: ${{ steps.meta.outputs.build }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Resolve metadata
         id: meta
         shell: bash
@@ -97,7 +97,7 @@ jobs:
     name: Native tests (cargo, go, gradle)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
 
@@ -107,18 +107,24 @@ jobs:
           components: rustfmt, clippy
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version: '1.22'
+          # This is a multi-module repository; the default cache path (./go.sum)
+          # does not exist, so setup-go would fail to restore its cache with a
+          # misleading "Dependencies file is not found ... Supported file
+          # pattern: go.sum" warning. Match every real go.sum in the tree.
+          cache-dependency-path: |
+            **/go.sum
 
       - name: Setup JDK 17
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
 
       - name: Cache toolchains
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry
@@ -202,7 +208,7 @@ jobs:
 
       - name: Upload native test logs
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: vor-native-test-logs
           path: |
@@ -218,21 +224,21 @@ jobs:
     if: needs.meta.outputs.build == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
 
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
 
       - name: Setup Android NDK 26
-        uses: nttld/setup-ndk@v1
+        uses: nttld/setup-ndk@v1.6.0
         id: setup-ndk
         with:
           ndk-version: r26c
@@ -244,7 +250,7 @@ jobs:
           targets: aarch64-linux-android, armv7-linux-androideabi, x86_64-linux-android
 
       - name: Cache cargo + gradle
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry
@@ -358,7 +364,7 @@ jobs:
           fi
 
       - name: Upload Android artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: vor-android-${{ needs.meta.outputs.version }}
           path: dist-android/*
@@ -372,7 +378,7 @@ jobs:
     if: needs.meta.outputs.build == 'true'
     runs-on: macos-14
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
 
@@ -388,7 +394,7 @@ jobs:
           targets: aarch64-apple-darwin, x86_64-apple-darwin, aarch64-apple-ios
 
       - name: Cache cargo + pods
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry
@@ -443,7 +449,7 @@ jobs:
           file "dist-ios/vor-ios-v${VERSION}.ipa"
 
       - name: Upload iOS artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: vor-ios-${{ needs.meta.outputs.version }}
           path: MICAFP/ios/dist-ios/vor-ios-*.ipa
@@ -468,11 +474,11 @@ jobs:
             platform: linux
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: npm
@@ -501,7 +507,7 @@ jobs:
           cargo install cargo-xwin --locked || echo "::warning::cargo-xwin already present or install failed"
 
       - name: Cache cargo + rust dist
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry
@@ -548,7 +554,7 @@ jobs:
           echo "Desktop artifact count: ${count}"
 
       - name: Upload desktop artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: vor-desktop-${{ matrix.platform }}-${{ needs.meta.outputs.version }}
           path: dist-desktop/*
@@ -570,7 +576,7 @@ jobs:
             rust_target: mipsel-unknown-linux-musl
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
 
@@ -580,7 +586,7 @@ jobs:
           targets: ${{ matrix.rust_target }}
 
       - name: Cache OpenWrt SDK
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: |
             openwrt-sdk/${{ matrix.target }}
@@ -653,7 +659,7 @@ jobs:
           ls -lh "$OUT"
 
       - name: Upload OpenWrt artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: vor-openwrt-${{ matrix.target }}-${{ needs.meta.outputs.version }}
           path: dist-openwrt-${{ matrix.target }}/vor-router-*.ipk
@@ -668,10 +674,10 @@ jobs:
     if: needs.meta.outputs.build == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Download all Phase 3 artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
           pattern: vor-*
@@ -726,7 +732,7 @@ jobs:
           cat artifacts/SHA256SUMS.txt
 
       - name: Upload checksum ledger + artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: vor-phase3-${{ needs.meta.outputs.version }}
           path: artifacts/SHA256SUMS.txt

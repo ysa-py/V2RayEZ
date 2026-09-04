@@ -59,9 +59,20 @@ const required = [
   './gradlew testDebugUnitTest',
   // Toolchain provisioning on the specific runners.
   'dtolnay/rust-toolchain',
-  'actions/setup-java@v5',
-  'android-actions/setup-android@v3',
-  'nttld/setup-ndk@v1',
+  // Latest action majors (Node 24 runtime) to avoid Node 20 deprecation warnings.
+  'actions/checkout@v7',
+  'actions/setup-go@v7',
+  'actions/setup-java@v6',
+  'actions/setup-node@v7',
+  'actions/cache@v6',
+  'actions/upload-artifact@v7',
+  'actions/download-artifact@v8',
+  'android-actions/setup-android@v4',
+  'nttld/setup-ndk@v1.6.0',
+  // Multi-module Go cache requires an explicit dependency path; the default
+  // ./go.sum does not exist and would emit a setup-go restore warning.
+  'cache-dependency-path',
+  '**/go.sum',
   'brew install xcodegen cocoapods',
   'cargo install cargo-xwin',
   'choco install wixtoolset',
