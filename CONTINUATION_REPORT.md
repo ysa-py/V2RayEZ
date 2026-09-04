@@ -569,6 +569,19 @@ Every other module (including the Vor-owned `MICAFP/go-bridge` and
 The skip-list is a small explicit denylist guarded by
 `tools/vor_phase3_pipeline_gate.mjs` and documented in the workflow.
 
+**Latest real result (2026-09-05):** push run `33922862820` on commit `7b56f9f`
+completed **successfully** for the `native-tests` job on a GitHub-hosted runner:
+
+- `meta` ✓
+- `cargo test --workspace --all-targets` ✓
+- `Go tests (all Go modules)` ✓ (donor denylist confirmed with warnings)
+- `Android testDebugUnitTest` ✓
+- Build/checksum jobs correctly skipped on push (`build=false`).
+
+Real artifact synthesis is still gated to `workflow_dispatch`/tag runs with
+`build=true` (and real signing secrets for iOS), so no fake SHA-256 hashes are
+claimed in this report.
+
 ### Local evidence now
 
 - `node tools/vor_phase3_pipeline_gate.mjs` → **PASS**.
