@@ -27,6 +27,11 @@ Work completed:
 3. **Formal brand/trademark search for “Vor”** (§6).
 4. **Tracked user-facing rename to `Vor`** (§7).
 5. **Ledger updates** and a new repeatable brand-rename gate.
+6. **Phase 2 source hardening + native build attempt** (§8–§9): Rust offline-serial
+   gap fixed in source (device binding + signed revocation list, no grace-token
+   fallback) and all native targets attempted but halted cleanly on missing
+   toolchains/network (`cargo`, `go`, `gradle`, `xcodebuild`, `java`/Android,
+   MSVC, OpenWrt SDK).
 
 ---
 
@@ -65,7 +70,10 @@ detects the contract without emitting placeholder files). No fake `.apk`/`.ipa`/
 - **OpenWrt universal `.ipk`**: blocked on OpenWrt SDK; the universal Makefile wrapper
   is present and `tools/openwrt_packaging_gate.mjs` passes (source pinned SHA +
   watchdog installed + no old cargo loop), but no real `.ipk` can be produced here.
-- **Rust `universal-core` compile / tests**: blocked on `cargo`/`rustc`.
+- **Rust `universal-core` compile / tests**: blocked on `cargo`/`rustc`; the
+  offline-serial source refactor (§8) is applied but cannot be type-checked here.
+- **Native binary synthesis**: blocked on Java/Android, Xcode, MSVC, Rust/Go and
+  OpenWrt SDK toolchains plus their blocked download feeds (§9).
 
 These remain `blocked` in `FEATURE_MATRIX.md` §13 with the exact missing dependency.
 
@@ -371,24 +379,88 @@ the retained internal/donor identifiers, and it verifies the renamed platform ID
 
 ---
 
-## 8. Known Rust-core gap (must be closed by a Rust-capable run)
+## 8. Rust-core offline serial gap — source fixed, compile/test still blocked
 
-- `universal-core/src/license.rs::LicenseVerifier::offline_start_decision` requires a
-  signed `grace_token` for every allowed decision and does not honor the serial’s own
-  `offlineGraceHours`, serial-level device binding, or signed revocation list.
-- **Why not fixed here:** no `cargo`/`rustc`; `static.crates.io` unreachable. The
-  change must be syntax/type-checked and unit-tested (`cargo test`) before it can be
-  marked `merged`.
-- **Evidence:** `FEATURE_MATRIX.md` §13 and `MERGE_TRACEABILITY.md` §21 record this as
-  a blocked gap.
+- **Before:** `universal-core/src/license.rs::LicenseVerifier::offline_start_decision`
+  required a signed `grace_token` for every allowed decision and did not honor the
+  serial’s own serial-level device binding or signed revocation list.
+- **Fixed in source (2026-09-05):**
+  - `VerifiedLicense` now carries optional `device_id_hash` and a monotonic
+    `revocation_epoch`.
+  - New `verify_revocation_list(...)` verifies a compact `V2RayEZ-Revocation-List`
+    token, requires schema `v2rayez.license.revocations.v1`, and fails closed on
+    bad signature / bad schema.
+  - `offline_start_decision(...)` now verifies serial-level device binding, enforces
+    the revocation list, and returns `allow_offline("signed_serial_valid", ...)` when
+    no grace token is present (grace is no longer a required fallback).
+  - `v2rayez-license-gate` gained `--revocation-list-file` and passes the token into
+    `offline_start_decision`; desktop `src-tauri/license.rs` persists
+    `revocation_list_token` and enforces binding/revocation on the local fast path.
+- **Still blocked:** no `cargo`/`rustc`; `static.crates.io` unreachable; `cargo test`
+  returns `cargo: command not found` (exit 127). The change must be type-checked and
+  unit-tested on a Rust-capable runner before `merged`.
+- **Static evidence available now:** `node tools/vor_rust_license_static_gate.mjs` →
+  **PASS** (source contract only, explicitly states cargo test is blocked).
+- **Behavioral JS regression:** `node tools/license_serial_e2e_selftest.mjs` → **PASS**
+  (27/27 gates).
 
 ---
 
-## 9. Regression check
+## 9. Phase 2 native compilation attempt (2026-09-05)
 
-All `tools/*.mjs` gates pass (`26/26`), including the expanded anti-fabrication
-gate. Shell syntax check (`bash -n` on the build/OpenWrt scripts) passes. Python
-`py_compile` passes. `node --check` passes on changed JS. No existing feature was
+Per the Zero Fabrication rule, this pass **attempted** the Phase 2 cross-compilation
+objectives and halted cleanly on every target whose toolchain/network dependency is
+missing. No placeholder `.apk`, `.aab`, `.ipa`, `.exe`, `.dmg`, ELF binary, `.ipk`,
+or unsigned binary was emitted.
+
+### Toolchain / dependency probe (exact result)
+
+| Target | Required tooling | Probe result |
+|---|---|---|
+| Android `.apk` / `.aab` | `java` + Android SDK/NDK + Gradle/AGP + Maven/Google feeds | `java: command not found`; `dl.google.com`/`maven.google.com` unreachable; `build-release-artifacts.sh` exits 1 with `error: required tool 'java' is not installed for target 'android'` |
+| iOS `.ipa` + PacketTunnel | `xcodebuild`/Xcode + signing | `xcodebuild: command not found` |
+| Windows `.exe` | MSVC (`cl`/`msbuild`) | both `command not found` |
+| Linux/macOS binaries | Rust (`cargo`/`rustc`) + Go (`go`) | `cargo: command not found`; `go: command not found`; `static.crates.io` and `proxy.golang.org` unreachable |
+| OpenWrt `.ipk` | OpenWrt SDK/toolchain for ARM/MIPS | no SDK found; `make` exists but no SDK/toolchain |
+| Native tests | `cargo test`, `go test ./...`, `./gradlew test` | `cargo: command not found`; `go: command not found`; `gradle: command not found` (all exit 127) |
+
+Available and used: `gcc` 12.2.0, `make`, `git`, `node`, `python3`, `bash`. These are
+not sufficient to synthesize any of the required release targets.
+
+### What was still delivered in Phase 2 source space
+
+- Rust offline-serial hardening (see §8) implemented in
+  `universal-core/src/license.rs` and wired through the CLI/desktop shells.
+- `tools/vor_rust_license_static_gate.mjs` new static source gate.
+- Full Node gate suite now **27/27 PASS**.
+
+### Exact blocked-command log
+
+```text
+$ cargo test
+/bin/bash: cargo: command not found (exit 127)
+
+$ go test ./...
+/bin/bash: go: command not found (exit 127)
+
+$ (cd MICAFP && gradle test)
+/bin/bash: gradle: command not found (exit 127)
+
+$ xcodebuild -version
+/bin/bash: xcodebuild: command not found (exit 127)
+
+$ bash scripts/build-release-artifacts.sh
+error: required tool 'java' is not installed for target 'android' (exit 1)
+```
+
+---
+
+## 10. Regression check
+
+All `tools/*.mjs` gates pass (`27/27`), including the expanded anti-fabrication
+gate and the new Rust offline-license static gate. Shell syntax check
+(`bash -n` on the build/OpenWrt scripts) passes. Python `py_compile` passes.
+`node --check` passes on changed JS. No existing feature was
 removed; donor source trees were not touched.
 
 Run to reproduce:

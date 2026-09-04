@@ -15,6 +15,7 @@ struct Args {
     mode: String,
     license_file: PathBuf,
     grace_file: PathBuf,
+    revocation_list_file: PathBuf,
     public_key_file: PathBuf,
     validation_url: String,
     account_id: String,
@@ -93,8 +94,12 @@ fn run(args: &Args) -> Result<GateStatus, String> {
     if !args.validation_url.trim().is_empty() {
         match validate_online(args, &license_key) {
             Ok(status) => return Ok(status),
-            Err(error) if args.allow_offline_grace && args.mode != "activate" => {
-                let offline = offline_decision(args, &verifier, &license_key, Some(format!("server_unreachable_using_grace:{error}")));
+            // Offline serial fallback does NOT require a grace token. A valid,
+            // device-bound, non-revoked signed serial may keep running when the
+            // validation endpoint is unreachable. `allow_offline_grace` is no
+            // longer a gate for this path.
+            Err(error) if args.mode != "activate" => {
+                let offline = offline_decision(args, &verifier, &license_key, Some(format!("server_unreachable_using_serial:{error}")));
                 if offline.allowed {
                     return Ok(offline);
                 }
@@ -106,11 +111,10 @@ fn run(args: &Args) -> Result<GateStatus, String> {
         }
     }
 
-    if args.allow_offline_grace {
-        Ok(offline_decision(args, &verifier, &license_key, None))
-    } else {
-        Ok(deny("online_validation_or_grace_token_required", "signed_serial", Some(expires_at), None, &args.device_id))
-    }
+    // No validation endpoint configured: accept the signed serial offline if it
+    // is valid, within its own expiry, device-bound when signed so, and not
+    // present on a valid signed revocation list.
+    Ok(offline_decision(args, &verifier, &license_key, None))
 }
 
 fn validate_online(args: &Args, license_key: &str) -> Result<GateStatus, String> {
@@ -162,12 +166,14 @@ fn offline_decision(
     allowed_reason: Option<String>,
 ) -> GateStatus {
     let grace = read_trimmed(&args.grace_file).ok().filter(|value| !value.is_empty());
+    let revocation_list = read_trimmed(&args.revocation_list_file).ok().filter(|value| !value.is_empty());
     let decision = verifier.offline_start_decision(
         args.account_id.trim(),
         &args.device_id,
         &args.platform,
         license_key,
         grace.as_deref(),
+        revocation_list.as_deref(),
         parse_rfc3339_utc(&args.client_last_server_time),
         Utc::now(),
     );
@@ -276,6 +282,7 @@ fn parse_args() -> Result<Args, String> {
         mode: "enforce".to_string(),
         license_file: PathBuf::from("/etc/unifiedshield/license.token"),
         grace_file: PathBuf::from("/etc/unifiedshield/license.grace"),
+        revocation_list_file: PathBuf::from("/etc/unifiedshield/license-revocations.token"),
         public_key_file: PathBuf::from("/etc/unifiedshield/license-public.pem"),
         validation_url: String::new(),
         account_id: String::new(),
@@ -295,6 +302,7 @@ fn parse_args() -> Result<Args, String> {
             "--mode" => args.mode = next_value(&mut it, &flag)?,
             "--license-file" => args.license_file = PathBuf::from(next_value(&mut it, &flag)?),
             "--grace-file" => args.grace_file = PathBuf::from(next_value(&mut it, &flag)?),
+            "--revocation-list-file" => args.revocation_list_file = PathBuf::from(next_value(&mut it, &flag)?),
             "--public-key-file" => args.public_key_file = PathBuf::from(next_value(&mut it, &flag)?),
             "--validation-url" => args.validation_url = next_value(&mut it, &flag)?,
             "--account-id" => args.account_id = next_value(&mut it, &flag)?,

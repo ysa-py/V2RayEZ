@@ -17,6 +17,7 @@ struct StoredLicenseState {
     device_id: String,
     license_key: Option<String>,
     grace_token: Option<String>,
+    revocation_list_token: Option<String>,
     last_seen_server_time: Option<String>,
 }
 
@@ -175,6 +176,26 @@ fn local_signed_decision(
     if remaining <= 0 {
         return Ok(status(false, "license_expired", "signed_serial", &license.expires_at.to_rfc3339(), "", 0, license_key, state));
     }
+
+    // Serial-level device binding and signed revocation-list enforcement must
+    // also apply on the local fast path, not only the offline_start_decision path.
+    if let Some(bound_hash) = license.device_id_hash.as_deref() {
+        let expected = verifier.hash_device_id(&state.device_id);
+        if !bound_hash.is_empty() && bound_hash != expected {
+            return Ok(status(false, "device_mismatch", "signed_serial", &license.expires_at.to_rfc3339(), "", 0, license_key, state));
+        }
+    }
+    if let Some(token) = state.revocation_list_token.as_deref() {
+        match verifier.verify_revocation_list(token) {
+            Ok(list) if list.revokes(&license.license_id, license.revocation_epoch) => {
+                return Ok(status(false, "license_revoked", "signed_serial", &license.expires_at.to_rfc3339(), "", 0, license_key, state));
+            }
+            Ok(_) => {}
+            Err(error) => {
+                return Ok(status(false, &format!("revocation_list_invalid:{error}"), "signed_serial", &license.expires_at.to_rfc3339(), "", 0, license_key, state));
+            }
+        }
+    }
     Ok(status(true, "signed_serial_valid", "signed_serial", &license.expires_at.to_rfc3339(), "", remaining, license_key, state))
 }
 
@@ -183,20 +204,12 @@ fn offline_or_local(
     settings: &Settings,
     license_key: &str,
     state: &StoredLicenseState,
-    local: LicenseStatus,
+    _local: LicenseStatus,
 ) -> Result<LicenseStatus, String> {
-    if state.grace_token.is_some() && settings.license.allow_offline_grace {
-        Ok(offline_decision(verifier, settings, license_key, state))
-    } else {
-        Ok(LicenseStatus {
-            allowed: false,
-            result: "DENIED".into(),
-            reason: "online_validation_or_grace_token_required".into(),
-            source: "signed_serial".into(),
-            remaining_seconds: 0,
-            ..local
-        })
-    }
+    // A valid signed serial is allowed offline without a grace-token fallback.
+    // `allow_offline_grace` only affects whether a grace token from a previous
+    // online validation is honored; it is not required for the signed serial path.
+    Ok(offline_decision(verifier, settings, license_key, state))
 }
 
 fn offline_decision(
@@ -216,6 +229,7 @@ fn offline_decision(
         desktop_platform(),
         license_key,
         state.grace_token.as_deref(),
+        state.revocation_list_token.as_deref(),
         last_seen,
         Utc::now(),
     );

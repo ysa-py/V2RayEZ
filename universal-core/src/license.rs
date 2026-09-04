@@ -30,6 +30,8 @@ pub enum LicenseError {
     MissingField(&'static str),
     #[error("invalid timestamp in field {field}: {value}")]
     InvalidTimestamp { field: &'static str, value: String },
+    #[error("unsupported revocation list schema: {0}")]
+    UnsupportedRevocationSchema(String),
     #[error("device hash salt must be at least 16 bytes")]
     InvalidDeviceSalt,
 }
@@ -45,7 +47,46 @@ pub struct VerifiedLicense {
     pub max_devices: u32,
     pub offline_grace_hours: u32,
     pub features: Vec<String>,
+    // Optional serial-level device binding. When present and non-empty it is
+    // enforced offline without requiring a grace token.
+    pub device_id_hash: Option<String>,
+    // Monotonic revocation epoch embedded in the signed serial.
+    pub revocation_epoch: u64,
     pub raw_payload: Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RevocationListEntry {
+    #[serde(default)]
+    pub license_id: String,
+    #[serde(default)]
+    pub revocation_epoch: u64,
+    #[serde(default)]
+    pub revoked_at: Option<String>,
+    #[serde(default)]
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct SignedRevocationList {
+    #[serde(default)]
+    pub schema: String,
+    #[serde(default)]
+    pub issued_at: Option<String>,
+    #[serde(default)]
+    pub revocations: Vec<RevocationListEntry>,
+}
+
+impl SignedRevocationList {
+    pub fn revokes(&self, license_id: &str, revocation_epoch: u64) -> bool {
+        self.schema == "v2rayez.license.revocations.v1"
+            && self
+                .revocations
+                .iter()
+                .any(|entry| entry.license_id == license_id && entry.revocation_epoch >= revocation_epoch)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -78,6 +119,10 @@ impl LicenseDecision {
 
     pub fn allow(reason: impl Into<String>, cutoff: DateTime<Utc>, license: VerifiedLicense, grace: VerifiedGraceToken) -> Self {
         Self { allowed: true, reason: reason.into(), hard_cutoff_at: Some(cutoff), verified_license: Some(license), verified_grace: Some(grace) }
+    }
+
+    pub fn allow_offline(reason: impl Into<String>, cutoff: DateTime<Utc>, license: VerifiedLicense) -> Self {
+        Self { allowed: true, reason: reason.into(), hard_cutoff_at: Some(cutoff), verified_license: Some(license), verified_grace: None }
     }
 }
 
@@ -120,6 +165,15 @@ impl LicenseVerifier {
         VerifiedGraceToken::from_payload(payload)
     }
 
+    pub fn verify_revocation_list(&self, token: &str) -> Result<SignedRevocationList, LicenseError> {
+        let payload = self.verify_compact_token(token, "V2RayEZ-Revocation-List")?;
+        let schema = payload.get("schema").and_then(Value::as_str).unwrap_or_default();
+        if schema != "v2rayez.license.revocations.v1" {
+            return Err(LicenseError::UnsupportedRevocationSchema(schema.to_string()));
+        }
+        serde_json::from_value(payload).map_err(|error| LicenseError::InvalidJson(error.to_string()))
+    }
+
     pub fn offline_start_decision(
         &self,
         account_id: &str,
@@ -127,6 +181,7 @@ impl LicenseVerifier {
         platform: &str,
         signed_license_key: &str,
         signed_grace_token: Option<&str>,
+        signed_revocation_list: Option<&str>,
         last_seen_server_time: Option<DateTime<Utc>>,
         now: DateTime<Utc>,
     ) -> LicenseDecision {
@@ -145,8 +200,32 @@ impl LicenseVerifier {
             return LicenseDecision { verified_license: Some(license), ..LicenseDecision::deny("license_expired") };
         }
 
+        // Serial-level device binding: the signed serial itself can pin a device
+        // hash without requiring a grace-token fallback.
+        if let Some(bound_hash) = license.device_id_hash.as_deref() {
+            let expected_device_hash = self.hash_device_id(device_id);
+            if !bound_hash.is_empty() && bound_hash != expected_device_hash {
+                return LicenseDecision { verified_license: Some(license), ..LicenseDecision::deny("device_mismatch") };
+            }
+        }
+
+        // A signed revocation-list token is the only offline deny channel. If a
+        // token is present it must verify and be schema-valid; both failure modes
+        // fail closed.
+        if let Some(token) = signed_revocation_list {
+            let list = match self.verify_revocation_list(token) {
+                Ok(list) => list,
+                Err(error) => return LicenseDecision { verified_license: Some(license), ..LicenseDecision::deny(format!("revocation_list_invalid:{error}")) },
+            };
+            if list.revokes(&license.license_id, license.revocation_epoch) {
+                return LicenseDecision { verified_license: Some(license), ..LicenseDecision::deny("license_revoked") };
+            }
+        }
+
         let Some(grace_token) = signed_grace_token else {
-            return LicenseDecision { verified_license: Some(license), ..LicenseDecision::deny("online_validation_or_grace_token_required") };
+            // No grace token required: a valid signed serial within its own window
+            // is allowed offline.
+            return LicenseDecision::allow_offline("signed_serial_valid", license.expires_at, license);
         };
         let grace = match self.verify_grace_token(grace_token) {
             Ok(grace) => grace,
@@ -221,6 +300,8 @@ impl VerifiedLicense {
             max_devices: payload.get("maxDevices").and_then(Value::as_u64).unwrap_or(1).min(u32::MAX as u64) as u32,
             offline_grace_hours: payload.get("offlineGraceHours").and_then(Value::as_u64).unwrap_or(72).min(u32::MAX as u64) as u32,
             features: payload.get("features").and_then(Value::as_array).map(|arr| arr.iter().filter_map(Value::as_str).map(ToOwned::to_owned).collect()).unwrap_or_default(),
+            device_id_hash: payload.get("deviceIdHash").and_then(Value::as_str).map(ToOwned::to_owned).filter(|value| !value.is_empty()),
+            revocation_epoch: payload.get("revocationEpoch").and_then(Value::as_u64).unwrap_or(0),
             raw_payload: payload,
         })
     }
