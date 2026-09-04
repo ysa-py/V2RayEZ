@@ -54,13 +54,8 @@ const required = [
   // materialized before tests; the resolution itself is fail-closed.
   'go mod tidy',
   'go test ./...',
-  // Only a small, documented donor denylist may be skipped; Vor-owned modules and
-  // every other discovered module must still pass or the job fails.
-  'known_incomplete_donors=',
-  './EasySNI- Make sure to fully add all features to the V2RayEZ app',
-  './MasterDnsVPN-main',
-  'skipping known-incomplete donor Go module',
-  'Do not add Vor-owned modules here',
+  // No Go module may be skipped; donor and Vor-owned modules are all gate-tested.
+  'No donor modules are skipped',
   './gradlew testDebugUnitTest',
   // Toolchain provisioning on the specific runners.
   'dtolnay/rust-toolchain',

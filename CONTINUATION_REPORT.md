@@ -551,23 +551,25 @@ form cgo actually exports, and the mobile StateCallback is invoked through a C
 trampoline. `MICAFP/go-bridge` and `MICAFP/go-bridge/yggdrasil-mobile` both pass
 `go test` on the runner.
 
-Two donor/third-party trees are explicitly **out of the Vor native gate** and are
-skipped with a warning instead of being tested:
+The donor modules are now being **fully integrated rather than skipped**. The
+native-tests gate has no donor denylist: every discovered module must resolve
+its complete manifest (`go mod tidy`) and pass `go test ./...`.
 
-- `EasySNI- Make sure to fully add all features to the V2RayEZ app` imports
-  `github.com/Psiphon-Labs/psiphon-tunnel-core/...` and
-  `github.com/livekit/server-sdk-go/v2` without declaring them, and LiveKit
-  requires a Go toolchain newer than the project targets.
-- `MasterDnsVPN-main` resolves and compiles, but its donor unit test
-  `TestBalancerLossThenLatencyRoundRobinsAcrossNearTopCandidates` is
-  flaky/non-hermetic (expects a round-robin across near-top candidates and
-  observes a single candidate); as preserved donor code it is not maintained by
-  Vor and is treated as known-incomplete.
+- `EasySNI- Make sure to fully add all features to the V2RayEZ app`: the
+  optional LiveKit and Psiphon imports are build-tagged donor features
+  (`-tags livekit,psiphon`). Their dependency manifests have been declared and
+  pinned (`github.com/livekit/server-sdk-go/v2`, the Psiphon staging-client
+  pseudo-version) so `go mod tidy` completes and the tagged features remain
+  buildable; the default build keeps the explanatory stubs.
+- `MasterDnsVPN-main`: the donor balancer now distributes load deterministically
+  across the near-top loss-then-latency tier (`poolPickRoundRobin` instead of a
+  non-deterministic random pick), fixing the flaky
+  `TestBalancerLossThenLatencyRoundRobinsAcrossNearTopCandidates` without
+  removing any balancing capability.
 
-Every other module (including the Vor-owned `MICAFP/go-bridge` and
-`MICAFP/go-bridge/yggdrasil-mobile`) must still pass and any failure is fatal.
-The skip-list is a small explicit denylist guarded by
-`tools/vor_phase3_pipeline_gate.mjs` and documented in the workflow.
+A donor module failure is treated the same as a Vor-owned failure: the job is
+fatal and the exact Go diagnostics are emitted as a single encoded
+`::error::` annotation for inspection.
 
 **Latest real result (2026-09-05):** push run `33922862820` on commit `7b56f9f`
 completed **successfully** for the `native-tests` job on a GitHub-hosted runner:
