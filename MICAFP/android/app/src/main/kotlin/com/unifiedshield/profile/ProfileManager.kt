@@ -29,6 +29,12 @@ class ProfileManager private constructor(private val context: Context) {
     )
     val state: StateFlow<ProfileManagerState> = _state
 
+    /**
+     * Default catalog profiles are CONFIGURATION ONLY.
+     * They are not live measurements, so ping/throughput defaults are kept fail-closed
+     * (pingMs = 0, measured = false, throughputRating = "unmeasured") until a real
+     * probe backend supplies measured data.
+     */
     private fun getDefaultProfiles(): List<TunnelProfile> {
         return listOf(
             TunnelProfile(
@@ -37,8 +43,8 @@ class ProfileManager private constructor(private val context: Context) {
                 namePersian = "مستر دی‌ان‌اس توربو (پروتکل اختصاصی ۵ بایت + ۸ رِزولور)",
                 tunnelType = TunnelType.MASTER_DNS,
                 isActive = false,
-                pingMs = 11,
-                throughputRating = "165.0 MB/s",
+                pingMs = 0,
+                throughputRating = "unmeasured",
                 masterDnsConfig = MasterDnsConfig(
                     encryption = MasterDnsEncryption.AES_128_GCM,
                     balancingMode = MasterDnsBalancingMode.LATENCY_BASED,
@@ -54,8 +60,8 @@ class ProfileManager private constructor(private val context: Context) {
                 namePersian = "مستر دی‌ان‌اس + اس‌اس‌اچ چند مسیره ضد قطعی",
                 tunnelType = TunnelType.MASTER_DNS_SSH,
                 isActive = false,
-                pingMs = 14,
-                throughputRating = "142.0 MB/s",
+                pingMs = 0,
+                throughputRating = "unmeasured",
                 masterDnsConfig = MasterDnsConfig(
                     encryption = MasterDnsEncryption.CHACHA20_POLY1305,
                     balancingMode = MasterDnsBalancingMode.DUPLICATE_BROADCAST,
@@ -77,8 +83,8 @@ class ProfileManager private constructor(private val context: Context) {
                 namePersian = "دی‌ان‌اس‌تی‌تی پیش‌فرض (KCP + Noise)",
                 tunnelType = TunnelType.DNSTT,
                 isActive = true,
-                pingMs = 18,
-                throughputRating = "85.0 MB/s",
+                pingMs = 0,
+                throughputRating = "unmeasured",
                 dnsConfig = DnsConfig(
                     transport = DnsTransport.UDP,
                     resolverIpOrUrl = "223.5.5.5",
@@ -92,8 +98,8 @@ class ProfileManager private constructor(private val context: Context) {
                 namePersian = "دی‌ان‌اس‌تی‌تی + اس‌اس‌اچ دولایه",
                 tunnelType = TunnelType.DNSTT_SSH,
                 isActive = false,
-                pingMs = 22,
-                throughputRating = "72.5 MB/s",
+                pingMs = 0,
+                throughputRating = "unmeasured",
                 sshConfig = SshConfig(
                     host = "104.21.68.12",
                     port = 22,
@@ -113,8 +119,8 @@ class ProfileManager private constructor(private val context: Context) {
                 namePersian = "نویز دی‌ان‌اس ضد فیلترینگ با استتار",
                 tunnelType = TunnelType.NOIZ_DNS,
                 isActive = false,
-                pingMs = 16,
-                throughputRating = "94.0 MB/s",
+                pingMs = 0,
+                throughputRating = "unmeasured",
                 noizDnsConfig = NoizDnsConfig(
                     stealthModeEnabled = true,
                     jitterMs = 12
@@ -126,8 +132,8 @@ class ProfileManager private constructor(private val context: Context) {
                 namePersian = "نویز دی‌ان‌اس با زنجیره SSH",
                 tunnelType = TunnelType.NOIZ_DNS_SSH,
                 isActive = false,
-                pingMs = 20,
-                throughputRating = "88.0 MB/s",
+                pingMs = 0,
+                throughputRating = "unmeasured",
                 sshConfig = SshConfig(
                     cipher = SshCipher.CHACHA20_POLY1305,
                     wrapperType = SshWrapperType.WEBSOCKET,
@@ -140,8 +146,8 @@ class ProfileManager private constructor(private val context: Context) {
                 namePersian = "وای دی‌ان‌اس با قالب سیم بهینه و رکورد TXT",
                 tunnelType = TunnelType.VAY_DNS,
                 isActive = false,
-                pingMs = 15,
-                throughputRating = "110.0 MB/s",
+                pingMs = 0,
+                throughputRating = "unmeasured",
                 vayDnsConfig = VayDnsConfig(
                     recordType = VayDnsRecordType.TXT,
                     qnameLength = 64,
@@ -154,8 +160,8 @@ class ProfileManager private constructor(private val context: Context) {
                 namePersian = "وای دی‌ان‌اس + اس‌اس‌اچ پرسرعت",
                 tunnelType = TunnelType.VAY_DNS_SSH,
                 isActive = false,
-                pingMs = 19,
-                throughputRating = "98.0 MB/s",
+                pingMs = 0,
+                throughputRating = "unmeasured",
                 vayDnsConfig = VayDnsConfig(
                     recordType = VayDnsRecordType.NULL,
                     qnameLength = 96,
@@ -168,8 +174,8 @@ class ProfileManager private constructor(private val context: Context) {
                 namePersian = "اسلیپ‌استریم کوئیک با اتصال 0-RTT",
                 tunnelType = TunnelType.SLIPSTREAM,
                 isActive = false,
-                pingMs = 12,
-                throughputRating = "140.0 MB/s"
+                pingMs = 0,
+                throughputRating = "unmeasured"
             ),
             TunnelProfile(
                 id = "prof-slipstream-ssh",
@@ -177,8 +183,8 @@ class ProfileManager private constructor(private val context: Context) {
                 namePersian = "اسلیپ‌استریم کوئیک با زنجیره SSH",
                 tunnelType = TunnelType.SLIPSTREAM_SSH,
                 isActive = false,
-                pingMs = 16,
-                throughputRating = "125.0 MB/s"
+                pingMs = 0,
+                throughputRating = "unmeasured"
             ),
             TunnelProfile(
                 id = "prof-ssh-standalone",
@@ -186,8 +192,8 @@ class ProfileManager private constructor(private val context: Context) {
                 namePersian = "اس‌اس‌اچ مستقل روی وب‌سوکت کلودفلر",
                 tunnelType = TunnelType.SSH_STANDALONE,
                 isActive = false,
-                pingMs = 24,
-                throughputRating = "90.0 MB/s",
+                pingMs = 0,
+                throughputRating = "unmeasured",
                 sshConfig = SshConfig(
                     host = "104.21.68.12",
                     port = 443,
@@ -203,8 +209,8 @@ class ProfileManager private constructor(private val context: Context) {
                 namePersian = "اس‌اس‌اچ با تزریق هدر ساختگی جهت دورزدن DPI",
                 tunnelType = TunnelType.SSH_STANDALONE,
                 isActive = false,
-                pingMs = 26,
-                throughputRating = "86.0 MB/s",
+                pingMs = 0,
+                throughputRating = "unmeasured",
                 sshConfig = SshConfig(
                     wrapperType = SshWrapperType.PAYLOAD_INJECTION,
                     cipher = SshCipher.AES_128_CTR,
@@ -217,8 +223,8 @@ class ProfileManager private constructor(private val context: Context) {
                 namePersian = "نایوپروکسی با اثرانگشت معتبر مرورگر گوگل کروم",
                 tunnelType = TunnelType.NAIVE_PROXY,
                 isActive = false,
-                pingMs = 14,
-                throughputRating = "135.0 MB/s",
+                pingMs = 0,
+                throughputRating = "unmeasured",
                 naiveProxyConfig = NaiveProxyConfig(
                     host = "chrome-edge.unifiedshield.net",
                     port = 443,
@@ -232,8 +238,8 @@ class ProfileManager private constructor(private val context: Context) {
                 namePersian = "نایوپروکسی همراه با رمزنگاری SSH",
                 tunnelType = TunnelType.NAIVE_PROXY_SSH,
                 isActive = false,
-                pingMs = 18,
-                throughputRating = "115.0 MB/s"
+                pingMs = 0,
+                throughputRating = "unmeasured"
             ),
             TunnelProfile(
                 id = "prof-doh-rfc8484",
@@ -241,8 +247,8 @@ class ProfileManager private constructor(private val context: Context) {
                 namePersian = "دی‌ان‌اس روی HTTPS استاندارد بدون تغییر ترافیک وب",
                 tunnelType = TunnelType.DOH,
                 isActive = false,
-                pingMs = 15,
-                throughputRating = "160.0 MB/s"
+                pingMs = 0,
+                throughputRating = "unmeasured"
             ),
             TunnelProfile(
                 id = "prof-tor-snowflake",
@@ -250,8 +256,8 @@ class ProfileManager private constructor(private val context: Context) {
                 namePersian = "شبکه تور با پل نامحدود Snowflake WebRTC",
                 tunnelType = TunnelType.TOR,
                 isActive = false,
-                pingMs = 38,
-                throughputRating = "45.0 MB/s",
+                pingMs = 0,
+                throughputRating = "unmeasured",
                 torConfig = TorConfig(
                     bridgeType = TorBridgeType.SNOWFLAKE,
                     snowflakeFrontDomain = "cdn.sstatic.net"
@@ -263,8 +269,8 @@ class ProfileManager private constructor(private val context: Context) {
                 namePersian = "استورم دی‌ان‌اس (انتقال جریان TCP در بسته‌های DNS)",
                 tunnelType = TunnelType.STORM_DNS,
                 isActive = false,
-                pingMs = 15,
-                throughputRating = "95.0 MB/s"
+                pingMs = 0,
+                throughputRating = "unmeasured"
             ),
             TunnelProfile(
                 id = "prof-cottendns-matrix",
@@ -272,8 +278,8 @@ class ProfileManager private constructor(private val context: Context) {
                 namePersian = "کاتن دی‌ان‌اس تطبیقی چندمسیره با بازیابی خطا Super-FEC",
                 tunnelType = TunnelType.COTTEN_DNS,
                 isActive = false,
-                pingMs = 12,
-                throughputRating = "118.0 MB/s"
+                pingMs = 0,
+                throughputRating = "unmeasured"
             ),
             TunnelProfile(
                 id = "prof-vless-reality",
@@ -281,8 +287,8 @@ class ProfileManager private constructor(private val context: Context) {
                 namePersian = "وی‌لس ریالیتی (استتار مستقیم در سرورهای خارجی)",
                 tunnelType = TunnelType.VLESS_REALITY,
                 isActive = false,
-                pingMs = 14,
-                throughputRating = "155.0 MB/s"
+                pingMs = 0,
+                throughputRating = "unmeasured"
             ),
             TunnelProfile(
                 id = "prof-vmess-aead",
@@ -290,8 +296,8 @@ class ProfileManager private constructor(private val context: Context) {
                 namePersian = "وی‌مس با رمزنگاری AEAD و وب‌سوکت توزیع‌شده CDN",
                 tunnelType = TunnelType.VMESS_AEAD,
                 isActive = false,
-                pingMs = 19,
-                throughputRating = "138.0 MB/s"
+                pingMs = 0,
+                throughputRating = "unmeasured"
             ),
             TunnelProfile(
                 id = "prof-trojan-grpc",
@@ -299,8 +305,8 @@ class ProfileManager private constructor(private val context: Context) {
                 namePersian = "تروجان با چندگانه‌سازی gRPC و هندشیک واقعی HTTPS",
                 tunnelType = TunnelType.TROJAN_TLS,
                 isActive = false,
-                pingMs = 16,
-                throughputRating = "142.0 MB/s"
+                pingMs = 0,
+                throughputRating = "unmeasured"
             ),
             TunnelProfile(
                 id = "prof-shadowsocks-2022",
@@ -308,8 +314,8 @@ class ProfileManager private constructor(private val context: Context) {
                 namePersian = "شادوساکس ۲۰۲۲ با چرخش کلید Blake3 ضد حملات بازپخش",
                 tunnelType = TunnelType.SHADOWSOCKS_2022,
                 isActive = false,
-                pingMs = 13,
-                throughputRating = "162.0 MB/s"
+                pingMs = 0,
+                throughputRating = "unmeasured"
             ),
             TunnelProfile(
                 id = "prof-hysteria-2",
@@ -317,8 +323,8 @@ class ProfileManager private constructor(private val context: Context) {
                 namePersian = "هیستریا ۲ با کنترل ازدحام تهاجمی ضد افت بسته ۸۰٪",
                 tunnelType = TunnelType.HYSTERIA_2,
                 isActive = false,
-                pingMs = 11,
-                throughputRating = "185.0 MB/s"
+                pingMs = 0,
+                throughputRating = "unmeasured"
             ),
             TunnelProfile(
                 id = "prof-tuic-v5",
@@ -326,8 +332,8 @@ class ProfileManager private constructor(private val context: Context) {
                 namePersian = "توئیک نسخه ۵ بر بستر خالص پروتکل QUIC",
                 tunnelType = TunnelType.TUIC_V5,
                 isActive = false,
-                pingMs = 12,
-                throughputRating = "170.0 MB/s"
+                pingMs = 0,
+                throughputRating = "unmeasured"
             ),
             TunnelProfile(
                 id = "prof-anytls-poly",
@@ -335,8 +341,8 @@ class ProfileManager private constructor(private val context: Context) {
                 namePersian = "انی تی‌ال‌اس با تغییر شکل مداوم بایت‌های هندشیک",
                 tunnelType = TunnelType.ANY_TLS,
                 isActive = false,
-                pingMs = 16,
-                throughputRating = "140.0 MB/s"
+                pingMs = 0,
+                throughputRating = "unmeasured"
             ),
             TunnelProfile(
                 id = "prof-amnezia-wg",
@@ -344,8 +350,8 @@ class ProfileManager private constructor(private val context: Context) {
                 namePersian = "امنزیا وایرگارد با تزریق بسته‌های فریبنده و هدر تصادفی",
                 tunnelType = TunnelType.WIREGUARD_AMNEZIA,
                 isActive = false,
-                pingMs = 10,
-                throughputRating = "190.0 MB/s"
+                pingMs = 0,
+                throughputRating = "unmeasured"
             ),
             TunnelProfile(
                 id = "prof-shadowtls-v3",
@@ -353,8 +359,8 @@ class ProfileManager private constructor(private val context: Context) {
                 namePersian = "شدو تی‌ال‌اس ۳ با شبیه‌سازی دقیق سایت‌های معتبر",
                 tunnelType = TunnelType.SHADOW_TLS,
                 isActive = false,
-                pingMs = 15,
-                throughputRating = "148.0 MB/s"
+                pingMs = 0,
+                throughputRating = "unmeasured"
             ),
             TunnelProfile(
                 id = "prof-brook-stream",
@@ -362,8 +368,8 @@ class ProfileManager private constructor(private val context: Context) {
                 namePersian = "بروک با ساختار داده بدون امضا و بسیار سبک",
                 tunnelType = TunnelType.BROOK,
                 isActive = false,
-                pingMs = 17,
-                throughputRating = "130.0 MB/s"
+                pingMs = 0,
+                throughputRating = "unmeasured"
             )
         )
     }
@@ -411,7 +417,22 @@ class ProfileManager private constructor(private val context: Context) {
         logger.info(TAG, "Deleted profile: $profileId")
     }
 
+    /**
+     * Applies a scanner-discovered node to the profile list.
+     *
+     * Fail-closed: only a node that was actually measured by a real probe backend is applied.
+     * If the scanner has not produced a measured result (for example while no real probe
+     * backend is wired), this does NOT fabricate a profile with fake ping/throughput.
+     */
     fun autoApplyFromScanner(scannedNode: ScanTargetResult) {
+        if (!scannedNode.measured) {
+            logger.warn(
+                TAG,
+                "autoApplyFromScanner refused: node [${scannedNode.target}] is not a real measured result; no profile fabricated."
+            )
+            return
+        }
+
         val current = _state.value
         val newId = "prof-auto-${System.currentTimeMillis()}"
         val newProfile = TunnelProfile(
@@ -421,7 +442,8 @@ class ProfileManager private constructor(private val context: Context) {
             tunnelType = scannedNode.recommendedTunnelType,
             isActive = true,
             pingMs = scannedNode.latencyMs,
-            throughputRating = "${(85..145).random()}.0 MB/s",
+            measured = true,
+            throughputRating = "unmeasured",
             isAutoDiscovered = true,
             dnsConfig = DnsConfig(
                 resolverIpOrUrl = if (scannedNode.target.startsWith("http")) scannedNode.target else "223.5.5.5",
@@ -438,7 +460,7 @@ class ProfileManager private constructor(private val context: Context) {
             profiles = updatedList,
             activeProfileId = newId
         )
-        logger.tunnel(TAG, "Auto-Applied fresh node [${scannedNode.target}] into profile list!")
+        logger.tunnel(TAG, "Auto-Applied measured node [${scannedNode.target}] into profile list.")
     }
 
     fun updateProxyConfig(config: LocalProxyConfig) {

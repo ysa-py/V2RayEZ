@@ -14,8 +14,10 @@ enum class LogLevel(val label: String) {
     SCANNER("SCANNER")
 }
 
+private val nextLogId = java.util.concurrent.atomic.AtomicLong(System.currentTimeMillis())
+
 data class LogEntry(
-    val id: Long = System.currentTimeMillis() + (0..999).random(),
+    val id: Long = nextLogId.incrementAndGet(),
     val timestamp: Long = System.currentTimeMillis(),
     val level: LogLevel,
     val tag: String,
@@ -30,10 +32,10 @@ class DebugLogger private constructor() {
     private val maxLogEntries = 300
     private val _logs = MutableStateFlow<List<LogEntry>>(
         listOf(
-            LogEntry(level = LogLevel.INFO, tag = "System", message = "UnifiedShield Tunnel Core Engine v3.2 Initialized"),
-            LogEntry(level = LogLevel.TUNNEL, tag = "TunnelManager", message = "Multi-Tunnel Engine loaded: DNSTT, NoizDNS, VayDNS, Slipstream, NaiveProxy, Tor"),
-            LogEntry(level = LogLevel.SCANNER, tag = "AutoScanner", message = "Auto-Scanner ready: SNI, IPv4/IPv6, EDNS0, DoH & Tor probes active"),
-            LogEntry(level = LogLevel.DPI, tag = "DpiGuard", message = "Zero-leak DNS & Noise IK Cryptographic Layer Armed")
+            LogEntry(level = LogLevel.INFO, tag = "System", message = "Vor core process initialized"),
+            LogEntry(level = LogLevel.TUNNEL, tag = "TunnelManager", message = "Multi-tunnel configurations present; native backends must be wired before reporting live state"),
+            LogEntry(level = LogLevel.SCANNER, tag = "AutoScanner", message = "Scanner configuration present; real probe results are unavailable until a backend is wired"),
+            LogEntry(level = LogLevel.DPI, tag = "DpiGuard", message = "DPI modules initialized fail-closed; no synthetic telemetry is generated")
         )
     )
     val logs: StateFlow<List<LogEntry>> = _logs

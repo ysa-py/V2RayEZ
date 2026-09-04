@@ -1,6 +1,6 @@
 # Vor — Continuation Engineering Report
 
-**Date:** 2026-09-04
+**Date:** 2026-09-05 (follow-up to 2026-09-04 pass)
 **Branch:** `arena/01a06de6-v2rayez`
 **Base:** `af6aac699033f39ba9ed9ab1bdcda93cf89b613c` (pre-continuation)
 **Scope:** continuation of the existing `FEATURE_MATRIX.md` / `MERGE_TRACEABILITY.md` disciplines. Nothing in the preserved donor trees was deleted or degraded; additions are additive and every status change carries an attached reproducible evidence command.
@@ -21,7 +21,9 @@ Work completed:
    synchronously.
 2. **Anti-fabrication sweep and fix** (§5): found and corrected a large amount of
    `Math.random()`-driven fake telemetry and fake control actions in the dashboard
-   APIs, and added a behavior-based gate.
+   APIs, added a behavior-based gate, and completed the previously-inventoried
+   Android MICAFP donor cleanup (CottenDNS, StormDNS, MasterDNS, WhiteDNS,
+   AutoScanner, ProfileManager, UnifiedShieldStore, SecurityController, UI).
 3. **Formal brand/trademark search for “Vor”** (§6).
 4. **Tracked user-facing rename to `Vor`** (§7).
 5. **Ledger updates** and a new repeatable brand-rename gate.
@@ -201,15 +203,33 @@ numbers as live success: `MicafpQuantumDashboardPanel`, `AiEngineScreen`,
 `DiagnosticTelemetryCharts`, `AdvancedToolsScreen`, `DualModeTransportScreen`,
 `DPIHeatmapPanel` (via `UnifiedShieldStore` honest heatmap defaults).
 
-**Remaining Android fabrication inventory (documented, not claimed clean):**
-`cottendns/CottenDnsEngine.kt`, `stormdns/StormDnsEngine.kt`,
-`tunnel/MasterDnsEngine.kt`, `whitedns/WhiteDnsScannerEngine.kt`,
-`scanner/AutoScannerEngine.kt` (synthetic scan results), `profile/ProfileManager.kt`
-(synthetic throughput rating), `UnifiedShieldStore.kt` (hard-coded threat-signature
-`detectedCount`/optimization counts and panic core labels still need wiring to real
-scan evidence), and a benign random log-id in `logging/DebugLogger.kt`. These still
-return synthetic Random-based telemetry or hard-coded results and will need the same
-fail-closed treatment once their real backends are wired in.
+### Android MICAFP donor cleanup follow-up (2026-09-05)
+
+The follow-up batch closed the previously-inventoried donors instead of leaving them
+documented as synthetic. The same fail-closed principle was applied: **configuration
+and genuine crypto remain, fabricated measured telemetry does not.**
+
+| Donor | Before | After |
+|---|---|---|
+| `cottendns/CottenDnsEngine.kt` + `CottenDnsModels.kt` | sample paths seeded as live + background RTT/counters with `.random()` | `backendUnavailable=true`, empty `paths`, zero counters; `recordRealPathSample()` refuses unmeasured samples |
+| `stormdns/StormDnsEngine.kt` + `StormDnsModels.kt` | fabricated 12–21ms latency + random Tx/Rx/ARQ/RTO loop | zero/unavailable tunnel telemetry; real-data entry points refuse unmeasured samples; `toggleTunnel(true)` is refused when no real backend is wired |
+| `tunnel/MasterDnsEngine.kt` + `MasterDnsConfig.kt` | fake resolver ping/query counters + random loop | unmeasured resolver config, `backendUnavailable=true`, zero counters; `recordRealResolverSample()` refuses unmeasured samples |
+| `whitedns/WhiteDnsModels.kt` + `WhiteDnsScannerEngine.kt` | seeded clean-node list + random scan loop | empty/unavailable results, fail-closed scan completion |
+| `scanner/AutoScannerEngine.kt` | `getInitialVerifiedNodes()` seeded 30 clean targets + synthetic scores; random scan loop | `backendUnavailable=true`, empty results, `cleanNodesCount=0`; `applyScannedNode()`/watchdog refuse unmeasured or no-backend actions; `.random()` remains only in `generateDynamicProbeTargets()` **candidate enumeration** (labeled `REAL DISCOVERY ONLY`) |
+| `profile/ProfileManager.kt` + `tunnel/TunnelProfile.kt` | default profiles carried fabricated `pingMs` (10–38ms) and throughput text | default `pingMs=0`, `measured=false`, `throughputRating="unmeasured"`; `autoApplyFromScanner()` refuses nodes that were not actually measured |
+| `UnifiedShieldStore.kt` | hard-coded threat-vector config + fake `detectedCount`/optimized state; fed `latencyMs=16` into `AiStealthEngine` during “apply optimization” | zeroed catalog counts, `threatSignaturesMeasured=false`, `isOptimized=false`, no fake latency feed; heatmap is explicit `SIMULATION` and cannot drive real panic mode |
+| `security/SecurityController.kt` | fabricated `totalWipesPerformed`, non-random ephemeral ID, fake key-active state | honest defaults; `SecureRandom` IDs/buffers; no claimed wipe restores |
+| `logging/DebugLogger.kt` | random log-id saw random entropy only in a decorator | fail-closed log buffer, no synthetic success lines |
+| `ui/TunnelsScreen.kt` | displayed profile `pingMs` as live RTT | renders `unmeasured`/amber when `measured=false` |
+| `ui/CottenDnsScreen.kt` | rendered seeded path/telemetry as live | `UNAVAILABLE` badge, empty-path message, per-path `measured` guards |
+| `ui/MasterDnsScreen.kt` / `ui/StormDnsScreen.kt` / `ui/WhiteDnsScreen.kt` | rendered resolver/result `0ms`/`0%` as live telemetry | `measured`/`backendUnavailable` guards, empty-state messages, `unmeasured`/`unavailable` rendering |
+| `ui/ThreatIntelPanel.kt` | displayed catalog counts as live detections | `UNAVAILABLE` badge + unavailable counter text |
+| `ui/Quantum3DParticleCanvas.kt` | decorative animated canvas | labeled `VISUALIZATION ONLY — NOT REAL TELEMETRY` (no functional claim changed) |
+
+**Non-telemetry Random that intentionally remains:** `AutoScannerEngine` candidate
+IP/port/SNI enumeration (for a future real probe backend) and the decorative particle
+canvas. Both are explicitly labeled and are not measured metrics. There are no
+remaining synthetic **telemetry** donors in this layer.
 
 ### New behavior gate
 
@@ -223,9 +243,14 @@ fail-closed treatment once their real backends are wired in.
    `SIMULATION ONLY — NOT REAL TELEMETRY` label.
 5. Re-checks the release builder cannot emit placeholders.
 6. Rejects `Random.next*` in the cleaned Android production engines (with explicit
-   backoff-jitter exceptions) and requires `backendUnavailable` / honest UI states.
-7. Prints an inventory of the remaining Android synthetic-Random engines instead of
-   silently passing them.
+   backoff-jitter and cryptographic `SecureRandom` exceptions) and requires
+   `backendUnavailable` / honest UI states.
+7. Locks ProfileManager/TunnelProfile fail-closed defaults, UnifiedShieldStore
+   metadata-only optimization, AutoScanner `REAL DISCOVERY ONLY` enumeration,
+   DNS-engine `measured` sample guards, and MasterDns/StormDns/WhiteDns/CottenDns/
+   Tunnels/ThreatIntel honest UI paths.
+8. Prints the small remaining **non-telemetry** Random inventory (candidate target
+   enumeration + decorative canvas) instead of silently passing them.
 
 `node tools/vor_anti_fabrication_gate.mjs` → **PASS**. It is auto-discovered by CI
 (`universal-core-ci.yml` runs every `tools/*.mjs`).
@@ -361,10 +386,10 @@ the retained internal/donor identifiers, and it verifies the renamed platform ID
 
 ## 9. Regression check
 
-All `tools/*.mjs` gates pass (`25/25`), including the two new gates. Shell syntax
-check (`bash -n` on the build/OpenWrt scripts) passes. Python `py_compile` passes.
-`node --check` passes on changed JS. No existing feature was removed; donor source
-trees were not touched.
+All `tools/*.mjs` gates pass (`26/26`), including the expanded anti-fabrication
+gate. Shell syntax check (`bash -n` on the build/OpenWrt scripts) passes. Python
+`py_compile` passes. `node --check` passes on changed JS. No existing feature was
+removed; donor source trees were not touched.
 
 Run to reproduce:
 

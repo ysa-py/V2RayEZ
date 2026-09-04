@@ -423,8 +423,10 @@ data class TunnelProfile(
     val namePersian: String,
     val tunnelType: TunnelType,
     val isActive: Boolean = false,
-    val pingMs: Int = 22,
-    val throughputRating: String = "92.4 MB/s",
+    // Fail-closed telemetry: ping is only meaningful when measured by a real probe backend.
+    val pingMs: Int = 0,
+    val measured: Boolean = false,
+    val throughputRating: String = "unmeasured",
     val isAutoDiscovered: Boolean = false,
     val sshConfig: SshConfig = SshConfig(),
     val dnsConfig: DnsConfig = DnsConfig(),

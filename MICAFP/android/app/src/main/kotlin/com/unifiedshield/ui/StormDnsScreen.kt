@@ -151,10 +151,10 @@ fun StormDnsScreen() {
                             color = if (state.isTunnelRunning) Color(0xFF34D399) else Color(0xFF94A3B8)
                         )
                         Text(
-                            text = "RTO: ${state.dynamicRtoMs}ms",
+                            text = if (state.backendUnavailable) "RTO: unmeasured" else "RTO: ${state.dynamicRtoMs}ms",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF38BDF8)
+                            color = if (state.backendUnavailable) Color(0xFFB45309) else Color(0xFF38BDF8)
                         )
                     }
 
@@ -164,19 +164,19 @@ fun StormDnsScreen() {
                     ) {
                         Column {
                             Text("ترافیک ارسالی (TX):", fontSize = 11.sp, color = Color(0xFF94A3B8))
-                            Text("${state.bytesTransmitted / 1024} KB", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            Text(if (state.backendUnavailable) "unavailable" else "${state.bytesTransmitted / 1024} KB", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (state.backendUnavailable) Color(0xFFB45309) else Color.White)
                         }
                         Column {
                             Text("ترافیک دریافتی (RX):", fontSize = 11.sp, color = Color(0xFF94A3B8))
-                            Text("${state.bytesReceived / 1024} KB", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF34D399))
+                            Text(if (state.backendUnavailable) "unavailable" else "${state.bytesReceived / 1024} KB", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (state.backendUnavailable) Color(0xFFB45309) else Color(0xFF34D399))
                         }
                         Column {
                             Text("بازتکرار ARQ:", fontSize = 11.sp, color = Color(0xFF94A3B8))
-                            Text("${state.arqRetransmissions}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFFF59E0B))
+                            Text(if (state.backendUnavailable) "unavailable" else "${state.arqRetransmissions}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (state.backendUnavailable) Color(0xFFB45309) else Color(0xFFF59E0B))
                         }
                         Column {
                             Text("جریان‌های فعال:", fontSize = 11.sp, color = Color(0xFF94A3B8))
-                            Text("${state.activeStreamsCount} Streams", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            Text(if (state.backendUnavailable) "unavailable" else "${state.activeStreamsCount} Streams", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (state.backendUnavailable) Color(0xFFB45309) else Color.White)
                         }
                     }
                 }
@@ -366,6 +366,16 @@ fun StormDnsScreen() {
         }
 
         // Resolvers List
+        if (state.resolvers.isEmpty()) {
+            item {
+                Text(
+                    "No real StormDNS resolver measurements (backend not wired).",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
         items(state.resolvers, key = { it.id }) { res ->
             Card(
                 shape = RoundedCornerShape(12.dp),
@@ -383,7 +393,13 @@ fun StormDnsScreen() {
                             modifier = Modifier
                                 .size(10.dp)
                                 .clip(CircleShape)
-                                .background(if (res.isActive) Color(0xFF10B981) else Color(0xFFEF4444))
+                                .background(
+                                    when {
+                                        !res.measured -> Color(0xFFB45309)
+                                        res.isActive -> Color(0xFF10B981)
+                                        else -> Color(0xFFEF4444)
+                                    }
+                                )
                         )
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
@@ -393,8 +409,8 @@ fun StormDnsScreen() {
                     }
 
                     Column(horizontalAlignment = Alignment.End) {
-                        Text("${res.latencyMs}ms", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF38BDF8))
-                        Text("افت: ${res.packetLossPct}%", fontSize = 10.sp, color = if (res.packetLossPct < 1.0) Color(0xFF10B981) else Color(0xFFEF4444))
+                        Text(if (res.measured) "${res.latencyMs}ms" else "unmeasured", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (res.measured) Color(0xFF38BDF8) else Color(0xFFB45309))
+                        Text(if (res.measured) "افت: ${res.packetLossPct}%" else "unavailable", fontSize = 10.sp, color = if (!res.measured) Color(0xFFB45309) else if (res.packetLossPct < 1.0) Color(0xFF10B981) else Color(0xFFEF4444))
                     }
                 }
             }

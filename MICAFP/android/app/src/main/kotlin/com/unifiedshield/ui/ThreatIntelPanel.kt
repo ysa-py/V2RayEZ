@@ -79,7 +79,7 @@ fun ThreatIntelPanel(
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "تحلیل هوشمند بردارهای فیلترینگ و انطباق آنی با پروتکل‌های بهینه",
+                            text = "کاتالوگ بردارهای شناخته‌شده — تشخیص‌های واقعی تا اتصال بک‌اند در دسترس نیستند",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -87,10 +87,15 @@ fun ThreatIntelPanel(
                 }
 
                 Badge(
-                    containerColor = Color(0x2210B981),
-                    contentColor = Color(0xFF10B981)
+                    containerColor = if (storeState.backendUnavailable) Color(0x22B45309) else Color(0x2210B981),
+                    contentColor = if (storeState.backendUnavailable) Color(0xFFB45309) else Color(0xFF10B981)
                 ) {
-                    Text("${storeState.activeOptimizationCount} بهینه‌سازی فعال")
+                    Text(
+                        if (storeState.backendUnavailable)
+                            "UNAVAILABLE"
+                        else
+                            "${storeState.activeOptimizationCount} بهینه‌سازی فعال"
+                    )
                 }
             }
 
@@ -179,7 +184,7 @@ fun ThreatIntelPanel(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "تعداد تلاش مسدودسازی: ${sig.detectedCount}",
+                                text = if (storeState.backendUnavailable) "تعداد تلاش مسدودسازی: unavailable" else "تعداد تلاش مسدودسازی: ${sig.detectedCount}",
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

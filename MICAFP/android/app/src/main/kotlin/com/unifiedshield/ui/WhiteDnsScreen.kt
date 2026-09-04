@@ -382,6 +382,16 @@ fun WhiteDnsScreen() {
         }
 
         // Scan Results List
+        if (state.results.isEmpty()) {
+            item {
+                Text(
+                    if (state.backendUnavailable) "No real WhiteDNS probe backend is wired; scan results are unavailable." else "No results yet.",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
         items(state.results, key = { it.id }) { node ->
             Card(
                 shape = RoundedCornerShape(14.dp),

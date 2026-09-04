@@ -33,6 +33,10 @@ import com.unifiedshield.ui.theme.EnterpriseColors
 import kotlin.math.*
 import kotlin.random.Random
 
+// VISUALIZATION ONLY — NOT REAL TELEMETRY.
+// The random values below shape a decorative 3D particle animation;
+// they never produce network/security metrics.
+
 data class Quantum3DParticle(
     var x: Float,
     var y: Float,

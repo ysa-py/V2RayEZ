@@ -42,12 +42,15 @@ data class ShieldStoreState(
     val isPanicModeActive: Boolean = false,
     val panicTriggerReason: String = "",
     val isNetworkLocked: Boolean = false,
-    val activeCore: String = "Quantum-Morph v4",
-    val shadowCore: String = "Hysteria 2 Brutal",
+    val activeCore: String = "unconfigured",
+    val shadowCore: String = "unconfigured",
     val lastShadowSwapTimestamp: Long = 0,
     val dpiCriticalThreshold: Int = 85,
     val isEmergencyWiped: Boolean = false,
-    val activeOptimizationCount: Int = 4,
+    val activeOptimizationCount: Int = 0,
+    val backendUnavailable: Boolean = true,
+    val backendNote: String = "No real DPI/threat backend is wired in; heatmap and threat counts are unavailable.",
+    val threatSignaturesMeasured: Boolean = false,
     val heatmapNodes: List<DpiHeatmapNode> = listOf(
         DpiHeatmapNode("tehran-mci", "Tehran Core", "مرکز تبادل دیتای تهران (MCI)", "همراه اول", 0, 0.0, 0.0),
         DpiHeatmapNode("karaj-irancell", "Karaj Gateway", "گیت‌وی کرج (Irancell)", "ایرانسل", 0, 0.0, 0.0),
@@ -63,12 +66,12 @@ data class ShieldStoreState(
             namePersian = "اسکنر پیشرفته SNI زیرساخت",
             signaturePattern = "0x16 0x03 0x01 [ClientHello-SNI-Match]",
             threatLevel = "CRITICAL",
-            detectedCount = 8420,
+            detectedCount = 0,
             recommendedProtocolId = "neural-reality-v4",
             recommendedProtocolName = "Neural-REALITY v4",
             recommendedActionDescription = "Slice TLS ClientHello into 3-byte TCP fragments with dummy TCP windows.",
             recommendedActionDescriptionPersian = "قطعه‌بندی نام دامنه در رکوردهای ۳ بایتی با پنجره‌های ساختگی TCP جهت فریب اسکنر لایه ۷.",
-            isOptimized = true
+            isOptimized = false
         ),
         ThreatIntelSignature(
             id = "sig-rst-injector",
@@ -76,12 +79,12 @@ data class ShieldStoreState(
             namePersian = "سیستم تزریق پکت دژبان (TCP RST)",
             signaturePattern = "TCP Flags: RST+ACK with Out-of-Sequence SEQ",
             threatLevel = "HIGH",
-            detectedCount = 5120,
+            detectedCount = 0,
             recommendedProtocolId = "hysteria2-brutal",
             recommendedProtocolName = "Hysteria 2 Brutal",
             recommendedActionDescription = "Switch to UDP Congestion Control to completely bypass TCP state inspection.",
             recommendedActionDescriptionPersian = "سوئیچ آنی به پروتکل UDP تهاجمی جهت بی‌اثر کردن پکت‌های تزریقی TCP.",
-            isOptimized = true
+            isOptimized = false
         ),
         ThreatIntelSignature(
             id = "sig-flow-ml",
@@ -89,12 +92,12 @@ data class ShieldStoreState(
             namePersian = "طبقه‌بندی آماری الگوهای پکت با هوش مصنوعی",
             signaturePattern = "Packet Length Entropy: 4.2-6.5 Burst Sequence",
             threatLevel = "CRITICAL",
-            detectedCount = 11200,
+            detectedCount = 0,
             recommendedProtocolId = "quantum-morph-v4",
             recommendedProtocolName = "Quantum-Morph v4",
             recommendedActionDescription = "Inject 184B Random High-Entropy Padding disguised as Alibaba Cloud VoD stream.",
             recommendedActionDescriptionPersian = "تزریق نویز تصادفی انتروپی بالا و استتار در قالب ترافیک ویدیویی علی‌بابا کلود.",
-            isOptimized = true
+            isOptimized = false
         ),
         ThreatIntelSignature(
             id = "sig-dns-nxdomain",
@@ -102,12 +105,12 @@ data class ShieldStoreState(
             namePersian = "مسموم‌سازی و انحراف پورت ۵۳ DNS",
             signaturePattern = "Fake A Record (10.10.34.34 / NXDOMAIN Injection)",
             threatLevel = "MEDIUM",
-            detectedCount = 3940,
+            detectedCount = 0,
             recommendedProtocolId = "hyperion-doq-stegano",
             recommendedProtocolName = "Hyperion-DoQ Steganography",
             recommendedActionDescription = "Encapsulate DNS queries into recursive DNS-over-QUIC encrypted frames.",
             recommendedActionDescriptionPersian = "کپسوله‌سازی کامل کوئری‌های DNS در قالب بسته‌های رمزدار DoQ.",
-            isOptimized = true
+            isOptimized = false
         )
     )
 )
@@ -176,6 +179,8 @@ class UnifiedShieldStore private constructor(private val context: Context) {
                 node.copy(
                     dpiThreatScore = newThreatScore,
                     isBreached = breached,
+                    // Explicitly simulation-only: no real DPI backend is wired, so this
+                    // must never be presented as live threat telemetry.
                     status = if (breached) "SIMULATION BREACH" else "SIMULATION",
                     backendUnavailable = true
                 )
@@ -188,6 +193,13 @@ class UnifiedShieldStore private constructor(private val context: Context) {
 
         val hasBreachedNode = updatedNodes.any { it.isBreached } || aggregateThreatScore >= threshold
         _state.value = current.copy(heatmapNodes = updatedNodes)
+
+        // Fail-closed: simulation scores must NOT drive the real panic/shadow-core
+        // subsystem until a real DPI measurement backend is wired.
+        if (current.backendUnavailable) {
+            Log.w(TAG, "updateHeatmapScore ignored for real panic trigger: no real DPI backend wired (simulation only).")
+            return
+        }
 
         if (hasBreachedNode && !current.isPanicModeActive) {
             val breachReason = if (aggregateThreatScore >= threshold) {
@@ -211,21 +223,22 @@ class UnifiedShieldStore private constructor(private val context: Context) {
 
          val updatedSigs = current.threatSignatures.map { sig ->
              if (sig.id == signatureId) {
-                 targetSig = sig.copy(isOptimized = true)
+                 targetSig = sig.copy(isOptimized = false)
                  targetSig!!
              } else sig
          }
 
          _state.value = current.copy(
              threatSignatures = updatedSigs,
-             activeOptimizationCount = updatedSigs.count { it.isOptimized }
+             activeOptimizationCount = 0,
+             backendUnavailable = current.backendUnavailable
          )
 
          targetSig?.let { sig ->
              NovelProtocolsEngine.getInstance().selectProtocol(sig.recommendedProtocolId)
              
              // Automatically adjust core fragmentation & TLS record slicing according to attack vector
-             val (splitLength, paddingBytes) = when (sig.id) {
+             val (splitLength, _) = when (sig.id) {
                  "sig-sni-slicer" -> Pair(2, 240) // Aggressive 2-byte TLS ClientHello splitting
                  "sig-flow-ml" -> Pair(3, 310) // High entropy padding injection
                  "sig-rst-injector" -> Pair(4, 180) // Fast UDP burst fragmentation
@@ -233,14 +246,10 @@ class UnifiedShieldStore private constructor(private val context: Context) {
              }
              
              AiStealthEngine.getInstance().setTlsSplitLength(splitLength)
-             AiStealthEngine.getInstance().evaluateTrafficSignal(
-                 packetSize = 1380 - paddingBytes,
-                 latencyMs = 16,
-                 isTcpRst = false,
-                 handshakeDurationMs = 22,
-                 ispName = "OPTIMIZED-${sig.recommendedProtocolName}"
-             )
-             Log.i(TAG, "Applied optimized configuration for ${sig.name}: TLS Slice=${splitLength}B, Protocol=${sig.recommendedProtocolName}")
+             // No fake telemetry is fed to AiStealthEngine here: no real packet/DPI
+             // measurement exists, so optimization is marked NOT applied (isOptimized=false)
+             // and only readiness configuration is written.
+             Log.i(TAG, "Optimization requested for ${sig.name}: TLS Slice=${splitLength}B configured, Protocol=${sig.recommendedProtocolName}; not marked applied (no measured backend).")
          }
 
          return targetSig

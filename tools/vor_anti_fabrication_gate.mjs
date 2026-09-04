@@ -146,6 +146,26 @@ const androidCleaned = [
   'aiorchestrator/DpiTfLiteAnomalyDetector.kt',
   'resilience/NetworkClientManager.kt',
   'tunnel/DualModeTransportEngine.kt',
+  'UnifiedShieldStore.kt',
+  'security/SecurityController.kt',
+  'cottendns/CottenDnsEngine.kt',
+  'cottendns/CottenDnsModels.kt',
+  'stormdns/StormDnsEngine.kt',
+  'stormdns/StormDnsModels.kt',
+  'tunnel/MasterDnsConfig.kt',
+  'tunnel/MasterDnsEngine.kt',
+  'tunnel/TunnelProfile.kt',
+  'whitedns/WhiteDnsModels.kt',
+  'whitedns/WhiteDnsScannerEngine.kt',
+  'logging/DebugLogger.kt',
+  'profile/ProfileManager.kt',
+  'scanner/AutoScannerEngine.kt',
+  'ui/CottenDnsScreen.kt',
+  'ui/TunnelsScreen.kt',
+  'ui/ThreatIntelPanel.kt',
+  'ui/MasterDnsScreen.kt',
+  'ui/StormDnsScreen.kt',
+  'ui/WhiteDnsScreen.kt',
 ];
 for (const rel of androidCleaned) {
   const body = readAndroid(rel);
@@ -153,7 +173,8 @@ for (const rel of androidCleaned) {
   if (code.includes('Random.next')) {
     const allowedBackoff =
       (rel === 'aiorchestrator/AiCoreOrchestrator.kt' && code.includes('val jitter = Random.nextLong(100, 400)')) ||
-      (rel === 'resilience/NetworkClientManager.kt' && code.includes('Random.nextDouble(config.jitterMultiplierMin'));
+      (rel === 'resilience/NetworkClientManager.kt' && code.includes('Random.nextDouble(config.jitterMultiplierMin')) ||
+      (rel === 'security/SecurityController.kt' && code.includes('secureRandom.nextBytes'));
     assert.ok(allowedBackoff, `${rel}: production engine must not fabricate telemetry with Random.next*`);
   }
   if (code.includes('import kotlin.random.Random')) {
@@ -163,13 +184,82 @@ for (const rel of androidCleaned) {
   }
 }
 
+// AutoScanner still uses `.random()` for CANDIDATE target enumeration only (never
+// for measured metrics). Lock that boundary in so it cannot regress into fabrication.
+{
+  const body = readAndroid('scanner/AutoScannerEngine.kt');
+  assert.ok(body.includes('REAL DISCOVERY ONLY'), 'AutoScannerEngine dynamic probe synthesis must be labeled REAL DISCOVERY ONLY');
+  assert.ok(!body.includes('getInitialVerifiedNodes'), 'AutoScannerEngine must not reseed fake verified nodes');
+  assert.ok(body.includes('results = emptyList()'), 'AutoScannerEngine must fail closed with an empty result list');
+  assert.ok(body.includes('backendUnavailable = true'), 'AutoScannerEngine must expose backendUnavailable');
+  assert.ok(body.includes('cleanNodesCount = 0'), 'AutoScannerEngine must not fabricate a clean-node count');
+  assert.ok(body.includes('is not a real measured result'), 'AutoScannerEngine applyScannedNode must refuse unmeasured nodes');
+}
+
+// ProfileManager and TunnelProfile must not present default catalog pings as measured.
+{
+  const body = readAndroid('profile/ProfileManager.kt');
+  assert.ok(!/\bpingMs\s*=\s*[1-9]\d*\b/.test(body), 'ProfileManager default profiles must not carry fabricated ping values');
+  assert.ok(body.includes('scannedNode.measured'), 'ProfileManager.autoApplyFromScanner must require a measured scanner node');
+  assert.ok(body.includes('measured = true'), 'ProfileManager must mark auto-applied measured profile explicitly');
+  const profile = readAndroid('tunnel/TunnelProfile.kt');
+  assert.ok(/pingMs:\s*Int\s*=\s*0/.test(profile), 'TunnelProfile default must be fail-closed pingMs = 0');
+  assert.ok(/measured:\s*Boolean\s*=\s*false/.test(profile), 'TunnelProfile must carry a measured flag defaulting false');
+}
+
+// UnifiedShieldStore threat optimization must be metadata-only and must not feed
+// fabricated latency/throughput into AiStealthEngine.
+{
+  const body = readAndroid('UnifiedShieldStore.kt');
+  assert.ok(body.includes('backendUnavailable'), 'UnifiedShieldStore must expose backendUnavailable');
+  assert.ok(!body.includes('latencyMs = 16'), 'UnifiedShieldStore must not feed fabricated latency into AiStealthEngine');
+  assert.ok(body.includes('isOptimized = false'), 'UnifiedShieldStore must not mark optimization as applied without measurement');
+}
+
+// DNS engines guard the real-data entry points on a measured flag.
+for (const rel of ['cottendns/CottenDnsEngine.kt', 'stormdns/StormDnsEngine.kt', 'tunnel/MasterDnsEngine.kt']) {
+  const body = readAndroid(rel);
+  assert.ok(body.includes('!sample.measured'), `${rel}: real-data sample entry must refuse unmeasured samples`);
+}
+
+// Decorative visualizations may use Random, but only when explicitly labeled
+// simulation / visualization-only and never as live telemetry.
+const androidSimulationOnly = [
+  'ui/Quantum3DParticleCanvas.kt',
+];
+for (const rel of androidSimulationOnly) {
+  const body = readAndroid(rel);
+  assert.ok(body.includes('SIMULATION ONLY') || body.includes('VISUALIZATION ONLY'), `${rel}: random-based visual module must be labeled simulation/visualization only`);
+}
+
 // Facade check: attach/execute helpers in the cleaned layer must fail closed.
 const ebpfBody = readAndroid('micafp/EbpfSocketFilterEngine.kt');
 assert.ok(ebpfBody.includes('return false'), 'EbpfSocketFilterEngine.attachSocketFilter must fail closed');
 assert.ok(ebpfBody.includes('backendUnavailable'), 'EbpfSocketFilterEngine must expose backendUnavailable');
 
-// Each cleaned engine must carry an honest unavailable state/note.
-for (const rel of [...androidCleaned]) {
+// Each cleaned production engine/state store must carry an honest unavailable state/note.
+const androidEnginesWithHonestNote = [
+  'micafp/EbpfSocketFilterEngine.kt',
+  'micafp/MicafpKernelRingBufferEngine.kt',
+  'micafp/DiagnosticTelemetryService.kt',
+  'micafp/MicafpQuantumMorphProtocol.kt',
+  'micafp/OnDeviceNeuralReconEngine.kt',
+  'micafp/TfLitePacketAnalyzerEngine.kt',
+  'AiStealthEngine.kt',
+  'DpiDiagnosticEngine.kt',
+  'aiorchestrator/AdaptiveNetworkProfiler.kt',
+  'aiorchestrator/AiCoreOrchestrator.kt',
+  'aiorchestrator/DpiTfLiteAnomalyDetector.kt',
+  'resilience/NetworkClientManager.kt',
+  'tunnel/DualModeTransportEngine.kt',
+  'UnifiedShieldStore.kt',
+  'cottendns/CottenDnsEngine.kt',
+  'stormdns/StormDnsEngine.kt',
+  'tunnel/MasterDnsEngine.kt',
+  'whitedns/WhiteDnsScannerEngine.kt',
+  'scanner/AutoScannerEngine.kt',
+];
+for (const rel of androidEnginesWithHonestNote) {
   const body = readAndroid(rel);
   const hasNote = body.includes('backendUnavailable') || body.includes('No real ') || body.includes('not wired in');
   assert.ok(hasNote, `${rel}: cleaned Android engine must state an honest unavailable/backend note`);
@@ -187,29 +277,40 @@ for (const rel of [
   'ui/AdvancedToolsScreen.kt',
   'ui/DualModeTransportScreen.kt',
   'ui/DiagnosticTelemetryCharts.kt',
+  'ui/MasterDnsScreen.kt',
+  'ui/StormDnsScreen.kt',
+  'ui/WhiteDnsScreen.kt',
+  'ui/CottenDnsScreen.kt',
+  'ui/TunnelsScreen.kt',
 ]) {
   const body = readAndroid(rel);
-  assert.ok(body.includes('unavailable') || body.includes('UNAVAILABLE'), `${rel}: consumer UI must render honest unavailable states`);
+  assert.ok(
+    body.includes('unavailable') || body.includes('UNAVAILABLE') || body.includes('unmeasured'),
+    `${rel}: consumer UI must render honest unavailable/unmeasured states`,
+  );
 }
 
-// ── 6. Known remaining Android fabrication inventory (documented, not silent) ─
-const remainingRandomFiles = [
-  'cottendns/CottenDnsEngine.kt',
-  'logging/DebugLogger.kt',
-  'profile/ProfileManager.kt',
-  'scanner/AutoScannerEngine.kt',
-  'stormdns/StormDnsEngine.kt',
-  'tunnel/MasterDnsEngine.kt',
-  'whitedns/WhiteDnsScannerEngine.kt',
+// The newly cleaned DNS/scanner/profile UIs must gate numeric rendering on a
+// measured flag/backend availability instead of showing 0ms/0% as live data.
+for (const rel of ['ui/MasterDnsScreen.kt', 'ui/StormDnsScreen.kt', 'ui/CottenDnsScreen.kt']) {
+  const body = readAndroid(rel);
+  assert.ok(body.includes('measured'), `${rel}: DNS UI must gate metrics on measured/backend availability`);
+}
+
+// ── 6. Remaining synthetic-Random inventory (documented, not silent) ─────────
+// The Android production pipeline is now fail-closed for measured telemetry.
+// Remaining uses are explicitly NON-telemetry: AutoScanner candidate target
+// enumeration (real probing backend is not yet wired) and the decorative particle
+// canvas. These are intentionally flagged rather than silently allowed.
+const remainingNonTelemetryRandom = [
+  'scanner/AutoScannerEngine.kt — candidate target enumeration only (REAL DISCOVERY ONLY)',
+  'ui/Quantum3DParticleCanvas.kt — decorative visualization only (VISUALIZATION ONLY)',
 ];
 console.log(
-  `vor_anti_fabrication_gate: NOTE — ${remainingRandomFiles.length} known Android donors still contain synthetic Random-based telemetry; they are documented in CONTINUATION_REPORT.md, not silently claimed clean.`,
+  `vor_anti_fabrication_gate: NOTE — ${remainingNonTelemetryRandom.length} non-telemetry Random uses remain; they are not fabricated measurements and are explicitly labeled.`,
 );
-for (const rel of remainingRandomFiles) {
-  const body = readAndroid(rel);
-  const code = stripCommentsAndStrings(body);
-  const randomUses = (code.match(/Random\.next|\.random\(\)/g) || []).length;
-  console.log(`  inventory: ${rel} — ${randomUses} synthetic random call(s)`);
+for (const entry of remainingNonTelemetryRandom) {
+  console.log(`  inventory: ${entry}`);
 }
 
 if (failures > 0) {
@@ -217,5 +318,5 @@ if (failures > 0) {
   process.exit(1);
 }
 console.log(
-  'vor_anti_fabrication_gate: PASS — real crypto verified; dashboard Math.random clean; Android cleaned donor engines fail closed with honest unavailable states; remaining Android fabrications are inventoried, not claimed clean.',
+  'vor_anti_fabrication_gate: PASS — real crypto verified; dashboard Math.random clean; Android cleaned donor engines fail closed with honest unavailable states; ProfileManager/UnifiedShieldStore/UI fail-closed assertions pass; remaining Random uses are explicitly non-telemetry.',
 );

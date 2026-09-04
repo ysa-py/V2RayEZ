@@ -2,98 +2,69 @@ package com.unifiedshield.stormdns
 
 import android.content.Context
 import com.unifiedshield.logging.DebugLogger
-import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
+/**
+ * StormDNS TCP-over-DNS engine.
+ *
+ * ANTI-FABRICATION (2026-09-04): This class previously seeded four resolver nodes
+ * with fabricated 12–21ms latency and a background loop that advanced Tx/Rx bytes,
+ * ARQ retransmissions, dynamic RTO and stream count with `.random()`. No real
+ * StormDNS tunnel/resolver backend ran.
+ *
+ * Correct behavior now:
+ *   - Default state is `backendUnavailable=true`, no resolvers, zero counters.
+ *   - Configuration setters remain; no measurement is synthesized.
+ *   - `recordRealResolverSample(...)` / `recordRealCounters(...)` accept measured data.
+ */
 class StormDnsEngine private constructor(private val context: Context) {
 
     private val TAG = "StormDnsEngine"
     private val logger = DebugLogger.getInstance()
-    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-    private var telemetryJob: Job? = null
 
-    private val _state = MutableStateFlow(
-        StormDnsState(
-            resolvers = getInitialStormResolvers()
-        )
-    )
+    private val _state = MutableStateFlow(StormDnsState())
     val state: StateFlow<StormDnsState> = _state
 
     init {
-        startTelemetryLoop()
+        logger.addLog("StormDNS Core", "Engine initialized fail-closed; no real resolver backend wired.")
     }
 
-    private fun getInitialStormResolvers(): List<StormDnsResolverNode> {
-        return listOf(
-            StormDnsResolverNode(
-                id = "res-1",
-                address = "104.21.68.12",
-                port = 53,
-                latencyMs = 12,
-                packetLossPct = 0.2,
-                discoveredMtu = 1232,
-                isActive = true
-            ),
-            StormDnsResolverNode(
-                id = "res-2",
-                address = "172.67.180.44",
-                port = 53,
-                latencyMs = 14,
-                packetLossPct = 0.4,
-                discoveredMtu = 1400,
-                isActive = true
-            ),
-            StormDnsResolverNode(
-                id = "res-3",
-                address = "223.5.5.5",
-                port = 53,
-                latencyMs = 18,
-                packetLossPct = 0.0,
-                discoveredMtu = 1232,
-                isActive = true
-            ),
-            StormDnsResolverNode(
-                id = "res-4",
-                address = "119.29.29.29",
-                port = 53,
-                latencyMs = 21,
-                packetLossPct = 0.8,
-                discoveredMtu = 1200,
-                isActive = true
-            )
+    fun recordRealResolverSample(sample: StormDnsResolverNode) {
+        if (!sample.measured) {
+            logger.addLog("StormDNS Core", "Refused unmeasured resolver sample; no telemetry fabricated.")
+            return
+        }
+        _state.value = _state.value.copy(
+            resolvers = listOf(sample) + _state.value.resolvers.filter { it.id != sample.id },
+            backendUnavailable = false,
+            backendNote = "Real StormDNS resolver sample recorded."
         )
     }
 
-    private fun startTelemetryLoop() {
-        telemetryJob = scope.launch {
-            while (isActive) {
-                delay(2000)
-                if (_state.value.isTunnelRunning) {
-                    val current = _state.value
-                    val deltaTx = (80..320).random() * 1024L
-                    val deltaRx = (400..1200).random() * 1024L
-                    val deltaArq = if ((1..10).random() > 7) 1L else 0L
-
-                    _state.value = current.copy(
-                        bytesTransmitted = current.bytesTransmitted + deltaTx,
-                        bytesReceived = current.bytesReceived + deltaRx,
-                        arqRetransmissions = current.arqRetransmissions + deltaArq,
-                        dynamicRtoMs = (28..42).random(),
-                        activeStreamsCount = (4..9).random()
-                    )
-                }
-            }
-        }
+    fun recordRealCounters(bytesTx: Long, bytesRx: Long, arqRetx: Long, rtoMs: Int, streams: Int) {
+        _state.value = _state.value.copy(
+            bytesTransmitted = bytesTx,
+            bytesReceived = bytesRx,
+            arqRetransmissions = arqRetx,
+            dynamicRtoMs = rtoMs,
+            activeStreamsCount = streams,
+            backendUnavailable = false,
+            backendNote = "Real StormDNS counters recorded."
+        )
     }
 
     fun toggleTunnel(start: Boolean) {
+        if (start && _state.value.backendUnavailable) {
+            _state.value = _state.value.copy(isTunnelRunning = false)
+            logger.addLog("StormDNS Core", "Tunnel start refused: no real tunnel backend is wired; no fake running state.")
+            return
+        }
         _state.value = _state.value.copy(isTunnelRunning = start)
         if (start) {
-            logger.addLog("StormDNS Core", "Started StormDNS TCP-over-DNS tunnel on 127.0.0.1:${_state.value.localSocks5Port} targeting ${_state.value.tunnelDomain}")
-            logger.addLog("StormDNS Core", "Duplication set: Data ${_state.value.duplicationControls.dataDuplication}x, ACK ${_state.value.duplicationControls.ackDuplication}x, Setup ${_state.value.duplicationControls.setupDuplication}x, Control ${_state.value.duplicationControls.controlDuplication}x")
+            logger.addLog("StormDNS Core", "StormDNS tunnel started (real backend present).")
         } else {
-            logger.addLog("StormDNS Core", "StormDNS tunnel listener stopped.")
+            logger.addLog("StormDNS Core", "StormDNS tunnel listener stopped (request).")
         }
     }
 
