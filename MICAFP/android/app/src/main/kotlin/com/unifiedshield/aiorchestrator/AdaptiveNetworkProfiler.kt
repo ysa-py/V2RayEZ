@@ -6,14 +6,19 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlin.math.abs
-import kotlin.random.Random
 
 /**
  * Adaptive Network Profiler Service.
- * Low-priority background worker that systematically pings all available cores every 30 seconds
- * and recalculates the AI Orchestrator's scoringMatrix based on real-time latency, packet loss,
- * and successful handshake rates, specifically calibrated for high-jitter Iranian mobile networks.
+ *
+ * ANTI-FABRICATION (2026-09-04): The profiling cycle previously synthesized
+ * RTT, packet loss, handshake success and jitter from protocol name + `Random`
+ * and then "updated" the orchestrator scoring matrix with those fake values.
+ *
+ * Correct behavior now:
+ *   - Battery-saver controls remain genuine.
+ *   - `runProfilingCycle()` never fabricates probe results; if a caller supplies
+ *     real `CoreScoreEntry` results it can still update the matrix, but no
+ *     background loop invents telemetry.
  */
 class AdaptiveNetworkProfiler private constructor() {
 
@@ -23,7 +28,7 @@ class AdaptiveNetworkProfiler private constructor() {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     private var profilerJob: Job? = null
-    private val _isProfilingActive = MutableStateFlow(true)
+    private val _isProfilingActive = MutableStateFlow(false)
     val isProfilingActive: StateFlow<Boolean> = _isProfilingActive.asStateFlow()
 
     private val _isBatterySaverEnabled = MutableStateFlow(false)
@@ -35,16 +40,16 @@ class AdaptiveNetworkProfiler private constructor() {
     private val _deviceBatteryLevel = MutableStateFlow(100)
     val deviceBatteryLevel: StateFlow<Int> = _deviceBatteryLevel.asStateFlow()
 
-    private val _lastProfileTimestamp = MutableStateFlow(System.currentTimeMillis())
+    private val _lastProfileTimestamp = MutableStateFlow(0L)
     val lastProfileTimestamp: StateFlow<Long> = _lastProfileTimestamp.asStateFlow()
 
-    private val _profilerStats = MutableStateFlow("Initialized. Probing cycle active (Adaptive CPU Mode).")
+    private val _profilerStats = MutableStateFlow("Idle. Real network probe backend is not wired in.")
     val profilerStats: StateFlow<String> = _profilerStats.asStateFlow()
 
     private val mlPredictor = IspDpiCorrelationPredictor.getInstance()
 
     init {
-        startProfilingLoop()
+        // No auto-start of synthesized probing. This avoids fabricating results.
     }
 
     fun setBatterySaverEnabled(enabled: Boolean) {
@@ -70,29 +75,14 @@ class AdaptiveNetworkProfiler private constructor() {
         return _isBatterySaverEnabled.value || _deviceBatteryLevel.value < 20
     }
 
+    /**
+     * Kept for API compatibility. Without a real probe backend this does not
+     * produce data; it only logs the honest unavailable state.
+     */
     fun startProfilingLoop() {
         profilerJob?.cancel()
-        _isProfilingActive.value = true
-        profilerJob = scope.launch {
-            while (isActive && _isProfilingActive.value) {
-                try {
-                    runProfilingCycle()
-                } catch (e: Exception) {
-                    Log.e(TAG, "Profiling cycle error: ${e.message}")
-                }
-
-                // Adaptive Sleep calculation: lowers CPU wakeups based on battery saver and link stability
-                val baseInterval = when {
-                    _isBatterySaverEnabled.value -> _batterySaverProfile.value.intervalMs
-                    _deviceBatteryLevel.value < 20 -> 180_000L // 3 minutes
-                    else -> 35_000L // 35 seconds
-                }
-
-                // Add jitter to avoid synchronized wakeups
-                val dynamicSleep = baseInterval + Random.nextLong(1000L, 4000L)
-                delay(dynamicSleep)
-            }
-        }
+        _isProfilingActive.value = false
+        _profilerStats.value = "Network profiling requested, but no real probe backend is wired in."
     }
 
     fun stopProfiling() {
@@ -102,64 +92,18 @@ class AdaptiveNetworkProfiler private constructor() {
     }
 
     /**
-     * Executes a full probe across all cores in the pool.
+     * Invoked only by a real caller with measured CoreScoreEntry data. It does
+     * not invent any metric.
      */
-    suspend fun runProfilingCycle() {
-        val currentPool = orchestrator.coresPool.value
-        val updatedList = mutableListOf<CoreScoreEntry>()
-
-        logger.info("Profiler", "Starting systematic 30s background core evaluation (${currentPool.size} cores)...")
-
-        for (entry in currentPool) {
-            // Simulate probe with realistic network characteristics on mobile carrier
-            val baseRtt = when (entry.protocolType) {
-                "QUIC / UDP" -> 11L
-                "Multi-Transport DNS" -> 12L
-                "VLESS / TLS 1.3" -> 14L
-                "TCP-over-DNS" -> 15L
-                "DNS Multipath" -> 16L
-                "WireGuard UDP" -> 10L
-                else -> 18L
-            }
-
-            // Add dynamic mobile jitter
-            val jitter = Random.nextDouble(0.8, 3.5)
-            val measuredRtt = (baseRtt + Random.nextInt(-2, 4)).coerceAtLeast(8L)
-            val packetLoss = if (entry.protocolType.contains("QUIC") || entry.protocolType.contains("DNS")) {
-                Random.nextDouble(0.0, 0.5)
-            } else {
-                Random.nextDouble(0.1, 1.2)
-            }
-            val handshakeSuccess = if (packetLoss > 2.0) 0.92 else 0.99
-
-            // High-jitter Iranian network scoring formula:
-            // Score = (HandshakeSuccess * 45) + ((100 - PacketLoss*10) * 0.35) + (100 - Rtt*1.2) * 0.20 - (Jitter * 1.5)
-            val rawScore = (handshakeSuccess * 45.0) +
-                    ((100.0 - (packetLoss * 8.0)).coerceIn(0.0, 100.0) * 0.35) +
-                    ((100.0 - (measuredRtt * 1.2)).coerceIn(0.0, 100.0) * 0.20) -
-                    (jitter * 1.2)
-
-            val finalScore = Math.round(rawScore.coerceIn(10.0, 100.0) * 10.0) / 10.0
-
-            updatedList.add(
-                entry.copy(
-                    score = finalScore,
-                    latencyMs = measuredRtt,
-                    packetLossPct = Math.round(packetLoss * 10.0) / 10.0,
-                    handshakeSuccessRate = handshakeSuccess,
-                    jitterMs = Math.round(jitter * 10.0) / 10.0
-                )
-            )
-            delay(40) // Low priority non-blocking yield between core probes
+    suspend fun applyRealProfile(updatedList: List<CoreScoreEntry>) {
+        if (updatedList.isEmpty()) {
+            _profilerStats.value = "No real probe data supplied; scoring matrix unchanged."
+            return
         }
-
         orchestrator.updateScoringMatrix(updatedList)
         _lastProfileTimestamp.value = System.currentTimeMillis()
         val highest = updatedList.maxByOrNull { it.score }
-        _profilerStats.value = "Updated scoring matrix. Top core: ${highest?.name} (${highest?.score} pts, ${highest?.latencyMs}ms)"
-        logger.info("Profiler", "Completed profiling cycle. Top scoring core: ${highest?.name}")
-
-        // Feed telemetry into ML correlation predictor
+        _profilerStats.value = "Applied real probe data. Top core: ${highest?.name} (${highest?.score} pts, ${highest?.latencyMs}ms)"
         if (highest != null) {
             mlPredictor.ingestTelemetrySample(
                 currentRttMs = highest.latencyMs.toFloat(),
@@ -168,6 +112,14 @@ class AdaptiveNetworkProfiler private constructor() {
                 signatureType = if (highest.packetLossPct > 2.0) "Packet Loss Jitter Surge" else null
             )
         }
+    }
+
+    /**
+     * Fails closed: no synthesized probes, no fabricated matrix update.
+     */
+    suspend fun runProfilingCycle() {
+        _profilerStats.value = "No real network probe backend is wired in; profiling results unavailable."
+        logger.warn(TAG, "runProfilingCycle called without a real probe backend; results NOT fabricated.")
     }
 
     companion object {

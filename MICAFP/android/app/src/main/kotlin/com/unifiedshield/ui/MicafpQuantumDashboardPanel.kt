@@ -1,11 +1,10 @@
 package com.unifiedshield.ui
 
-import androidx.compose.animation.*
-import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -13,12 +12,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.unifiedshield.micafp.DiagnosticTelemetryService
 import com.unifiedshield.micafp.EbpfSocketFilterEngine
 import com.unifiedshield.micafp.MicafpKernelRingBufferEngine
@@ -29,6 +26,15 @@ import com.unifiedshield.ui.components.CyberHudCard
 import com.unifiedshield.ui.components.EnterpriseStatusPill
 import com.unifiedshield.ui.components.StatusPillType
 
+/**
+ * MICAFP Quantum/Host-offload dashboard.
+ *
+ * ANTI-FABRICATION (2026-09-04): This panel previously displayed fictitious
+ * Kyber-1024, eBPF pps, ring-buffer usage, JA4 inference, TFLite entropy/IAT and
+ * DPI-probe probabilities generated from `Random`. Those numbers have been
+ * removed. The panel now renders honest `UNAVAILABLE` states until a real
+ * backend supplies measured values.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MicafpQuantumDashboardPanel(
@@ -45,7 +51,6 @@ fun MicafpQuantumDashboardPanel(
     val ringBufferStats by kernelEngine.ringBufferStats.collectAsState()
     val neuralState by neuralEngine.neuralState.collectAsState()
     val telemetryState by telemetryService.telemetryState.collectAsState()
-    val telemetryLogs by telemetryService.telemetryLogs.collectAsState()
     val tfLiteMetrics by tfLiteEngine.inferenceMetrics.collectAsState()
     val ebpfStatus by ebpfEngine.ebpfStatus.collectAsState()
 
@@ -64,37 +69,29 @@ fun MicafpQuantumDashboardPanel(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            Icons.Default.VpnKey,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
+                    Icon(
+                        Icons.Default.VpnKey,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp)
+                    )
                     Column {
                         Text(
-                            "پروتکل پسا‌کوانتومی (QMP Shield)",
+                            "QMP / Post-Quantum Offload",
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            "رمزنگاری Kyber-1024 با جهش خودکار سید",
+                            if (qmpState.backendUnavailable) "backend not wired — no quantum state claimed" else qmpState.backendNote,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
                 EnterpriseStatusPill(
-                    text = "Kyber-1024",
-                    type = StatusPillType.INFO
+                    text = if (qmpState.backendUnavailable) "UNAVAILABLE" else "ACTIVE",
+                    type = if (qmpState.backendUnavailable) StatusPillType.WARNING else StatusPillType.SUCCESS
                 )
             }
 
@@ -104,96 +101,44 @@ fun MicafpQuantumDashboardPanel(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Column(modifier = Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("سید کوانتومی", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(
-                            qmpState.currentQuantumSeed.take(10),
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            fontFamily = FontFamily.Monospace,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                }
-
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Column(modifier = Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("نرخ جهش", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(
-                            "${qmpState.mutationRateHz} Hz",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Column(modifier = Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("تاخیر پردازش", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(
-                            "${qmpState.processingOverheadMs} ms",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                }
+                DashboardMetric(
+                    label = "Quantum seed",
+                    value = if (qmpState.currentQuantumSeed.isBlank()) "unavailable" else qmpState.currentQuantumSeed.take(10)
+                )
+                DashboardMetric(
+                    label = "Mutation rate",
+                    value = if (qmpState.mutationRateHz > 0) "${qmpState.mutationRateHz} Hz" else "unavailable"
+                )
+                DashboardMetric(
+                    label = "Processing overhead",
+                    value = if (qmpState.processingOverheadMs > 0f) "${qmpState.processingOverheadMs} ms" else "unavailable"
+                )
             }
         }
 
-        // 2. Kernel Zero-Copy Ring Buffer & eBPF Offload Metrics
+        // 2. Kernel Zero-Copy Ring Buffer & eBPF Offload
         CyberHudCard {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            Icons.Default.Memory,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                    Column {
-                        Text(
-                            "بافر حلقه‌ای لایه هسته (Zero-Copy)",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            "پردازش مستقیم بسته‌ها بدون سربار سیستم‌عامل",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                Column {
+                    Text(
+                        "Kernel Ring Buffer + eBPF Offload",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        if (ringBufferStats.backendUnavailable) ringBufferStats.backendNote else "Measured ring-buffer stats",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
                 EnterpriseStatusPill(
-                    text = "${ringBufferStats.rxPacketsSec + ringBufferStats.txPacketsSec} pps",
-                    type = StatusPillType.SUCCESS
+                    text = if (ringBufferStats.backendUnavailable) "UNAVAILABLE" else "MEASURED",
+                    type = if (ringBufferStats.backendUnavailable) StatusPillType.WARNING else StatusPillType.SUCCESS
                 )
             }
 
@@ -203,26 +148,14 @@ fun MicafpQuantumDashboardPanel(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Column {
-                    Text("فیلترهای eBPF:", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(
-                        "${ringBufferStats.eBpFFilterHits} pkts",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        fontFamily = FontFamily.Monospace,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-                Column(horizontalAlignment = Alignment.End) {
-                    Text("مصرف بافر:", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(
-                        "${ringBufferStats.ringBufferUsagePct}%",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
+                DashboardMetric(label = "eBPF filter hits", value = if (ringBufferStats.eBpFFilterHits > 0) "${ringBufferStats.eBpFFilterHits} pkts" else "unavailable")
+                DashboardMetric(label = "Ring buffer usage", value = if (ringBufferStats.ringBufferUsagePct > 0) "${ringBufferStats.ringBufferUsagePct}%" else "unavailable")
             }
+
+            Spacer(modifier = Modifier.height(6.dp))
+            HonestNote(
+                note = if (ebpfStatus.backendUnavailable) ebpfStatus.backendNote else ebpfStatus.backendNote
+            )
         }
 
         // 3. TLS JA4 Fingerprint Morphing
@@ -232,34 +165,18 @@ fun MicafpQuantumDashboardPanel(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            Icons.Default.Psychology,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                    Column {
-                        Text(
-                            "استتار اثر انگشت TLS (JA4 Morphing)",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            "تغییر امضای کلاینت بدون قطعی ارتباط",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                Column {
+                    Text(
+                        "TLS JA4 Fingerprint Selection",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        "Manual pool selection only — not fabricated ML inference",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
                 OutlinedButton(
                     onClick = { neuralEngine.morphJa4Fingerprint() },
@@ -267,21 +184,21 @@ fun MicafpQuantumDashboardPanel(
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
                     modifier = Modifier.height(28.dp)
                 ) {
-                    Text("تغییر امضا", style = MaterialTheme.typography.labelSmall)
+                    Text("Select JA4", style = MaterialTheme.typography.labelSmall)
                 }
             }
 
             Spacer(modifier = Modifier.height(10.dp))
-
+            HonestNote(note = neuralState.backendNote)
             Surface(
                 color = MaterialTheme.colorScheme.surfaceVariant,
                 shape = RoundedCornerShape(6.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(8.dp)) {
-                    Text("شناسه فعال JA4:", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Selected JA4 fingerprint:", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(
-                        neuralState.activeJa4Fingerprint,
+                        neuralState.activeJa4Fingerprint.ifBlank { "not selected" },
                         style = MaterialTheme.typography.bodySmall,
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Medium,
@@ -291,81 +208,93 @@ fun MicafpQuantumDashboardPanel(
             }
         }
 
-        // 4. TensorFlow Lite & Packet Entropy
+        // 4. Packet analyzer / TFLite
         CyberHudCard {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            Icons.Default.GraphicEq,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                    Column {
-                        Text(
-                            "تحلیل آنتروپی ترافیک (TFLite INT8)",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            "پایش توزیع بایت‌ها و رفتار زمانی پکت‌ها",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                Column {
+                    Text(
+                        "Packet Analyzer (TFLite-compatible)",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        if (tfLiteMetrics.backendUnavailable) tfLiteMetrics.backendNote else "Measured packet-window classification",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
-                EnterpriseStatusPill(text = "TFLite INT8", type = StatusPillType.INFO)
+                EnterpriseStatusPill(
+                    text = if (tfLiteMetrics.backendUnavailable) "UNAVAILABLE" else "MEASURED",
+                    type = if (tfLiteMetrics.backendUnavailable) StatusPillType.WARNING else StatusPillType.SUCCESS
+                )
             }
 
             Spacer(modifier = Modifier.height(10.dp))
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Column {
-                    Text("آنتروپی داده:", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(
-                        "${tfLiteMetrics.payloadEntropyBits} bits/B",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        fontFamily = FontFamily.Monospace,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-                Column {
-                    Text("زمان‌بندی IAT:", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(
-                        "${tfLiteMetrics.interArrivalTimingUs} µs",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        fontFamily = FontFamily.Monospace,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-                Column(horizontalAlignment = Alignment.End) {
-                    Text("احتمال بازرسی DPI:", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(
-                        "${(tfLiteMetrics.dpiProbingProbability * 100).toInt()}%",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (tfLiteMetrics.dpiProbingProbability > 0.5f) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
-                    )
-                }
+                DashboardMetric(label = "Payload entropy", value = if (tfLiteMetrics.payloadEntropyBits > 0f) "${tfLiteMetrics.payloadEntropyBits} bits/B" else "unavailable")
+                DashboardMetric(label = "Inter-arrival time", value = if (tfLiteMetrics.interArrivalTimingUs > 0L) "${tfLiteMetrics.interArrivalTimingUs} µs" else "unavailable")
+                DashboardMetric(label = "DPI probe probability", value = if (tfLiteMetrics.dpiProbingProbability > 0f) "${(tfLiteMetrics.dpiProbingProbability * 100).toInt()}%" else "unavailable")
             }
         }
+
+        // 5. Diagnostic telemetry
+        CyberHudCard {
+            Text(
+                "Diagnostic Telemetry",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            HonestNote(
+                note = if (telemetryState.backendUnavailable) telemetryState.backendNote else "Real diagnostic telemetry available."
+            )
+        }
+    }
+}
+
+@Composable
+private fun RowScope.DashboardMetric(label: String, value: String) {
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        modifier = Modifier.weight(1f)
+    ) {
+        Column(modifier = Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                value,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+    }
+}
+
+@Composable
+private fun HonestNote(note: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(6.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(6.dp))
+            .padding(8.dp)
+    ) {
+            Text(
+                note,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
     }
 }

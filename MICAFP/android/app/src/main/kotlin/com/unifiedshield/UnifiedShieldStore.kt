@@ -20,7 +20,8 @@ data class DpiHeatmapNode(
     val rstRate: Double,
     val packetDropRate: Double,
     val isBreached: Boolean = false,
-    val status: String = "MONITORING"
+    val status: String = "UNAVAILABLE",
+    val backendUnavailable: Boolean = true
 )
 
 data class ThreatIntelSignature(
@@ -48,12 +49,12 @@ data class ShieldStoreState(
     val isEmergencyWiped: Boolean = false,
     val activeOptimizationCount: Int = 4,
     val heatmapNodes: List<DpiHeatmapNode> = listOf(
-        DpiHeatmapNode("tehran-mci", "Tehran Core", "مرکز تبادل دیتای تهران (MCI)", "همراه اول", 78, 0.42, 0.35),
-        DpiHeatmapNode("karaj-irancell", "Karaj Gateway", "گیت‌وی کرج (Irancell)", "ایرانسل", 82, 0.55, 0.48),
-        DpiHeatmapNode("isfahan-shatel", "Isfahan Hub", "هاب اصفهان (Shatel)", "شاتل", 64, 0.28, 0.22),
-        DpiHeatmapNode("tabriz-tci", "Tabriz Egress", "گیت‌وی خروجی تبریز (TCI)", "مخابرات", 72, 0.38, 0.30),
-        DpiHeatmapNode("shiraz-rightel", "Shiraz Relay", "رله شیراز (Rightel)", "رایتل", 69, 0.31, 0.26),
-        DpiHeatmapNode("mashhad-asiatech", "Mashhad Node", "نود مشهد (Asiatech)", "آسیاتک", 58, 0.22, 0.18)
+        DpiHeatmapNode("tehran-mci", "Tehran Core", "مرکز تبادل دیتای تهران (MCI)", "همراه اول", 0, 0.0, 0.0),
+        DpiHeatmapNode("karaj-irancell", "Karaj Gateway", "گیت‌وی کرج (Irancell)", "ایرانسل", 0, 0.0, 0.0),
+        DpiHeatmapNode("isfahan-shatel", "Isfahan Hub", "هاب اصفهان (Shatel)", "شاتل", 0, 0.0, 0.0),
+        DpiHeatmapNode("tabriz-tci", "Tabriz Egress", "گیت‌وی خروجی تبریز (TCI)", "مخابرات", 0, 0.0, 0.0),
+        DpiHeatmapNode("shiraz-rightel", "Shiraz Relay", "رله شیراز (Rightel)", "رایتل", 0, 0.0, 0.0),
+        DpiHeatmapNode("mashhad-asiatech", "Mashhad Node", "نود مشهد (Asiatech)", "آسیاتک", 0, 0.0, 0.0)
     ),
     val threatSignatures: List<ThreatIntelSignature> = listOf(
         ThreatIntelSignature(
@@ -175,7 +176,8 @@ class UnifiedShieldStore private constructor(private val context: Context) {
                 node.copy(
                     dpiThreatScore = newThreatScore,
                     isBreached = breached,
-                    status = if (breached) "CRITICAL BREACH" else "ACTIVE"
+                    status = if (breached) "SIMULATION BREACH" else "SIMULATION",
+                    backendUnavailable = true
                 )
             } else node
         }

@@ -196,7 +196,7 @@ fun StatusCard(
             )
             MetricCard(
                 title = "تأخیر (Ping)",
-                value = if (isConnected) "${stealthState.estimatedLatencyMs} ms" else "-- ms",
+                value = if (isConnected && stealthState.estimatedLatencyMs > 0) "${stealthState.estimatedLatencyMs} ms" else "-- ms",
                 subtitle = "زمان پاسخ‌دهی",
                 icon = Icons.Default.Timer,
                 modifier = Modifier.weight(1f)
@@ -320,10 +320,10 @@ fun StatusCard(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
-                                text = "${(stealthState.stealthScore * 100).toInt()}%",
+                                text = if (stealthState.backendUnavailable) "unavailable" else "${(stealthState.stealthScore * 100).toInt()}%",
                                 style = MaterialTheme.typography.bodySmall,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
+                                color = if (stealthState.backendUnavailable) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
                             )
                         }
 
@@ -337,7 +337,7 @@ fun StatusCard(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
-                                text = "${(dpiScore * 100).toInt()}%",
+                                text = if (dpiScore < 0.001) "unavailable" else "${(dpiScore * 100).toInt()}%",
                                 style = MaterialTheme.typography.bodySmall,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface

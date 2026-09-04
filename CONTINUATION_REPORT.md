@@ -172,6 +172,45 @@ mistaken for live telemetry:
 - `MICAFP/dashboard/src/lib/stealth-rotation.ts`
 - `MICAFP/dashboard/src/lib/unified-shield-store-p2p-intranet.ts`
 
+### Android MICAFP donor cleanup (2026-09-04, same pass)
+
+The same failure mode existed in the Android donor Kotlin layer under
+`MICAFP/android/app/src/main/kotlin/com/unifiedshield/`. The following production
+engines had hard-coded live-looking metrics updated with `Random.next*` and were
+rewritten to **fail closed**:
+
+| Engine | Before | After |
+|---|---|---|
+| `micafp/EbpfSocketFilterEngine.kt` | `isEbpfAttached=true`, synthetic counters, `attachSocketFilter()` returned `true` | `backendUnavailable=true`, zero counters, `attachSocketFilter()` returns `false` |
+| `micafp/MicafpKernelRingBufferEngine.kt` | fake 42.5k/41.2k pps, 1.24M filter hits, random loop | zero `RingBufferStats` + `backendUnavailable` |
+| `micafp/DiagnosticTelemetryService.kt` | fake RTT/anomaly/reset pressure every 4s + encrypted fake logs | zero telemetry + `backendUnavailable`; real AES-256-GCM utility retained |
+| `micafp/MicafpQuantumMorphProtocol.kt` | fabricated `isActive=true`, Kyber logs, random overhead | `backendUnavailable=true`, empty seed/history, zero overhead; byte-transform helpers retained but do not claim quantum completion |
+| `micafp/OnDeviceNeuralReconEngine.kt` | fake JA4/JA3/confidence/health random loop | empty/unavailable inference state; explicit deterministic JA4 pool selection |
+| `micafp/TfLitePacketAnalyzerEngine.kt` | fake entropy/IAT/probability/model-time loop | zero/unavailable metrics; real Shannon-entropy utility + explicit real-data `classifyPacketWindow` |
+| `AiStealthEngine.kt` | fake stealth score, relay, RST count, entropy/confidence | advisory-only deterministic heuristic; zero telemetry |
+| `DpiDiagnosticEngine.kt` | fake live diagnosis with random latency/health | unavailable items; `runLiveDiagnostic()` completes without fabricating a probe result |
+| `aiorchestrator/AdaptiveNetworkProfiler.kt` | synthetic RTT/loss/handshake/jitter returned to the matrix | no fake probes; `applyRealProfile()` accepts measured data only |
+| `aiorchestrator/AiCoreOrchestrator.kt` | hard-coded 96.5/98.2 etc. scores in the default pool | honest unmeasured pool; genuine exponential-backoff jitter retained |
+| `aiorchestrator/DpiTfLiteAnomalyDetector.kt` | initial pressure 18.5, 142 blocks, 3 fake events, random loop | zero/unavailable; only `analyzePacketHeader(...)` with caller evidence records events |
+| `resilience/NetworkClientManager.kt` | four fake connected sockets + random RTT/bytes loop | zero telemetry, empty sockets, real full-jitter retry model |
+| `tunnel/DualModeTransportEngine.kt` | three fake QUIC paths, five fake Sphinx hops, random counters/benchmarks | unmeasured paths/hops; needs real samples; benchmark unavailable |
+
+Consuming screens were then updated so the dashboard does not display the removed
+numbers as live success: `MicafpQuantumDashboardPanel`, `AiEngineScreen`,
+`StatusCard`, `ThreatIntelPanel`, `DpiDiagnosticScreen`,
+`DiagnosticTelemetryCharts`, `AdvancedToolsScreen`, `DualModeTransportScreen`,
+`DPIHeatmapPanel` (via `UnifiedShieldStore` honest heatmap defaults).
+
+**Remaining Android fabrication inventory (documented, not claimed clean):**
+`cottendns/CottenDnsEngine.kt`, `stormdns/StormDnsEngine.kt`,
+`tunnel/MasterDnsEngine.kt`, `whitedns/WhiteDnsScannerEngine.kt`,
+`scanner/AutoScannerEngine.kt` (synthetic scan results), `profile/ProfileManager.kt`
+(synthetic throughput rating), `UnifiedShieldStore.kt` (hard-coded threat-signature
+`detectedCount`/optimization counts and panic core labels still need wiring to real
+scan evidence), and a benign random log-id in `logging/DebugLogger.kt`. These still
+return synthetic Random-based telemetry or hard-coded results and will need the same
+fail-closed treatment once their real backends are wired in.
+
 ### New behavior gate
 
 `tools/vor_anti_fabrication_gate.mjs` now:
@@ -183,6 +222,10 @@ mistaken for live telemetry:
 4. Requires any simulation library that still uses `Math.random` to carry the
    `SIMULATION ONLY — NOT REAL TELEMETRY` label.
 5. Re-checks the release builder cannot emit placeholders.
+6. Rejects `Random.next*` in the cleaned Android production engines (with explicit
+   backoff-jitter exceptions) and requires `backendUnavailable` / honest UI states.
+7. Prints an inventory of the remaining Android synthetic-Random engines instead of
+   silently passing them.
 
 `node tools/vor_anti_fabrication_gate.mjs` → **PASS**. It is auto-discovered by CI
 (`universal-core-ci.yml` runs every `tools/*.mjs`).
@@ -242,6 +285,16 @@ registry aggregators above.
   all donor source trees (`EasySNI…`, `MSN-GUARD…`, `UAC-SNI-Spoofer-Android…`,
   `UAC-SNI-Spoofer-Windows…`, `MasterDnsVPN…`, `MICAFP` crates/paths). These are listed
   here so the rename is reviewable, not a blind find-and-replace.
+
+### Brand raster / vector identity confirmation
+
+The user-provided brand assets were re-checked against the canonical identity:
+`brand/v2rayez-enterprise-icon.png` and
+`brand/v2rayez-enterprise-icon-fullbleed.png` are the rounded/full-bleed raster
+versions of the glass/gradient shield-`V` mark, and `brand/v2rayez-logo.svg` is the
+vector canonical marked `aria-label="Vor"`. File names remain legacy/internal; the
+content is the confirmed `Vor` mark uploaded by the user. No re-import or new
+raster generation was needed.
 
 ### Renamed files and identifiers
 

@@ -1,16 +1,18 @@
 package com.unifiedshield.resilience
 
 data class SocketTelemetryMetrics(
-    val smoothedRttMs: Double = 24.5,
-    val rttVarianceMs: Double = 3.2,
-    val adaptiveTimeoutMs: Long = 320,
-    val packetLossPct: Double = 0.2,
-    val jitterMs: Double = 1.8,
-    val linkStabilityIndex: Int = 98, // 0-100%
-    val bytesTransferredRx: Long = 10485760L,
-    val bytesTransferredTx: Long = 3145728L,
-    val activeSocketCount: Int = 4,
-    val lastHandshakeProtocol: String = "TLS 1.3 (RFC 8446) + 0-RTT QUIC"
+    val smoothedRttMs: Double = 0.0,
+    val rttVarianceMs: Double = 0.0,
+    val adaptiveTimeoutMs: Long = 0,
+    val packetLossPct: Double = 0.0,
+    val jitterMs: Double = 0.0,
+    val linkStabilityIndex: Int = 0, // 0-100%
+    val bytesTransferredRx: Long = 0L,
+    val bytesTransferredTx: Long = 0L,
+    val activeSocketCount: Int = 0,
+    val lastHandshakeProtocol: String = "unconfigured",
+    val backendUnavailable: Boolean = true,
+    val backendNote: String = "No real socket/transport telemetry backend is wired in; metrics are unavailable."
 )
 
 enum class NetworkTransportSecurity(val label: String, val rfcStandard: String) {
@@ -38,5 +40,7 @@ data class SocketDiagnosticReport(
     val connectionState: String, // CONNECTED, PROBING, RECONNECTING, IDLE
     val latencyMs: Long,
     val currentRetryAttempt: Int,
-    val nextBackoffMs: Long
+    val nextBackoffMs: Long,
+    val backendUnavailable: Boolean = true,
+    val backendNote: String = "No real socket probe has reported this report."
 )

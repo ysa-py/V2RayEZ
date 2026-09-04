@@ -114,10 +114,108 @@ for (const forbidden of [
   assert.ok(!buildScript.includes(forbidden), `release builder contains placeholder marker: ${forbidden}`);
 }
 
+// ── 5. Android MICAFP donor fail-closed audit ────────────────────────────────
+const andRoot = 'MICAFP/android/app/src/main/kotlin/com/unifiedshield';
+function readAndroid(rel) {
+  return readFileSync(join(andRoot, rel), 'utf8');
+}
+function stripCommentsAndStrings(text) {
+  // Remove comments and string literals so anti-fabrication checks do not trip
+  // on documentation text that merely describes old fabricated behavior.
+  return text
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\/\/[^\n]*/g, '')
+    .replace(/"(\\.|[^"\\])*"/g, '""')
+    .replace(/'(\\.|[^'\\])*'/g, "''")
+    .replace(/`(\\.|[^`\\])*`/g, '""');
+}
+
+// Fail-closed cleaned production engines. Any non-comment `Random` usage here is
+// rejected. The two scalar backoff helpers are the only allowed exceptions.
+const androidCleaned = [
+  'micafp/EbpfSocketFilterEngine.kt',
+  'micafp/MicafpKernelRingBufferEngine.kt',
+  'micafp/DiagnosticTelemetryService.kt',
+  'micafp/MicafpQuantumMorphProtocol.kt',
+  'micafp/OnDeviceNeuralReconEngine.kt',
+  'micafp/TfLitePacketAnalyzerEngine.kt',
+  'AiStealthEngine.kt',
+  'DpiDiagnosticEngine.kt',
+  'aiorchestrator/AdaptiveNetworkProfiler.kt',
+  'aiorchestrator/AiCoreOrchestrator.kt',
+  'aiorchestrator/DpiTfLiteAnomalyDetector.kt',
+  'resilience/NetworkClientManager.kt',
+  'tunnel/DualModeTransportEngine.kt',
+];
+for (const rel of androidCleaned) {
+  const body = readAndroid(rel);
+  const code = stripCommentsAndStrings(body);
+  if (code.includes('Random.next')) {
+    const allowedBackoff =
+      (rel === 'aiorchestrator/AiCoreOrchestrator.kt' && code.includes('val jitter = Random.nextLong(100, 400)')) ||
+      (rel === 'resilience/NetworkClientManager.kt' && code.includes('Random.nextDouble(config.jitterMultiplierMin'));
+    assert.ok(allowedBackoff, `${rel}: production engine must not fabricate telemetry with Random.next*`);
+  }
+  if (code.includes('import kotlin.random.Random')) {
+    const allowedBackoff =
+      rel === 'aiorchestrator/AiCoreOrchestrator.kt' || rel === 'resilience/NetworkClientManager.kt';
+    assert.ok(allowedBackoff, `${rel}: Random import not permitted in fail-closed engine`);
+  }
+}
+
+// Facade check: attach/execute helpers in the cleaned layer must fail closed.
+const ebpfBody = readAndroid('micafp/EbpfSocketFilterEngine.kt');
+assert.ok(ebpfBody.includes('return false'), 'EbpfSocketFilterEngine.attachSocketFilter must fail closed');
+assert.ok(ebpfBody.includes('backendUnavailable'), 'EbpfSocketFilterEngine must expose backendUnavailable');
+
+// Each cleaned engine must carry an honest unavailable state/note.
+for (const rel of [...androidCleaned]) {
+  const body = readAndroid(rel);
+  const hasNote = body.includes('backendUnavailable') || body.includes('No real ') || body.includes('not wired in');
+  assert.ok(hasNote, `${rel}: cleaned Android engine must state an honest unavailable/backend note`);
+}
+
+// Consuming UI must not show the removed fabricated numbers as live success.
+const panel = readAndroid('ui/MicafpQuantumDashboardPanel.kt');
+assert.ok(panel.includes('UNAVAILABLE'), 'MicafpQuantumDashboardPanel must render honest unavailable states');
+assert.ok(!stripCommentsAndStrings(panel).includes('Kyber-1024'), 'MicafpQuantumDashboardPanel must not display fabricated Kyber-1024 live claim');
+for (const rel of [
+  'ui/AiEngineScreen.kt',
+  'ui/StatusCard.kt',
+  'ui/ThreatIntelPanel.kt',
+  'ui/DpiDiagnosticScreen.kt',
+  'ui/AdvancedToolsScreen.kt',
+  'ui/DualModeTransportScreen.kt',
+  'ui/DiagnosticTelemetryCharts.kt',
+]) {
+  const body = readAndroid(rel);
+  assert.ok(body.includes('unavailable') || body.includes('UNAVAILABLE'), `${rel}: consumer UI must render honest unavailable states`);
+}
+
+// ── 6. Known remaining Android fabrication inventory (documented, not silent) ─
+const remainingRandomFiles = [
+  'cottendns/CottenDnsEngine.kt',
+  'logging/DebugLogger.kt',
+  'profile/ProfileManager.kt',
+  'scanner/AutoScannerEngine.kt',
+  'stormdns/StormDnsEngine.kt',
+  'tunnel/MasterDnsEngine.kt',
+  'whitedns/WhiteDnsScannerEngine.kt',
+];
+console.log(
+  `vor_anti_fabrication_gate: NOTE — ${remainingRandomFiles.length} known Android donors still contain synthetic Random-based telemetry; they are documented in CONTINUATION_REPORT.md, not silently claimed clean.`,
+);
+for (const rel of remainingRandomFiles) {
+  const body = readAndroid(rel);
+  const code = stripCommentsAndStrings(body);
+  const randomUses = (code.match(/Random\.next|\.random\(\)/g) || []).length;
+  console.log(`  inventory: ${rel} — ${randomUses} synthetic random call(s)`);
+}
+
 if (failures > 0) {
   console.error(`vor_anti_fabrication_gate: FAIL — ${failures} fabrication instance(s) remain in production API routes.`);
   process.exit(1);
 }
 console.log(
-  'vor_anti_fabrication_gate: PASS — real crypto behavior verified; no Math.random in production API routes; simulated libraries are labeled; release builder cannot emit placeholders.',
+  'vor_anti_fabrication_gate: PASS — real crypto verified; dashboard Math.random clean; Android cleaned donor engines fail closed with honest unavailable states; remaining Android fabrications are inventoried, not claimed clean.',
 );

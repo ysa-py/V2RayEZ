@@ -98,7 +98,7 @@ if (failures > 0) {
   console.error(`V2RayEZ identity gate failed: ${failures} forbidden legacy GUI reference(s) found.`);
   process.exit(1);
 }
-console.log('v2rayez_identity_gate: PASS — runtime UI surfaces keep V2RayEZ identity and do not expose forbidden donor GUI identity.');
+console.log('v2rayez_identity_gate: PASS — Vor user-facing identity is in place and forbidden legacy MICAFP-V2RayEZ GUI references are absent; internal V2RayEZ donor identifiers remain permitted by design.');
 
 
 function scanExtensionVisibleIdentity(path) {

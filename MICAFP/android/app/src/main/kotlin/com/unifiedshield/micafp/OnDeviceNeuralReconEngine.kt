@@ -6,75 +6,59 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlin.random.Random
 
 /**
  * PROJECT MICAFP — Embedded On-Device Neural Reconnaissance Engine.
- * Quantized ONNX / C++ Edge neural classifier monitoring socket state, RTT variance,
- * TCP reset signatures, and JA3/JA4 TLS fingerprint mimicry with mid-session zero-drop morphing.
+ *
+ * ANTI-FABRICATION (2026-09-04): This class previously seeded hyper-specific
+ * JA3/JA4 fingerprints and confidence scores, then "updated" latency/confidence/
+ * health every 3s using `Random.nextFloat()`. No quantum-ONNX classifier ever ran.
+ *
+ * Correct behavior now:
+ *   - Default state is `backendUnavailable=true`, empty fingerprints, and zero
+ *     measurements.
+ *   - No background thread fabricates inference latency/confidence/health.
+ *   - `morphJa4Fingerprint()` remains a real selector over the configured
+ *     fingerprint pool when a caller explicitly requests it, but it does not
+ *     fabricate inference metrics.
  */
 class OnDeviceNeuralReconEngine private constructor() {
 
     private val TAG = "NeuralReconEngine"
     private val logger = DebugLogger.getInstance()
-    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     private val _neuralState = MutableStateFlow(
         NeuralReconState(
-            inferenceLatencyMs = 0.4f,
-            activeJa4Fingerprint = "t13d151600_8a01_14c330f88921",
-            activeJa3Hash = "cd23253b759711f22143414d80a133d3",
-            dpiEvasionConfidence = 0.98f,
-            zeroDropMorphCount = 14,
-            socketHealthScore = 99.2f
+            inferenceLatencyMs = 0f,
+            activeJa4Fingerprint = "",
+            activeJa3Hash = "",
+            dpiEvasionConfidence = 0f,
+            zeroDropMorphCount = 0,
+            socketHealthScore = 0f,
+            backendUnavailable = true,
+            backendNote = "No real on-device NEURAL/ONNX classifier is wired in; inference telemetry is unavailable."
         )
     )
     val neuralState: StateFlow<NeuralReconState> = _neuralState.asStateFlow()
 
     private val ja4FingerprintPool = listOf(
-        "t13d151600_8a01_14c330f88921", // Chrome 124 Windows
-        "t13d171500_2b02_09d123a11842", // Safari 17.4 macOS
-        "t13d191800_4f03_88f991100213", // Firefox 125 Linux
-        "t13d121100_9e04_77a220033190"  // Android Chrome Mobile
+        "t13d151600_8a01_14c330f88921",
+        "t13d171500_2b02_09d123a11842",
+        "t13d191800_4f03_88f991100213",
+        "t13d121100_9e04_77a220033190"
     )
 
-    init {
-        startNeuralMonitoring()
-    }
-
-    private fun startNeuralMonitoring() {
-        scope.launch {
-            while (isActive) {
-                delay(3000L)
-                tickInference()
-            }
-        }
-    }
-
-    private fun tickInference() {
-        val confidence = 0.95f + Random.nextFloat() * 0.04f
-        val lat = 0.3f + Random.nextFloat() * 0.2f
-        val health = 97.0f + Random.nextFloat() * 2.8f
-
-        _neuralState.value = _neuralState.value.copy(
-            inferenceLatencyMs = Math.round(lat * 10f) / 10f,
-            dpiEvasionConfidence = Math.round(confidence * 100f) / 100f,
-            socketHealthScore = Math.round(health * 10f) / 10f
-        )
-    }
-
     /**
-     * Trigger mid-session zero-drop morphing of TLS JA3/JA4 fingerprint
-     * without breaking active sockets.
+     * Selects a configured JA4 fingerprint. This is an explicit user/system action,
+     * not a fabricated inference result.
      */
     fun morphJa4Fingerprint(): String {
-        val newFingerprint = ja4FingerprintPool.random()
         val count = _neuralState.value.zeroDropMorphCount + 1
+        val newFingerprint = ja4FingerprintPool[count % ja4FingerprintPool.size]
         _neuralState.value = _neuralState.value.copy(
             activeJa4Fingerprint = newFingerprint,
             zeroDropMorphCount = count
         )
-        logger.info("NeuralRecon", "Zero-drop mid-session morph executed: New JA4 = $newFingerprint")
         return newFingerprint
     }
 
@@ -96,5 +80,7 @@ data class NeuralReconState(
     val activeJa3Hash: String,
     val dpiEvasionConfidence: Float,
     val zeroDropMorphCount: Int,
-    val socketHealthScore: Float
+    val socketHealthScore: Float,
+    val backendUnavailable: Boolean = true,
+    val backendNote: String = ""
 )

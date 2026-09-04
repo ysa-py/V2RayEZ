@@ -12,7 +12,9 @@ data class CoreScoreEntry(
     val consecutiveFailures: Int = 0,
     val isBlacklisted: Boolean = false,
     val blacklistedUntilMs: Long = 0L,
-    val isActive: Boolean = false
+    val isActive: Boolean = false,
+    val backendUnavailable: Boolean = true,
+    val backendNote: String = "No real core probe has supplied this entry."
 ) {
     fun isAvailable(currentTimeMs: Long): Boolean {
         return !isBlacklisted || currentTimeMs >= blacklistedUntilMs

@@ -12,9 +12,12 @@ import kotlin.random.Random
 
 /**
  * Autonomous AI Core Orchestrator.
- * Implements exponential backoff retry strategy for core switching.
- * Automatically blacklists any core that fails 3 consecutive handshake attempts for 5 minutes (300,000 ms),
- * then automatically shifts traffic to the next highest-scoring available core from the pool without manual intervention.
+ *
+ * ANTI-FABRICATION (2026-09-04): The default core pool previously shipped with
+ * hard-coded fabricated scores, latencies and handshake rates (e.g. 96.5 pts,
+ * 11-21ms). This build keeps the genuine retry/backoff/blacklist scheduler, but
+ * starts with an honest pool: known core identifiers with zero scored metrics
+ * and `backendUnavailable=true` until a real probe supplies measurements.
  */
 class AiCoreOrchestrator private constructor() {
 
@@ -25,13 +28,18 @@ class AiCoreOrchestrator private constructor() {
     private val _coresPool = MutableStateFlow<List<CoreScoreEntry>>(getInitialCoresPool())
     val coresPool: StateFlow<List<CoreScoreEntry>> = _coresPool.asStateFlow()
 
+    private val _backendUnavailable = MutableStateFlow(true)
+    val backendUnavailable: StateFlow<Boolean> = _backendUnavailable.asStateFlow()
+
     private val _activeCoreId = MutableStateFlow("core-vless-reality")
     val activeCoreId: StateFlow<String> = _activeCoreId.asStateFlow()
 
-    private val _orchestratorLogs = MutableStateFlow<List<String>>(listOf(
-        "AI Orchestrator initialized. Multi-core pool active.",
-        "Scoring matrix calibrated for high-jitter mobile networks."
-    ))
+    private val _orchestratorLogs = MutableStateFlow<List<String>>(
+        listOf(
+            "AI Orchestrator initialized. Multi-core pool known, but no real probe has measured it.",
+            "Scoring matrix starts unavailable; real probes must supply scores."
+        )
+    )
     val orchestratorLogs: StateFlow<List<String>> = _orchestratorLogs.asStateFlow()
 
     private var retryAttempt = 0
@@ -39,20 +47,21 @@ class AiCoreOrchestrator private constructor() {
 
     private fun getInitialCoresPool(): List<CoreScoreEntry> {
         return listOf(
-            CoreScoreEntry("core-vless-reality", "VLESS Reality (XTLS-Vision)", "VLESS / TLS 1.3", 96.5, 14, 0.1, 0.99, 1.8, isActive = true),
-            CoreScoreEntry("core-hysteria-2", "Hysteria 2 Brutal", "QUIC / UDP", 98.2, 11, 0.0, 1.00, 1.2),
-            CoreScoreEntry("core-tuic-v5", "TUIC v5 Pure BBR", "QUIC / UDP", 94.0, 13, 0.2, 0.98, 2.1),
-            CoreScoreEntry("core-storm-dns", "StormDNS Stream", "TCP-over-DNS", 95.8, 15, 0.1, 0.99, 1.6),
-            CoreScoreEntry("core-cotten-dns", "CottenDNS Super-FEC", "Multi-Transport DNS", 97.4, 12, 0.0, 1.00, 1.1),
-            CoreScoreEntry("core-master-dns", "MasterDns 8-Way ARQ", "DNS Multipath", 93.5, 16, 0.3, 0.97, 2.4),
-            CoreScoreEntry("core-shadowsocks", "Shadowsocks 2022 Blake3", "AEAD", 91.0, 15, 0.4, 0.96, 2.8),
-            CoreScoreEntry("core-amnezia-wg", "AmneziaWG Junk Obfuscated", "WireGuard UDP", 94.5, 10, 0.2, 0.98, 1.4),
-            CoreScoreEntry("core-naive", "NaïveProxy Chromium Stack", "HTTP/2 TLS", 92.8, 21, 0.2, 0.97, 3.1)
+            CoreScoreEntry("core-vless-reality", "VLESS Reality (XTLS-Vision)", "VLESS / TLS 1.3", 0.0, 0, 0.0, 0.0, 0.0, isActive = true),
+            CoreScoreEntry("core-hysteria-2", "Hysteria 2 Brutal", "QUIC / UDP", 0.0, 0, 0.0, 0.0, 0.0),
+            CoreScoreEntry("core-tuic-v5", "TUIC v5 Pure BBR", "QUIC / UDP", 0.0, 0, 0.0, 0.0, 0.0),
+            CoreScoreEntry("core-storm-dns", "StormDNS Stream", "TCP-over-DNS", 0.0, 0, 0.0, 0.0, 0.0),
+            CoreScoreEntry("core-cotten-dns", "CottenDNS Super-FEC", "Multi-Transport DNS", 0.0, 0, 0.0, 0.0, 0.0),
+            CoreScoreEntry("core-master-dns", "MasterDns 8-Way ARQ", "DNS Multipath", 0.0, 0, 0.0, 0.0, 0.0),
+            CoreScoreEntry("core-shadowsocks", "Shadowsocks 2022 Blake3", "AEAD", 0.0, 0, 0.0, 0.0, 0.0),
+            CoreScoreEntry("core-amnezia-wg", "AmneziaWG Junk Obfuscated", "WireGuard UDP", 0.0, 0, 0.0, 0.0, 0.0),
+            CoreScoreEntry("core-naive", "NaïveProxy Chromium Stack", "HTTP/2 TLS", 0.0, 0, 0.0, 0.0, 0.0)
         )
     }
 
     /**
-     * Compute exponential backoff in milliseconds: base * 2^attempt + jitter
+     * Compute exponential backoff in milliseconds: base * 2^attempt + jitter.
+     * The jitter is genuine scheduling jitter, not telemetry fabrication.
      */
     fun calculateBackoffMs(attempt: Int): Long {
         val base = 500L
@@ -97,7 +106,6 @@ class AiCoreOrchestrator private constructor() {
             }
             _coresPool.value = list
 
-            // If the failed core is currently active and blacklisted or failing, shift to next highest available core
             if (coreId == _activeCoreId.value) {
                 retryAttempt++
                 val backoff = calculateBackoffMs(retryAttempt)
@@ -121,7 +129,9 @@ class AiCoreOrchestrator private constructor() {
                         isBlacklisted = false,
                         blacklistedUntilMs = 0L,
                         latencyMs = latencyMs,
-                        handshakeSuccessRate = ((entry.handshakeSuccessRate * 4) + 1.0) / 5.0
+                        handshakeSuccessRate = ((entry.handshakeSuccessRate * 4) + 1.0) / 5.0,
+                        backendUnavailable = false,
+                        backendNote = "Real handshake observation recorded."
                     )
                 } else entry
             }
@@ -130,46 +140,48 @@ class AiCoreOrchestrator private constructor() {
     }
 
     /**
-     * Automatically shifts traffic to the next highest-scoring available core from the pool.
+     * Automatically shifts traffic to the next highest-scoring available core
+     * that has already received real probe/handshake data.
      */
     fun autoShiftToBestCore(triggerReason: String): CoreScoreEntry? {
         val now = System.currentTimeMillis()
         val currentActive = _activeCoreId.value
 
-        // Filter available cores (unblacklisted or expired blacklist)
         val available = _coresPool.value
             .map { entry ->
                 if (entry.isBlacklisted && now >= entry.blacklistedUntilMs) {
                     entry.copy(isBlacklisted = false, consecutiveFailures = 0)
                 } else entry
             }
-            .filter { it.isAvailable(now) && it.coreId != currentActive }
+            .filter { it.isAvailable(now) && it.coreId != currentActive && !it.backendUnavailable }
             .sortedByDescending { it.score }
 
-        val bestCandidate = available.firstOrNull() ?: _coresPool.value.firstOrNull()
+        val bestCandidate = available.firstOrNull()
 
-        if (bestCandidate != null) {
-            _activeCoreId.value = bestCandidate.coreId
-            val updatedList = _coresPool.value.map { entry ->
-                entry.copy(isActive = entry.coreId == bestCandidate.coreId)
-            }
-            _coresPool.value = updatedList
-
-            logger.info("AiOrchestrator", "AUTO-SHIFTED traffic to [${bestCandidate.name}] (Score: ${bestCandidate.score}, Latency: ${bestCandidate.latencyMs}ms). Reason: $triggerReason")
-            addLog("🚀 Auto-shifted traffic to [${bestCandidate.name}] (Score: ${bestCandidate.score}). Reason: $triggerReason")
+        if (bestCandidate == null) {
+            logger.warn(TAG, "AUTO-SHIFT requested ($triggerReason), but no real-scored candidate is available.")
+            addLog("⚠️ Auto-shift requested, but no real-scored candidate is available.")
+            return null
         }
 
+        _activeCoreId.value = bestCandidate.coreId
+        val updatedList = _coresPool.value.map { entry ->
+            entry.copy(isActive = entry.coreId == bestCandidate.coreId)
+        }
+        _coresPool.value = updatedList
+
+        logger.info("AiOrchestrator", "AUTO-SHIFTED traffic to [${bestCandidate.name}] (Score: ${bestCandidate.score}, Latency: ${bestCandidate.latencyMs}ms). Reason: $triggerReason")
+        addLog("🚀 Auto-shifted traffic to [${bestCandidate.name}] (Score: ${bestCandidate.score}). Reason: $triggerReason")
         return bestCandidate
     }
 
     /**
-     * Updates the full scoring matrix provided by the Adaptive Network Profiler.
+     * Updates the full scoring matrix provided by a real profiler.
      */
     fun updateScoringMatrix(updatedScores: List<CoreScoreEntry>) {
         val now = System.currentTimeMillis()
         val currentActive = _activeCoreId.value
 
-        // Preserve blacklist state unless expired
         val merged = updatedScores.map { updated ->
             val existing = _coresPool.value.find { it.coreId == updated.coreId }
             if (existing != null && existing.isBlacklisted && now < existing.blacklistedUntilMs) {
@@ -184,6 +196,7 @@ class AiCoreOrchestrator private constructor() {
             }
         }
         _coresPool.value = merged
+        _backendUnavailable.value = merged.all { it.backendUnavailable }
     }
 
     private fun addLog(message: String) {

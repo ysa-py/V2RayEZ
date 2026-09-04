@@ -120,8 +120,11 @@ fun AdvancedToolsScreen() {
                             Spacer(modifier = Modifier.width(8.dp))
                             Text("پایش و تاب‌آوری کلاینت شبکه (Network Resilience)", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                         }
-                        Badge(containerColor = Color(0xFF10B981), contentColor = Color.White) {
-                            Text("RFC 8446 / 9000")
+                        Badge(
+                            containerColor = if (telemetry.backendUnavailable) Color(0xFFB45309) else Color(0xFF10B981),
+                            contentColor = Color.White
+                        ) {
+                            Text(if (telemetry.backendUnavailable) "UNAVAILABLE" else "RFC 8446 / 9000")
                         }
                     }
 
@@ -138,7 +141,7 @@ fun AdvancedToolsScreen() {
                         ) {
                             Column(modifier = Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text("SRTT (RFC 6298)", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text("${telemetry.smoothedRttMs} ms", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF10B981))
+                                Text(if (telemetry.smoothedRttMs > 0) "${telemetry.smoothedRttMs} ms" else "unavailable", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (telemetry.smoothedRttMs > 0) Color(0xFF10B981) else Color(0xFFB45309))
                             }
                         }
                         Surface(
@@ -148,7 +151,7 @@ fun AdvancedToolsScreen() {
                         ) {
                             Column(modifier = Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text("تایم‌اوت تطبیقی RTO", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text("${telemetry.adaptiveTimeoutMs} ms", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF3B82F6))
+                                Text(if (telemetry.adaptiveTimeoutMs > 0) "${telemetry.adaptiveTimeoutMs} ms" else "unavailable", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (telemetry.adaptiveTimeoutMs > 0) Color(0xFF3B82F6) else Color(0xFFB45309))
                             }
                         }
                         Surface(
@@ -158,7 +161,7 @@ fun AdvancedToolsScreen() {
                         ) {
                             Column(modifier = Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text("شاخص پایداری", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text("${telemetry.linkStabilityIndex}%", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF8B5CF6))
+                                Text(if (telemetry.linkStabilityIndex > 0) "${telemetry.linkStabilityIndex}%" else "unavailable", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (telemetry.linkStabilityIndex > 0) Color(0xFF8B5CF6) else Color(0xFFB45309))
                             }
                         }
                     }
@@ -166,12 +169,23 @@ fun AdvancedToolsScreen() {
                     Spacer(modifier = Modifier.height(10.dp))
 
                     Text(
-                        text = "الگوریتم Exponential Backoff با Full Jitter فعال است. سوکت‌های همزمان (${telemetry.activeSocketCount}) با رمزنگاری TLS 1.3 / QUIC آماده جابجایی ترافیک هستند.",
+                        text = if (telemetry.backendUnavailable)
+                            "Exponential Backoff با Full Jitter برای تلاش‌های واقعی فعال است، اما هیچ سوکت/تله‌متری واقعی متصل نیست."
+                        else
+                            "الگوریتم Exponential Backoff با Full Jitter فعال است. سوکت‌های همزمان (${telemetry.activeSocketCount}) با رمزنگاری TLS 1.3 / QUIC قابل جابجایی هستند.",
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
                     Spacer(modifier = Modifier.height(10.dp))
+
+                    if (activeSockets.isEmpty()) {
+                        Text(
+                            "No real active socket reports (backend not wired).",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
 
                     activeSockets.forEach { socket ->
                         Row(

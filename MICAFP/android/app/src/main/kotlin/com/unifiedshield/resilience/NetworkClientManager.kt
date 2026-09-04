@@ -5,15 +5,25 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlin.math.max
+import kotlin.math.abs
 import kotlin.math.min
 import kotlin.math.pow
 import kotlin.random.Random
 
 /**
  * Enterprise Network Client & Resilience Manager.
- * Handles non-blocking coroutine-based socket lifecycle, exponential backoff with full jitter,
- * adaptive RTO (RFC 6298 smoothed RTT calculation), and real-time telemetry metrics.
+ *
+ * ANTI-FABRICATION (2026-09-04): This class previously seeded four hard-coded
+ * "CONNECTED" sockets and a background loop that fabricated sample RTT,
+ * stability, and Rx/Tx byte counters with `Random.next*`.
+ *
+ * Correct behavior now:
+ *   - Default telemetry is zero/`backendUnavailable=true`.
+ *   - `calculateNextBackoff(...)` remains a real RFC 6298/full-jitter retry
+ *     computation.
+ *   - No background loop invents socket telemetry.
+ *   - `recordRealSample(...)`/`recordRealSocket(...)` accept measured data only.
+ *   - `triggerManualProbe(...)` never fabricates a connectivity result.
  */
 class NetworkClientManager private constructor() {
 
@@ -26,14 +36,7 @@ class NetworkClientManager private constructor() {
     private val _retryConfig = MutableStateFlow(RetryPolicyConfig())
     val retryConfig: StateFlow<RetryPolicyConfig> = _retryConfig.asStateFlow()
 
-    private val _activeSockets = MutableStateFlow<List<SocketDiagnosticReport>>(
-        listOf(
-            SocketDiagnosticReport("sock-01", "1.1.1.1", 443, NetworkTransportSecurity.QUIC_HTTP3, "CONNECTED", 19, 0, 0),
-            SocketDiagnosticReport("sock-02", "8.8.8.8", 853, NetworkTransportSecurity.DOT_RFC7858, "CONNECTED", 24, 0, 0),
-            SocketDiagnosticReport("sock-03", "9.9.9.9", 443, NetworkTransportSecurity.TLS_1_3, "CONNECTED", 31, 0, 0),
-            SocketDiagnosticReport("sock-04", "185.228.168.9", 443, NetworkTransportSecurity.DOH_RFC8484, "CONNECTED", 22, 0, 0)
-        )
-    )
+    private val _activeSockets = MutableStateFlow<List<SocketDiagnosticReport>>(emptyList())
     val activeSockets: StateFlow<List<SocketDiagnosticReport>> = _activeSockets.asStateFlow()
 
     private val _isBatterySaverEnabled = MutableStateFlow(false)
@@ -43,7 +46,7 @@ class NetworkClientManager private constructor() {
     private val mlPredictor = com.unifiedshield.aiorchestrator.IspDpiCorrelationPredictor.getInstance()
 
     init {
-        startTelemetryLoop()
+        // No auto-start of fabricated telemetry.
     }
 
     fun setBatterySaverEnabled(enabled: Boolean) {
@@ -51,16 +54,13 @@ class NetworkClientManager private constructor() {
         logger.info("NetworkClient", "Socket telemetry battery saver mode set to: $enabled")
     }
 
+    /**
+     * Kept for API compatibility. Without a real socket/tap backend there is no
+     * telemetry to generate, so no loop is started.
+     */
     private fun startTelemetryLoop() {
         telemetryJob?.cancel()
-        telemetryJob = scope.launch {
-            while (isActive) {
-                // Adaptive delay: 8000ms in battery saver mode, 3000ms in balanced mode to reduce CPU wakeups
-                val sleepInterval = if (_isBatterySaverEnabled.value) 8000L else 3000L
-                delay(sleepInterval)
-                updateTelemetrySample()
-            }
-        }
+        logger.warn("NetworkClient", "Telemetry loop requested, but no real socket/tap backend is wired in.")
     }
 
     /**
@@ -76,60 +76,80 @@ class NetworkClientManager private constructor() {
     }
 
     /**
-     * Updates smoothed RTT (SRTT) and RTTVAR according to RFC 6298.
+     * Updates smoothed RTT (SRTT) and RTTVAR according to RFC 6298, using a
+     * REAL measured sample supplied by a caller. Byte counters are also supplied
+     * by the caller; this function does not invent them.
      */
-    private fun updateTelemetrySample() {
+    fun recordRealSample(
+        sampleRttMs: Double,
+        bytesTransferredRxDelta: Long,
+        bytesTransferredTxDelta: Long,
+        packetLossPct: Double,
+        lastHandshakeProtocol: String = "known transport"
+    ) {
         val current = _telemetry.value
-        val sampleRtt = (16..38).random().toDouble() + (Random.nextInt(0, 100) / 100.0)
         val alpha = 0.125
         val beta = 0.25
 
-        val newSrtt = (1 - alpha) * current.smoothedRttMs + alpha * sampleRtt
-        val newRttVar = (1 - beta) * current.rttVarianceMs + beta * kotlin.math.abs(sampleRtt - newSrtt)
+        val newSrtt = (1 - alpha) * current.smoothedRttMs + alpha * sampleRttMs
+        val newRttVar = (1 - beta) * current.rttVarianceMs + beta * abs(sampleRttMs - newSrtt)
         val calculatedTimeout = (newSrtt + 4 * newRttVar).toLong().coerceIn(150L, 2000L)
-        val stability = (100 - (newRttVar * 1.5) - (current.packetLossPct * 10)).toInt().coerceIn(80, 100)
+        val stability = (100 - (newRttVar * 1.5) - (packetLossPct * 10)).toInt().coerceIn(0, 100)
 
-        _telemetry.value = current.copy(
+        _telemetry.value = SocketTelemetryMetrics(
             smoothedRttMs = Math.round(newSrtt * 10.0) / 10.0,
             rttVarianceMs = Math.round(newRttVar * 10.0) / 10.0,
             adaptiveTimeoutMs = calculatedTimeout,
+            packetLossPct = Math.round(packetLossPct * 10.0) / 10.0,
             jitterMs = Math.round(newRttVar * 0.8 * 10.0) / 10.0,
             linkStabilityIndex = stability,
-            bytesTransferredRx = current.bytesTransferredRx + Random.nextLong(10240, 65536),
-            bytesTransferredTx = current.bytesTransferredTx + Random.nextLong(4096, 20480)
+            bytesTransferredRx = current.bytesTransferredRx + bytesTransferredRxDelta,
+            bytesTransferredTx = current.bytesTransferredTx + bytesTransferredTxDelta,
+            activeSocketCount = _activeSockets.value.size,
+            lastHandshakeProtocol = lastHandshakeProtocol,
+            backendUnavailable = false,
+            backendNote = "Real socket sample recorded."
         )
 
-        // Correlate with client-side ML engine
         mlPredictor.ingestTelemetrySample(
-            currentRttMs = sampleRtt.toFloat(),
-            currentLossPct = current.packetLossPct.toFloat(),
+            currentRttMs = sampleRttMs.toFloat(),
+            currentLossPct = packetLossPct.toFloat(),
             dpiSignatureObserved = (newRttVar > 12.0 || stability < 85),
             signatureType = if (newRttVar > 12.0) "Socket Jitter Variance Anomaly" else null
         )
     }
 
+    /**
+     * Record a real socket report from an actual transport/probe event.
+     */
+    fun recordRealSocket(report: SocketDiagnosticReport) {
+        val list = _activeSockets.value.toMutableList()
+        list.removeAll { it.socketId == report.socketId }
+        list.add(report)
+        _activeSockets.value = list
+        _telemetry.value = _telemetry.value.copy(activeSocketCount = list.size, backendUnavailable = false)
+    }
+
+    /**
+     * Manual probe request. No real probe backend is wired, so the report is
+     * not fabricated; it is marked unavailable.
+     */
     fun triggerManualProbe(socketId: String) {
         scope.launch {
-            val list = _activeSockets.value.toMutableList()
-            val index = list.indexOfFirst { it.socketId == socketId }
-            if (index != -1) {
-                val item = list[index]
-                list[index] = item.copy(connectionState = "PROBING")
-                _activeSockets.value = list
-
-                logger.info("Resilience", "Starting active socket probe for ${item.targetHost}:${item.port} via ${item.security.label}")
-                delay(250)
-
-                val newLatency = (14..32).random().toLong()
-                list[index] = item.copy(
-                    connectionState = "CONNECTED",
-                    latencyMs = newLatency,
-                    currentRetryAttempt = 0,
-                    nextBackoffMs = 0
-                )
-                _activeSockets.value = list
-                logger.info("Resilience", "Socket ${item.targetHost} verified healthy. Latency: ${newLatency}ms")
-            }
+            logger.warn("Resilience", "Manual probe for $socketId requested, but no real probe backend is wired in.")
+            val report = SocketDiagnosticReport(
+                socketId = socketId,
+                targetHost = "unknown",
+                port = 0,
+                security = NetworkTransportSecurity.ENCRYPTED_TCP_RAW,
+                connectionState = "UNAVAILABLE",
+                latencyMs = 0,
+                currentRetryAttempt = 0,
+                nextBackoffMs = 0,
+                backendUnavailable = true,
+                backendNote = "Manual probe requested but no real probe backend is wired in."
+            )
+            recordRealSocket(report)
         }
     }
 
