@@ -83,11 +83,22 @@ jobs:
             BUILD="false"
           fi
 
+          # A release tag is an explicit release contract: it must be signed with
+          # real platform keys. workflow_dispatch lets the caller opt in/out;
+          # push/PR native-test runs never require signing.
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            SIGNED="${{ inputs.signed || false }}"
+          elif [[ "${{ github.ref_type }}" == "tag" ]]; then
+            SIGNED="true"
+          else
+            SIGNED="false"
+          fi
+
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "short_sha=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
-          echo "signed=${{ inputs.signed || false }}" >> "$GITHUB_OUTPUT"
+          echo "signed=${SIGNED}" >> "$GITHUB_OUTPUT"
           echo "build=${BUILD}" >> "$GITHUB_OUTPUT"
-          echo "Version=${VERSION} ShortSHA=${SHORT_SHA} Build=${BUILD}"
+          echo "Version=${VERSION} ShortSHA=${SHORT_SHA} Build=${BUILD} Signed=${SIGNED}"
 
   # ─────────────────────────────────────────────────────────────────────────────
   # Native test gate. Runs before any artifact build so a regression in the Phase 2
@@ -311,8 +322,38 @@ jobs:
 
           ls -lh universal-core/android/app/src/main/jniLibs/*/
 
+      - name: Generate CI debug keystore (fallback signing key)
+        shell: bash
+        run: |
+          set -euo pipefail
+          KEYSTORE="$HOME/.android/debug.keystore"
+          mkdir -p "$HOME/.android"
+          if [[ ! -f "$KEYSTORE" ]]; then
+            keytool -genkeypair -v               -keystore "$KEYSTORE"               -storepass android -keypass android               -alias androiddebugkey               -keyalg RSA -keysize 2048 -validity 10000               -dname "CN=Android Debug,O=Android,C=US"
+          fi
+          ls -l "$KEYSTORE"
+
+      - name: Materialize release keystore (when secrets provided)
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_B64: ${{ secrets.VOR_ANDROID_KEYSTORE_B64 }}
+        run: |
+          set -euo pipefail
+          if [[ -n "${ANDROID_KEYSTORE_B64:-}" ]]; then
+            echo "$ANDROID_KEYSTORE_B64" | base64 -d > "$GITHUB_WORKSPACE/vor-release.keystore"
+            echo "ANDROID_KEYSTORE_PATH=$GITHUB_WORKSPACE/vor-release.keystore" >> "$GITHUB_ENV"
+            echo "Release keystore materialized."
+          else
+            echo "No release keystore secret; Gradle will use the CI debug keystore fallback."
+          fi
+
       - name: Build Android app (assembleRelease + bundleRelease)
         working-directory: ./universal-core/android
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ env.ANDROID_KEYSTORE_PATH }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.VOR_ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.VOR_ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.VOR_ANDROID_KEY_PASSWORD }}
         run: |
           set -uo pipefail
           chmod +x ./gradlew
@@ -589,24 +630,10 @@ jobs:
           if grep -q "error\[" "$LOG" || grep -qE "error: could not compile|error: failed to run custom build command" "$LOG"; then
             exit 1
           fi
-
-      - name: Emit desktop failure diagnostics (base64)
-        if: failure()
-        shell: bash
-        run: |
-          set -uo pipefail
-          LOG="V2RayEZ-GUI/tauri-build-${{ matrix.os }}.log"
-          if [[ ! -f "$LOG" ]]; then
-            echo "::warning::PHASE3-DIAG-DESKTOP-MISSING-LOG-os=${{ matrix.os }}"
-            exit 0
+          if grep -qE "^npm ci rc=[1-9]" "$LOG" || grep -qE "^prepare:sidecars rc=[1-9]" "$LOG" || grep -qE "^tauri build rc=[1-9]" "$LOG"; then
+            exit 1
           fi
-          {
-            echo '--- grep ---'
-            grep -aE 'error\\[|error:|Could not|not found|no such|cannot find|failed to|linking|undefined|feature|target|toolchain|msvc|AppImage|rpm|nsis|npm error|ERESOLVE|ETARGET|EUNAVAILABLE' "tauri-build-${{ matrix.os }}.log" | tail -n 100 || true
-            echo '--- tail ---'
-            tail -c 6000 "tauri-build-${{ matrix.os }}.log" || true
-          } > /tmp/ph3-diag-desktop.txt
-          echo "::warning::PHASE3-DIAG-DESKTOP-B64-$(base64 -w0 /tmp/ph3-diag-desktop.txt)"
+
 
       - name: Stage desktop artifacts
         shell: bash
@@ -631,6 +658,20 @@ jobs:
           name: vor-desktop-${{ matrix.platform }}-${{ needs.meta.outputs.version }}
           path: dist-desktop/*
           if-no-files-found: error
+
+      - name: Emit desktop failure diagnostics (base64)
+        if: failure()
+        shell: bash
+        run: |
+          set -uo pipefail
+          LOG="V2RayEZ-GUI/tauri-build-${{ matrix.os }}.log"
+          {
+            echo '--- grep ---'
+            grep -aE 'error\\[|error:|Could not|not found|no such|cannot find|failed to|linking|undefined|feature|target|toolchain|msvc|AppImage|rpm|nsis|npm error|ERESOLVE|ETARGET|EUNAVAILABLE' "$LOG" | tail -n 100 || true
+            echo '--- tail ---'
+            tail -c 6000 "$LOG" || true
+          } > /tmp/ph3-diag-desktop.txt
+          echo "::warning::PHASE3-DIAG-DESKTOP-B64-$(openssl base64 -A -in /tmp/ph3-diag-desktop.txt)"
 
   # ─────────────────────────────────────────────────────────────────────────────
   # OpenWrt: real SDK build for ARM64 + MIPS; no manual/fallback packaging.
@@ -709,16 +750,18 @@ jobs:
         shell: bash
         run: |
           set -uo pipefail
-          if [[ -f /tmp/openwrt-cross.log ]]; then
-            echo '::warning::PHASE3-DIAG-OPENWRT-START'
-            grep -aE 'error\\[|error:|Could not|not found|no such|cannot find|failed|linking|undefined|fatal|unknown|toolchain|linker|target-feature|edition|rustc|compiler|std' /tmp/openwrt-cross.log | tail -n 120 || true
-            echo '::warning::PHASE3-DIAG-OPENWRT-B64-'
-            tail -c 8000 /tmp/openwrt-cross.log | base64 -w0
-            echo ''
-            echo '::warning::PHASE3-DIAG-OPENWRT-END'
-          else
+          LOG=/tmp/openwrt-cross.log
+          if [[ ! -f "$LOG" ]]; then
             echo '::warning::PHASE3-DIAG-OPENWRT-MISSING-LOG'
+            exit 0
           fi
+          {
+            echo '--- grep ---'
+            grep -aE 'error\\[|error:|Could not|not found|no such|cannot find|failed|linking|undefined|fatal|unknown|toolchain|linker|target-feature|edition|rustc|compiler|std|process didn.t exit|exit status' "$LOG" | tail -n 120 || true
+            echo '--- tail ---'
+            tail -c 8000 "$LOG" || true
+          } > /tmp/ph3-diag-openwrt.txt
+          echo "::warning::PHASE3-DIAG-OPENWRT-B64-$(openssl base64 -A -in /tmp/ph3-diag-openwrt.txt)"
 
       - name: Build OpenWrt IPK with real SDK
         shell: bash
