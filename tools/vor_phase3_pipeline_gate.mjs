@@ -73,6 +73,12 @@ const required = [
   // ./go.sum does not exist and would emit a setup-go restore warning.
   'cache-dependency-path',
   '**/go.sum',
+  // setup-go must not manage the same ~/go/pkg/mod tree as the explicit
+  // actions/cache step. Two restores into the same directory cause tar
+  // "Cannot open: File exists" collisions. The cache key must also be bumped
+  // to bypass any stale/overlapping archive from before the fix.
+  'cache: false',
+  'v4-cache-vor-native-tests-',
   'brew install xcodegen cocoapods',
   'cargo install cargo-xwin',
   'choco install wixtoolset',

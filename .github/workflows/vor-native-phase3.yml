@@ -115,6 +115,11 @@ jobs:
           # default, which would otherwise make `go mod tidy` fail for the
           # newer module.
           go-version: '1.26'
+          # Disable setup-go's built-in cache. This repo is multi-module and a
+          # separate actions/cache step already manages ~/go/pkg/mod. If both
+          # manage the same directory, two tar extractions collide on the same
+          # files ("Cannot open: File exists" / tar exit 2).
+          cache: false
           # This is a multi-module repository; the default cache path (./go.sum)
           # does not exist, so setup-go would fail to restore its cache with a
           # misleading "Dependencies file is not found ... Supported file
@@ -138,9 +143,9 @@ jobs:
             ~/.gradle/wrapper
             ~/go/pkg/mod
             universal-core/target
-          key: vor-native-tests-${{ hashFiles('universal-core/Cargo.toml', 'universal-core/android/gradle/wrapper/gradle-wrapper.properties') }}
+          key: v4-cache-vor-native-tests-${{ hashFiles('universal-core/Cargo.toml', 'universal-core/android/gradle/wrapper/gradle-wrapper.properties') }}
           restore-keys: |
-            vor-native-tests-
+            v4-cache-vor-native-tests-
 
       - name: cargo test --workspace --all-targets
         working-directory: ./universal-core
@@ -263,9 +268,9 @@ jobs:
             ~/.gradle/caches
             ~/.gradle/wrapper
             universal-core/target
-          key: vor-android-${{ hashFiles('universal-core/Cargo.toml', 'universal-core/android/app/build.gradle') }}
+          key: v4-cache-vor-android-${{ hashFiles('universal-core/Cargo.toml', 'universal-core/android/app/build.gradle') }}
           restore-keys: |
-            vor-android-
+            v4-cache-vor-android-
 
       - name: Build Android JNI staticlibs (.so)
         shell: bash
@@ -407,9 +412,9 @@ jobs:
             MICAFP/ios/Pods
             MICAFP/ios/DerivedData
             universal-core/target
-          key: vor-ios-${{ hashFiles('MICAFP/ios/project.yml', 'universal-core/Cargo.toml') }}
+          key: v4-cache-vor-ios-${{ hashFiles('MICAFP/ios/project.yml', 'universal-core/Cargo.toml') }}
           restore-keys: |
-            vor-ios-
+            v4-cache-vor-ios-
 
       - name: Generate Xcode project
         working-directory: ./MICAFP/ios
@@ -518,9 +523,9 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             universal-core/target
-          key: vor-desktop-${{ matrix.os }}-${{ hashFiles('V2RayEZ-GUI/package-lock.json') }}
+          key: v4-cache-vor-desktop-${{ matrix.os }}-${{ hashFiles('V2RayEZ-GUI/package-lock.json') }}
           restore-keys: |
-            vor-desktop-${{ matrix.os }}-
+            v4-cache-vor-desktop-${{ matrix.os }}-
 
       - name: Build Tauri desktop app (no placeholder emitted on failure)
         working-directory: ./V2RayEZ-GUI
@@ -598,9 +603,9 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             universal-core/target
-          key: vor-openwrt-${{ matrix.target }}-${{ hashFiles('universal-core/openwrt/**', 'MICAFP/openwrt/**') }}
+          key: v4-cache-vor-openwrt-${{ matrix.target }}-${{ hashFiles('universal-core/openwrt/**', 'MICAFP/openwrt/**') }}
           restore-keys: |
-            vor-openwrt-${{ matrix.target }}-
+            v4-cache-vor-openwrt-${{ matrix.target }}-
 
       - name: Download + extract OpenWrt SDK (real, not fallback)
         shell: bash
