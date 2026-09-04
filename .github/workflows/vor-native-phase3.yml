@@ -439,6 +439,17 @@ jobs:
           path: dist-android/*
           if-no-files-found: error
 
+      - name: Emit Android signing/verification diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          set -uo pipefail
+          echo "::warning::PHASE3-DIAG-ANDROID-SIGN-SIGNED=${{ needs.meta.outputs.signed }}"
+          echo "::warning::PHASE3-DIAG-ANDROID-SIGN-KEYSTORE_B64_PRESENT=${{ secrets.VOR_ANDROID_KEYSTORE_B64 != '' }}"
+          echo "::warning::PHASE3-DIAG-ANDROID-SIGN-PASSWORD_PRESENT=${{ secrets.VOR_ANDROID_KEYSTORE_PASSWORD != '' }}"
+          echo "::warning::PHASE3-DIAG-ANDROID-SIGN-ALIAS_PRESENT=${{ secrets.VOR_ANDROID_KEY_ALIAS != '' }}"
+          [[ -d dist-android ]] && { echo "dist files:"; ls -lh dist-android || true; }
+
   # ─────────────────────────────────────────────────────────────────────────────
   # iOS: Xcode archive + export IPA.
   # ─────────────────────────────────────────────────────────────────────────────
@@ -666,10 +677,8 @@ jobs:
           set -uo pipefail
           LOG="V2RayEZ-GUI/tauri-build-${{ matrix.os }}.log"
           {
-            echo '--- grep ---'
-            grep -aE 'error\\[|error:|Could not|not found|no such|cannot find|failed to|linking|undefined|feature|target|toolchain|msvc|AppImage|rpm|nsis|npm error|ERESOLVE|ETARGET|EUNAVAILABLE' "$LOG" | tail -n 100 || true
-            echo '--- tail ---'
-            tail -c 6000 "$LOG" || true
+            echo '--- last 1400 bytes ---'
+            tail -c 1400 "$LOG" || true
           } > "$GITHUB_WORKSPACE/ph3-diag-desktop-${{ matrix.os }}.txt"
           echo "::warning::PHASE3-DIAG-DESKTOP-B64-$(openssl base64 -A -in "$GITHUB_WORKSPACE/ph3-diag-desktop-${{ matrix.os }}.txt")"
 
@@ -764,10 +773,8 @@ jobs:
             exit 0
           fi
           {
-            echo '--- grep ---'
-            grep -aE 'error\\[|error:|Could not|not found|no such|cannot find|failed|linking|undefined|fatal|unknown|toolchain|linker|target-feature|edition|rustc|compiler|std|process didn.t exit|exit status' "$LOG" | tail -n 120 || true
-            echo '--- tail ---'
-            tail -c 8000 "$LOG" || true
+            echo '--- last 1400 bytes ---'
+            tail -c 1400 "$LOG" || true
           } > "$GITHUB_WORKSPACE/ph3-diag-openwrt-${{ matrix.target }}.txt"
           echo "::warning::PHASE3-DIAG-OPENWRT-B64-$(openssl base64 -A -in "$GITHUB_WORKSPACE/ph3-diag-openwrt-${{ matrix.target }}.txt")"
 
