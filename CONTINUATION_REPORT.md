@@ -32,6 +32,9 @@ Work completed:
    fallback) and all native targets attempted but halted cleanly on missing
    toolchains/network (`cargo`, `go`, `gradle`, `xcodebuild`, `java`/Android,
    MSVC, OpenWrt SDK).
+7. **Phase 3 CI/CD pipeline** (§10): multi-runner native test + cross-compilation
+   workflow authored and static-validated; real runner execution/toolchains are
+   still blocked in this sandbox.
 
 ---
 
@@ -455,12 +458,73 @@ error: required tool 'java' is not installed for target 'android' (exit 1)
 
 ---
 
-## 10. Regression check
+## 10. Phase 3 CI/CD orchestration (2026-09-05)
 
-All `tools/*.mjs` gates pass (`27/27`), including the expanded anti-fabrication
-gate and the new Rust offline-license static gate. Shell syntax check
-(`bash -n` on the build/OpenWrt scripts) passes. Python `py_compile` passes.
-`node --check` passes on changed JS. No existing feature was
+### What was delivered
+
+The multi-runner pipeline is now explicit and reviewable in source:
+
+- **New workflow:** `.github/workflows/vor-native-phase3.yml` — `Vor Phase 3 Native
+  Tests & Binaries`.
+- **New gate:** `tools/vor_phase3_pipeline_gate.mjs` — statically enforces the
+  Phase 3 pipeline contract, including the OpenWrt `--no-fallback` fail-closed
+  mode (also implemented in `scripts/build-openwrt-ipk.sh`).
+- **Existing quality pipeline unaffected:** the new workflow does **not** call
+  `gh release create/upload`, so the repository keeps exactly one GitHub Release
+  publisher (`release.yml`). Verified locally by the release-publisher count
+  (1) and by `tools/vor_phase3_pipeline_gate.mjs`.
+
+### Pipeline jobs
+
+| Job | Runner | Provisioning | Validation / output |
+|---|---|---|---|
+| `meta` | ubuntu | — | version + commit resolution |
+| `native-tests` | ubuntu | Rust, Go, JDK 17, caches | `cargo test --workspace --all-targets --features "std,post-quantum-lab"`; `go test ./...` on all Go modules; `./gradlew testDebugUnitTest` |
+| `build-android` | ubuntu | JDK 17, Android SDK, NDK r26c, Rust Android targets | JNI `.so` per ABI → `:app:assembleRelease` + `:app:bundleRelease` → `vor-android-v$VERSION.apk` / `.aab` (signed when `VOR_ANDROID_*` secrets + `signed=true`) |
+| `build-ios` | macos-14 | xcodegen, cocoapods, Rust iOS/darwin targets | `xcodebuild ... archive` + export → `vor-ios-v$VERSION.ipa` (signed when Apple secrets + `signed=true`) |
+| `build-desktop` | windows / macos-14 / ubuntu | MSVC + WiX + cargo-xwin / Xcode / webkit+libbpf deps | `cargo tauri build` → `.exe`/`.msi`, `.dmg`/`.app`, `.deb`/`.AppImage` |
+| `build-openwrt` | ubuntu (x2 matrix) | Rust musl targets + OpenWrt SDK cache | real SDK `build-openwrt-ipk.sh --no-fallback` for `aarch64_cortex-a53` and `mipsel_24kc` → `vor-router-v$VERSION-$TARGET.ipk`; a missing SDK or SDK compile failure fails the job instead of falling back to manual packaging |
+| `checksum-ledger` | ubuntu | downloads all `vor-*` artifacts | rejects empty/placeholder files, runs full `tools/*.mjs` suite, writes `SHA256SUMS.txt` |
+
+Full artifact jobs are gated to `workflow_dispatch` or tag runs (`build=true`);
+push/PR runs execute only `native-tests` so a missing release-signing secret cannot
+break ordinary development CI. The iOS job additionally refuses to produce an IPA
+unless `signed=true` and Apple signing secrets are present — no unsigned `.ipa` is
+emitted.
+
+### Execution status in this sandbox (honest)
+
+This sandbox has no GitHub-hosted runners. The workflow is **authored and static-
+validated only**; the native commands are **not executed here**. In this
+environment the exact failing probes are unchanged from Phase 2:
+
+- `cargo`, `go`, `gradle`, `xcodebuild`, `msbuild`, `cl` → `command not found`.
+- `dl.google.com`, `maven.google.com`, `static.crates.io`, `proxy.golang.org` →
+  unreachable.
+- `bash scripts/build-release-artifacts.sh` → exits 1 with
+  `error: required tool 'java' is not installed for target 'android'`.
+
+Therefore **no real SHA-256 artifacts are claimable locally**. If the workflow
+were to emit checksums here, they would be placeholders — prohibited. The pipeline
+will produce `SHA256SUMS.txt` on a real runner (Ubuntu/macOS/Windows/Android
+toolchains + OpenWrt SDK); that ledger must then be copied into
+`CONTINUATION_REPORT.md` / `MERGE_TRACEABILITY.md` with the exact binary hashes.
+
+### Local evidence now
+
+- `node tools/vor_phase3_pipeline_gate.mjs` → **PASS**.
+- `node tools/vor_anti_fabrication_gate.mjs` → **PASS** (28/28 gates).
+- YAML parses successfully for all three workflows.
+- Publisher-integrity check: exactly **1** release publisher.
+
+---
+
+## 11. Regression check
+
+All `tools/*.mjs` gates pass (`28/28`), including the expanded anti-fabrication
+gate, the Rust offline-license static gate, and the new Phase 3 pipeline gate.
+Shell syntax check (`bash -n` on the build/OpenWrt scripts) passes. Python
+`py_compile` passes. `node --check` passes on changed JS. No existing feature was
 removed; donor source trees were not touched.
 
 Run to reproduce:
