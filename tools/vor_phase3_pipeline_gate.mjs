@@ -10,10 +10,35 @@
 //   5. checksums are generated from downloaded real artifacts;
 //   6. the new workflow does NOT become a second `gh release` publisher.
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 
 const read = (rel) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8');
 const wf = read('.github/workflows/vor-native-phase3.yml');
+
+// A Go pseudo-version must look like vX.Y.Z-YYYYMMDDHHMMSS-<12 hex>. The Phase 3
+// runner attempted to consume a go.mod whose hand-copied indirect block truncated
+// several of these (e.g. ...c74b9c, ...1e9ff8689), which Go can never resolve.
+const canonicalPseudo = /^v[0-9]+\.[0-9]+\.[0-9]+-[0-9]{14}-[0-9A-Fa-f]{12}$/;
+const goMods = [];
+(function walk(dir) {
+  for (const entry of readdirSync(dir)) {
+    if (entry === 'node_modules' || entry === '.git' || entry === 'target') continue;
+    const p = join(dir, entry);
+    if (statSync(p).isDirectory()) walk(p);
+    else if (entry === 'go.mod') goMods.push(p);
+  }
+})(new URL('..', import.meta.url).pathname);
+for (const goMod of goMods) {
+  const text = readFileSync(goMod, 'utf8');
+  const candidates = text.match(/\bv[0-9]+\.[0-9]+\.[0-9]+-[A-Za-z0-9-]+/g) || [];
+  for (const token of candidates) {
+    if (/\bv[0-9]+\.[0-9]+\.[0-9]+-20[0-9]{6}/.test(token)) {
+      assert.ok(canonicalPseudo.test(token),
+        `${goMod} contains a corrupted/truncated Go pseudo-version (${token}) that Go cannot resolve`);
+    }
+  }
+}
 // Only inspect meaningful YAML body; the header intentionally documents why this
 // workflow does NOT call `gh release create/upload`.
 const wfBody = wf

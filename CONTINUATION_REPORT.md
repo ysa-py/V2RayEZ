@@ -522,15 +522,23 @@ correctly skipped because `build=false` on push). Run `33920384216`:
 - `Go tests (all Go modules)` ✗
 - `Android testDebugUnitTest` not reached (gate blocked correctly).
 
-The Go failure was a real repo gap, not a pipeline-logic defect: the tracked
-module `MICAFP/go-bridge` has a `go.mod` but **no committed `go.sum`**, so Go’s
-readonly module mode refuses to run `go test`. This could not be repaired in the
-sandbox (`proxy.golang.org` is unreachable here), so the native-tests step now
-runs `go mod download all` before `go test ./...` in every discovered module:
-the runner resolves and verifies the real module graph and records the required
-sums, and a missing/unreachable dependency or bad sum still fails the module.
-This is a fail-closed fetch, not a placeholder — the sums are produced by Go
-from real remote modules and are re-verified on every run.
+The Go failure was a real repo gap, not a pipeline-logic defect. The tracked
+module `MICAFP/go-bridge` shipped a `go.mod` whose `// indirect` block contained
+**corrupted/truncated pseudo-versions** (for example
+`v0.0.0-202405020r8492a386799f3`, `v0.0.0-20221101232838c74b9c`,
+`v0.0.0-20240520174049-1e9ff8689`), and it had **no committed `go.sum`**, so Go
+could not resolve the module at all. The hand-copied indirect block is
+unnecessary because the direct dependency `github.com/yggdrasil-network/
+yggdrasil-go v0.5.8` carries its own correct module graph; the corrupt block was
+removed from `MICAFP/go-bridge/go.mod`.
+
+This could not be repaired fully in the sandbox (`proxy.golang.org` is
+unreachable here), so the native-tests step also runs `go mod download all`
+before `go test ./...` in every discovered module: the runner resolves and
+verifies the real module graph and records the required sums, and a
+missing/unreachable dependency or bad sum still fails the module. This is a
+fail-closed fetch, not a placeholder — the sums are produced by Go from real
+remote modules and are re-verified on every run.
 
 ### Local evidence now
 
