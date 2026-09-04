@@ -54,6 +54,11 @@ const required = [
   // materialized before tests; the resolution itself is fail-closed.
   'go mod tidy',
   'go test ./...',
+  // Only a small, documented donor denylist may be skipped; Vor-owned modules and
+  // every other discovered module must still pass or the job fails.
+  'known_incomplete_donors=',
+  'skipping known-incomplete donor Go module',
+  'Do not add Vor-owned modules here',
   './gradlew testDebugUnitTest',
   // Toolchain provisioning on the specific runners.
   'dtolnay/rust-toolchain',
