@@ -5,7 +5,7 @@ import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.ViewModel;
 
 /**
- * Kotlin ViewModel glue — binds Universal-Core FFI state machine to reactive UI.
+ * Java ViewModel glue — binds Universal-Core FFI state machine to reactive UI.
  * All operations delegate to NativeBridge (JNI) which calls finalized FFI only.
  * Memory: NativeBridge handles v2rayez_free_string; ViewModel never holds raw pointers.
  */

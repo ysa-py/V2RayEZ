@@ -13,9 +13,20 @@
 //!   (XCFramework), Windows (Tauri/FFI), Linux (systemd), and OpenWrt LuCI must only
 //!   use these exported symbols—do NOT reimplement transport, licensing, or config logic
 //!   in platform layers.
+//!
+//! # Why these symbols are *safe* functions despite taking raw pointers
+//! Every exported function null-checks each pointer before dereferencing and
+//! returns well-formed JSON error values instead of invoking UB. They must be
+//! callable from plain C / JNI without an `unsafe` concept on the caller side,
+//! and the in-crate call sites (ui_state, connectivity tests) rely on calling
+//! them from safe code. Therefore the `clippy::not_unsafe_ptr_arg_deref` lint
+//! is intentionally allowed for this module instead of marking the ABI
+//! `unsafe fn` (which would change the Rust-facing API without improving the
+//! C-facing safety contract).
+#![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 use std::ffi::{CStr, CString};
-use std::os::raw::{c_char, c_int, c_void};
+use std::os::raw::{c_char, c_void};
 
 use crate::core_manager::CoreSession;
 
@@ -64,8 +75,10 @@ pub extern "C" fn v2rayez_core_status(handle: *mut c_void) -> *mut c_char {
     // Read-only access through opaque pointer; safe because CoreSession fields
     // are accessed only through methods that do not mutate unexpectedly.
     let _session = unsafe { &*(handle as *mut CoreSession) };
+    // Contract: every status document carries BOTH `status` and
+    // `shutdown_requested` so parsers never observe a half-shaped payload.
     let resp = if _session.is_shutdown_requested() {
-        r#"{"ok":true,"status":"shutting_down"}"#
+        r#"{"ok":true,"status":"shutting_down","shutdown_requested":true}"#
     } else {
         r#"{"ok":true,"status":"active","shutdown_requested":false}"#
     };
@@ -109,8 +122,9 @@ pub extern "C" fn v2rayez_core_stop(handle: *mut c_void) -> *mut c_char {
             .unwrap()
             .into_raw();
     }
-    // Signal graceful stop through session; no mutation of opaque handle needed
-    // beyond what the session itself manages.
+    // Stop the tunnel WITHOUT requesting session shutdown: the same handle
+    // must stay reusable for a subsequent start (see the network-handover
+    // connectivity suite), so `shutdown_requested` intentionally stays false.
     CString::new(r#"{"ok":true,"reason":"stopped"}"#)
         .unwrap()
         .into_raw()
@@ -227,6 +241,23 @@ mod ffi_tests {
         // Convert back to CString to verify content (only for test validation).
         let content = unsafe { CStr::from_ptr(s) }.to_string_lossy();
         assert!(content.contains("ok"));
+        v2rayez_free_string(s);
+        v2rayez_core_shutdown(h);
+    }
+
+    /// Status JSON contract: the active-session payload must always carry both
+    /// `status` and `shutdown_requested` keys (UI shells parse both).
+    #[test]
+    fn ffi_status_json_contract() {
+        let h = v2rayez_core_init();
+        let s = v2rayez_core_status(h);
+        assert!(!s.is_null());
+        let content = unsafe { CStr::from_ptr(s) }.to_string_lossy().into_owned();
+        assert!(content.contains(r#""status":"active""#), "missing status: {content}");
+        assert!(
+            content.contains(r#""shutdown_requested":false"#),
+            "missing shutdown_requested: {content}"
+        );
         v2rayez_free_string(s);
         v2rayez_core_shutdown(h);
     }

@@ -174,7 +174,7 @@ Uses `universal-core/ci/build-target.sh` which handles:
 
 ## Android Details
 
-- **Gradle project**: `universal-core/android/` - minimal app with `MainActivity.kt`, `VpnService.kt`, `NativeBridge.java`, `CoreStateViewModel.kt`
+- **Gradle project**: `universal-core/android/` - minimal app with `MainActivity.kt`, `VpnService.kt`, `NativeBridge.java`, `CoreStateViewModel.java`
 - **JNI**: `android/jni/v2rayez_core_jni.c` bridges Java to Rust FFI
 - **Native libs**: built per-ABI by the CI `Build Android JNI native libraries`
   step (NDK clang linking the matching Rust staticlib with `-O3 -flto`) into

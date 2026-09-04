@@ -3,7 +3,7 @@
 
 #[cfg(test)]
 mod mtu_tests {
-    use crate::route_matrix::{ROUTE_MATRIX_MTU_PRESETS, RouteMatrixSettingsOverride, RouteMatrixCandidate};
+    use crate::route_matrix::{ROUTE_MATRIX_MTU_PRESETS, RouteMatrixSettingsOverride};
 
     /// MTU-01 to MTU-04: All presets must produce valid candidates.
     #[test]
