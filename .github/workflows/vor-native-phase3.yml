@@ -180,8 +180,8 @@ jobs:
               # the only reliable way to inspect a failed native step when log
               # artifacts cannot be downloaded (e.g. from a restricted runner).
               echo "::error::Go test failure in $mod"
-              sed -n '1,120p' go-module.log | sed 's/^/::error::  /'
-              tail -n 120 go-module.log
+              tail -n 200 go-module.log | sed 's/^/::error::  /'
+              tail -n 200 go-module.log
               stage=1
               break
             fi
