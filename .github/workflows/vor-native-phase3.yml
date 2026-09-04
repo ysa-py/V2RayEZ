@@ -156,8 +156,12 @@ jobs:
             exit 1
           fi
           for mod in "${mods[@]}"; do
-            echo "── go test ./... in $mod"
-            if ! ( cd "$mod" && go test ./... ); then
+            echo "── go mod download all + go test ./... in $mod"
+            # Some Go modules in this tree do not ship a committed go.sum yet.
+            # Downloading resolves/verifies the real module graph and records the
+            # required sums; this is still fail-closed because a missing/unreachable
+            # dependency or an existing bad sum aborts the module.
+            if ! ( cd "$mod" && go mod download all && go test ./... ); then
               failed+=("$mod")
             fi
           done

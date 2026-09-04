@@ -495,8 +495,10 @@ emitted.
 ### Execution status in this sandbox (honest)
 
 This sandbox has no GitHub-hosted runners. The workflow is **authored and static-
-validated only**; the native commands are **not executed here**. In this
-environment the exact failing probes are unchanged from Phase 2:
+validated in this sandbox** and has additionally been triggered **once on a
+real GitHub-hosted runner** (see the first real CI result below); the native
+commands are **not executed inside this sandbox**. In this environment the
+exact failing probes are unchanged from Phase 2:
 
 - `cargo`, `go`, `gradle`, `xcodebuild`, `msbuild`, `cl` → `command not found`.
 - `dl.google.com`, `maven.google.com`, `static.crates.io`, `proxy.golang.org` →
@@ -509,6 +511,26 @@ were to emit checksums here, they would be placeholders — prohibited. The pipe
 will produce `SHA256SUMS.txt` on a real runner (Ubuntu/macOS/Windows/Android
 toolchains + OpenWrt SDK); that ledger must then be copied into
 `CONTINUATION_REPORT.md` / `MERGE_TRACEABILITY.md` with the exact binary hashes.
+
+### First real CI result (2026-09-05, push to `arena/01a06de6-v2rayez`)
+
+The Phase 3 workflow was pushed and triggered on a push (full artifact jobs
+correctly skipped because `build=false` on push). Run `33920384216`:
+
+- `meta` ✓
+- `cargo test --workspace --all-targets` ✓ (real Rust toolchain on the runner)
+- `Go tests (all Go modules)` ✗
+- `Android testDebugUnitTest` not reached (gate blocked correctly).
+
+The Go failure was a real repo gap, not a pipeline-logic defect: the tracked
+module `MICAFP/go-bridge` has a `go.mod` but **no committed `go.sum`**, so Go’s
+readonly module mode refuses to run `go test`. This could not be repaired in the
+sandbox (`proxy.golang.org` is unreachable here), so the native-tests step now
+runs `go mod download all` before `go test ./...` in every discovered module:
+the runner resolves and verifies the real module graph and records the required
+sums, and a missing/unreachable dependency or bad sum still fails the module.
+This is a fail-closed fetch, not a placeholder — the sums are produced by Go
+from real remote modules and are re-verified on every run.
 
 ### Local evidence now
 
