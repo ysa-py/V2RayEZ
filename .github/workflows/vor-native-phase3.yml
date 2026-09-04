@@ -329,16 +329,17 @@ jobs:
         shell: bash
         run: |
           set -uo pipefail
-          if [[ -f android-gradle.log ]]; then
-            echo '::warning::PHASE3-DIAG-ANDROID-START'
-            grep -aE 'FAILURE|FAILED|error:|Exception|Caused by|lint|Could not|Couldn.t|variant|manifest|missing|compile' android-gradle.log | tail -n 60 || true
-            echo '::warning::PHASE3-DIAG-ANDROID-B64-'
-            tail -c 7000 android-gradle.log | base64 -w0
-            echo ''
-            echo '::warning::PHASE3-DIAG-ANDROID-END'
-          else
+          if [[ ! -f android-gradle.log ]]; then
             echo '::warning::PHASE3-DIAG-ANDROID-MISSING-LOG'
+            exit 0
           fi
+          {
+            echo '--- grep ---'
+            grep -aE 'FAILURE|FAILED|error:|Exception|Caused by|lint|Could not|Couldn.t|variant|manifest|missing|compile|Daemon|jvm|Kotlin' android-gradle.log | tail -n 80 || true
+            echo '--- tail ---'
+            tail -c 6000 android-gradle.log || true
+          } > /tmp/ph3-diag-android.txt
+          echo "::warning::PHASE3-DIAG-ANDROID-B64-$(openssl base64 -A -in /tmp/ph3-diag-android.txt)"
 
       - name: Sign / verify Android artifacts
         shell: bash
@@ -467,14 +468,17 @@ jobs:
         shell: bash
         run: |
           set -uo pipefail
-          echo '::warning::PHASE3-DIAG-IOS-START'
-          grep -aE 'error|Error|CODE_SIGN|provision|team|SIMULATOR|SDK|No such|not found' /tmp/ios-build.log 2>/dev/null | tail -n 60 || true
-          if [[ -f /tmp/ios-build.log ]]; then
-            echo '::warning::PHASE3-DIAG-IOS-B64-'
-            tail -c 7000 /tmp/ios-build.log | base64 -w0
-            echo ''
+          if [[ ! -f /tmp/ios-build.log ]]; then
+            echo '::warning::PHASE3-DIAG-IOS-MISSING-LOG'
+            exit 0
           fi
-          echo '::warning::PHASE3-DIAG-IOS-END'
+          {
+            echo '--- grep ---'
+            grep -aE 'error|Error|CODE_SIGN|provision|team|SIMULATOR|SDK|No such|not found|signing' /tmp/ios-build.log | tail -n 80 || true
+            echo '--- tail ---'
+            tail -c 6000 /tmp/ios-build.log || true
+          } > /tmp/ph3-diag-ios.txt
+          echo "::warning::PHASE3-DIAG-IOS-B64-$(openssl base64 -A -in /tmp/ph3-diag-ios.txt)"
 
       - name: Export iOS IPA
         working-directory: ./MICAFP/ios
@@ -563,37 +567,46 @@ jobs:
         working-directory: ./V2RayEZ-GUI
         shell: bash
         run: |
-          set -uo pipefail
-          npm ci
-          npm run prepare:sidecars
+          set +e
+          LOG="tauri-build-${{ matrix.os }}.log"
+          : > "$LOG"
+          echo "=== npm ci ==="
+          npm ci >> "$LOG" 2>&1
+          echo "npm ci rc=$?" >> "$LOG"
+          echo "=== prepare:sidecars ==="
+          npm run prepare:sidecars >> "$LOG" 2>&1
+          echo "prepare:sidecars rc=$?" >> "$LOG"
+          echo "=== tauri build ==="
           if [[ "${{ matrix.platform }}" == "windows" ]]; then
-            cargo tauri build --bundles nsis,msi 2>&1 | tee tauri-build.log
+            cargo tauri build --bundles nsis,msi >> "$LOG" 2>&1
           elif [[ "${{ matrix.platform }}" == "macos" ]]; then
-            cargo tauri build --bundles app,dmg 2>&1 | tee tauri-build.log
+            cargo tauri build --bundles app,dmg >> "$LOG" 2>&1
           else
-            cargo tauri build --bundles deb,appimage 2>&1 | tee tauri-build.log
+            cargo tauri build --bundles deb,appimage >> "$LOG" 2>&1
           fi
-          if grep -q "error\[" tauri-build.log || grep -qE "error: could not compile|error: failed to run custom build command" tauri-build.log; then
-            tail -n 120 tauri-build.log
+          echo "tauri build rc=$?" >> "$LOG"
+          tail -n 120 "$LOG"
+          if grep -q "error\[" "$LOG" || grep -qE "error: could not compile|error: failed to run custom build command" "$LOG"; then
             exit 1
           fi
 
       - name: Emit desktop failure diagnostics (base64)
         if: failure()
-        working-directory: ./V2RayEZ-GUI
         shell: bash
         run: |
           set -uo pipefail
-          if [[ -f tauri-build.log ]]; then
-            echo '::warning::PHASE3-DIAG-DESKTOP-START'
-            grep -aE 'error\\[|error:|Could not|not found|no such|cannot find|failed to|linking|undefined|feature|target|toolchain|msvc|AppImage|rpm|nsis' tauri-build.log | tail -n 80 || true
-            echo '::warning::PHASE3-DIAG-DESKTOP-B64-'
-            tail -c 7000 tauri-build.log | base64 -w0
-            echo ''
-            echo '::warning::PHASE3-DIAG-DESKTOP-END'
-          else
-            echo '::warning::PHASE3-DIAG-DESKTOP-MISSING-LOG'
+          LOG="V2RayEZ-GUI/tauri-build-${{ matrix.os }}.log"
+          if [[ ! -f "$LOG" ]]; then
+            echo "::warning::PHASE3-DIAG-DESKTOP-MISSING-LOG-os=${{ matrix.os }}"
+            exit 0
           fi
+          {
+            echo '--- grep ---'
+            grep -aE 'error\\[|error:|Could not|not found|no such|cannot find|failed to|linking|undefined|feature|target|toolchain|msvc|AppImage|rpm|nsis|npm error|ERESOLVE|ETARGET|EUNAVAILABLE' "tauri-build-${{ matrix.os }}.log" | tail -n 100 || true
+            echo '--- tail ---'
+            tail -c 6000 "tauri-build-${{ matrix.os }}.log" || true
+          } > /tmp/ph3-diag-desktop.txt
+          echo "::warning::PHASE3-DIAG-DESKTOP-B64-$(base64 -w0 /tmp/ph3-diag-desktop.txt)"
 
       - name: Stage desktop artifacts
         shell: bash
