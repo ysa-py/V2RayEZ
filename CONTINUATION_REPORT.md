@@ -580,6 +580,28 @@ fatal and the exact Go diagnostics are emitted as a single encoded
   `cargo test --workspace --all-targets` ✓, `Go tests (all Go modules)` ✓ with
   **no donor skip-list**, `Android testDebugUnitTest` ✓; build/checksum jobs
   correctly skipped on push (`build=false`).
+- Push run `33925274633` (commit `df311fd`, warning remediation + Go 1.26
+  toolchain): `meta` ✓, `cargo test --workspace --all-targets` ✓,
+  `Go tests (all Go modules)` ✓ (no donor skip-list, all modules tidy+tested),
+  `Android testDebugUnitTest` ✓, and **zero warning annotations** — the Node 20
+  deprecation and setup-go `go.sum` cache restore warnings are gone.
+  Build/checksum jobs correctly skipped on push.
+
+### Warning remediation (2026-09-05)
+
+- All GitHub Actions steps in `vor-native-phase3.yml` moved to latest Node 24
+  majors: `actions/checkout@v7`, `actions/setup-go@v7`, `actions/setup-java@v6`,
+  `actions/setup-node@v7`, `actions/cache@v6`, `actions/upload-artifact@v7`,
+  `actions/download-artifact@v8`, `android-actions/setup-android@v4`,
+  `nttld/setup-ndk@v1.6.0`.
+- `actions/setup-go@v7` now declares `cache-dependency-path: **/go.sum` so the
+  multi-module Go cache restore no longer emits the misleading “Dependencies
+  file is not found … Supported file pattern: go.sum” warning.
+- Go toolchain pinned to `1.26`, which satisfies every discovered module
+  (`EasySNI` requires 1.26; `MasterDnsVPN` and Vor go-bridge require 1.25),
+  removing the `GOTOOLCHAIN=local` failure with the previous 1.22 toolchain.
+- `tools/vor_phase3_pipeline_gate.mjs` updated to assert the latest majors and
+  the explicit cache dependency path.
 
 Real artifact synthesis is still gated to `workflow_dispatch`/tag runs with
 `build=true` (and real signing secrets for iOS), so no fake SHA-256 hashes are
