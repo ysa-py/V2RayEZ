@@ -1,3 +1,4 @@
+// SIMULATION ONLY — NOT REAL TELEMETRY. This module generates demo/synthetic values in-memory for the dashboard UI. It must never be presented as a live Vor core reading; real telemetry only comes from the native core backend.
 // ──────────────────────────────────────────────
 // MICAFP-UnifiedShield — Security Audit Engine
 // DNS leak test, WebRTC leak, IPv6 leak, kill switch

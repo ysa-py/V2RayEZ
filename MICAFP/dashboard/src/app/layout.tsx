@@ -4,12 +4,12 @@ import { Toaster } from "@/components/ui/toaster";
 import { AppProviders } from "@/components/app-providers";
 
 export const metadata: Metadata = {
-  title: "V2RayEZ — کنسول فرماندهی امنیت سایبری",
+  title: "Vor — کنسول فرماندهی امنیت سایبری",
   description:
     "موتور ضد سانسور هوشمند چند هسته‌ای بهینه‌شده برای ایران — ۳۰ هسته، هوش مصنوعی داخلی UCB، تعویض خودکار، حفاظت کوانتومی و قابلیت‌های سازمانی (Enterprise)",
   keywords: [
-    "V2RayEZ",
-    "V2RayEZ Universal",
+    "Vor",
+    "Vor Universal",
     "ضد سانسور",
     "ایران",
     "VPN",
@@ -21,13 +21,13 @@ export const metadata: Metadata = {
     "Enterprise",
     "امنیت سایبری",
   ],
-  applicationName: "V2RayEZ Command Console",
-  authors: [{ name: "V2RayEZ" }],
+  applicationName: "Vor Command Console",
+  authors: [{ name: "Vor" }],
   icons: {
     icon: "/logo.svg",
   },
   openGraph: {
-    title: "V2RayEZ — کنسول فرماندهی امنیت سایبری",
+    title: "Vor — کنسول فرماندهی امنیت سایبری",
     description:
       "پلتفرم ضد سانسور سازمانی چند هسته‌ای با هوش مصنوعی داخلی، پروتکل‌های استگانوگرافی و حفاظت کوانتومی",
     type: "website",

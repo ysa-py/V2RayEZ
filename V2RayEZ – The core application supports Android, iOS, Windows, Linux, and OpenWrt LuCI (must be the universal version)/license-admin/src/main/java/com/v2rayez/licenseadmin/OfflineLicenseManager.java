@@ -7,6 +7,7 @@ import android.security.keystore.KeyProperties;
 import android.util.Base64;
 
 import org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters;
+import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters;
 import org.bouncycastle.crypto.signers.Ed25519Signer;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.json.JSONArray;
@@ -150,6 +151,7 @@ final class OfflineLicenseManager {
         for (int i = 0; i < incoming.length(); i++) {
             JSONObject item = incoming.getJSONObject(i);
             String id = item.optString("licenseId");
+            verifyImportedRecord(item);
             if (!id.isEmpty()) merged.put(id, item);
         }
         JSONArray out = new JSONArray();
@@ -264,7 +266,13 @@ final class OfflineLicenseManager {
         if (!stored.isEmpty()) return decryptSeed(stored);
         byte[] seed = new byte[32];
         RNG.nextBytes(seed);
-        prefs.edit().putString(KEY_ENCRYPTED_SEED, encryptSeed(seed)).apply();
+        // Use commit() (not apply()) for the encrypted seed: the private signing seed is the
+        // single source of truth for every serial this operator has ever issued. If it were
+        // written asynchronously and the process died first, the app would silently generate a
+        // new key and every previously issued license would become unverifiable.
+        if (!prefs.edit().putString(KEY_ENCRYPTED_SEED, encryptSeed(seed)).commit()) {
+            throw new IllegalStateException("Failed to persist encrypted license-manager seed");
+        }
         return seed;
     }
 
@@ -340,6 +348,59 @@ final class OfflineLicenseManager {
     private void requirePassphrase(String passphrase) {
         if (passphrase == null || passphrase.length() < 8) {
             throw new IllegalArgumentException("Ledger passphrase must be at least 8 characters");
+        }
+    }
+
+    /**
+     * Rejects any imported ledger record whose signed serial does not verify against this
+     * manager's current Ed25519 public key, and whose signed payload does not match the stored
+     * record fields. This keeps the offline admin ledger free of unverifiable license records;
+     * a passphrase alone is not an excuse to accept a tampered export.
+     */
+    private void verifyImportedRecord(JSONObject record) throws Exception {
+        if (record == null) throw new IllegalArgumentException("Imported license record is null");
+        String token = record.optString("licenseKey", "");
+        if (token.isEmpty()) {
+            throw new IllegalArgumentException("Imported license record has no signed license key");
+        }
+        String[] parts = token.split("\\.");
+        if (parts.length != 3 || parts[0].isEmpty() || parts[1].isEmpty() || parts[2].isEmpty()) {
+            throw new IllegalArgumentException("Imported license key is not a compact token");
+        }
+        JSONObject header = new JSONObject(new String(base64UrlDecode(parts[0]), StandardCharsets.UTF_8));
+        if (!"EdDSA".equals(header.optString("alg"))) {
+            throw new IllegalArgumentException("Imported license key uses an unsupported algorithm");
+        }
+        if (!LICENSE_TYP.equals(header.optString("typ"))) {
+            throw new IllegalArgumentException("Imported license key has an unexpected token type");
+        }
+        byte[] rawPublic = new Ed25519PrivateKeyParameters(seed(), 0).generatePublicKey().getEncoded();
+        Ed25519PublicKeyParameters publicKey = new Ed25519PublicKeyParameters(rawPublic, 0);
+        Ed25519Signer verifier = new Ed25519Signer();
+        verifier.init(false, publicKey);
+        byte[] signingInput = (parts[0] + "." + parts[1]).getBytes(StandardCharsets.UTF_8);
+        verifier.update(signingInput, 0, signingInput.length);
+        if (!verifier.verifySignature(base64UrlDecode(parts[2]))) {
+            throw new IllegalArgumentException("Imported license key signature verification failed");
+        }
+        JSONObject payload = new JSONObject(new String(base64UrlDecode(parts[1]), StandardCharsets.UTF_8));
+        if (!"v2rayez.license.v1".equals(payload.optString("schema"))) {
+            throw new IllegalArgumentException("Imported license has an unexpected payload schema");
+        }
+        requireFieldMatch(record, payload, "licenseId");
+        requireFieldMatch(record, payload, "status");
+        requireFieldMatch(record, payload, "userId");
+        requireFieldMatch(record, payload, "accountId");
+        requireFieldMatch(record, payload, "expiresAt");
+        requireFieldMatch(record, payload, "issuedAt");
+        if (record.optInt("revocationEpoch", 0) != payload.optInt("revocationEpoch", 0)) {
+            throw new IllegalArgumentException("Imported license revocation epoch does not match its signed payload");
+        }
+    }
+
+    private static void requireFieldMatch(JSONObject record, JSONObject payload, String field) throws Exception {
+        if (!record.optString(field).equals(payload.optString(field))) {
+            throw new IllegalArgumentException("Imported license field '" + field + "' does not match its signed payload");
         }
     }
 

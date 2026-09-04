@@ -18,7 +18,7 @@ const guiSvg = text('V2RayEZ-GUI/src/v2rayez-logo.svg');
 const dashboardSvg = text('MICAFP/dashboard/public/logo.svg');
 
 for (const body of [svg, tauriSvg, guiSvg, dashboardSvg]) {
-  assert.match(body, /aria-label="V2RayEZ"/);
+  assert.match(body, /aria-label="Vor"/);
   assert.match(body, /vFill|linearGradient id="vFill"/);
   assert.doesNotMatch(body, /M149 343 241 145/);
   assert.doesNotMatch(body, /AetherGUI|Aethon|Firstham/i);

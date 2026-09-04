@@ -74,7 +74,7 @@ config unifiedshield 'default'
 
 config ai_provider 'local_v2rayez'
     option id 'local-v2rayez'
-    option name 'V2RayEZ Local AI'
+    option name 'Vor Local AI'
     option type 'local'
     option enabled '1'
     option base_url 'local://v2rayez'

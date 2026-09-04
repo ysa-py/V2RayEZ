@@ -44,7 +44,7 @@ type Messages = Record<string, string>;
 
 const messages: Record<Locale, Messages> = {
   fa: {
-    'app.title': 'V2RayEZ Universal',
+    'app.title': 'Vor Universal',
     'app.subtitle': 'موتور ضد سانسور هوشمند چند هسته‌ای – بهینه ایران',
     'settings.general': 'عمومی',
     'settings.language': 'زبان',
@@ -76,14 +76,14 @@ const messages: Record<Locale, Messages> = {
     'app.connected': 'متصل و ایمن',
     'app.connecting': 'در حال اتصال…',
     'app.connectHint': 'برای اتصال خودکار لمس کنید',
-    'app.protectedHint': 'V2RayEZ از شما محافظت می‌کند',
-    'app.loading': 'در حال بارگذاری V2RayEZ…',
+    'app.protectedHint': 'Vor از شما محافظت می‌کند',
+    'app.loading': 'در حال بارگذاری Vor…',
     'app.footerTagline': 'موتور ضد سانسور هوشمند چند هسته‌ای (بهینه ایران)',
     'header.connected': 'متصل',
     'header.disconnected': 'قطع',
   },
   en: {
-    'app.title': 'V2RayEZ Universal',
+    'app.title': 'Vor Universal',
     'app.subtitle': 'Multi-core intelligent anti-censorship engine — optimized for Iran',
     'settings.general': 'General',
     'settings.language': 'Language',
@@ -115,8 +115,8 @@ const messages: Record<Locale, Messages> = {
     'app.connected': 'Connected & secure',
     'app.connecting': 'Connecting…',
     'app.connectHint': 'Tap to connect automatically',
-    'app.protectedHint': 'V2RayEZ is protecting you',
-    'app.loading': 'Loading V2RayEZ…',
+    'app.protectedHint': 'Vor is protecting you',
+    'app.loading': 'Loading Vor…',
     'app.footerTagline': 'Multi-core intelligent anti-censorship engine (optimized for Iran)',
     'header.connected': 'Connected',
     'header.disconnected': 'Disconnected',

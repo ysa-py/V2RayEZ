@@ -4,7 +4,7 @@
     "V2RayEZ base": {
       "path": "V2RayEZ – The core application supports Android, iOS, Windows, Linux, and OpenWrt LuCI (must be the universal version)",
       "exists": true,
-      "file_count": 311,
+      "file_count": 312,
       "top_level_dirs": [
         ".github",
         "app",
@@ -16,7 +16,7 @@
     "V2RayEZ GUI / Aether adapter": {
       "path": "V2RayEZ-GUI",
       "exists": true,
-      "file_count": 176,
+      "file_count": 179,
       "top_level_dirs": [
         ".github",
         "android",
@@ -42,7 +42,7 @@
     "MICAFP-UnifiedShield": {
       "path": "MICAFP",
       "exists": true,
-      "file_count": 733,
+      "file_count": 735,
       "top_level_dirs": [
         "ai-models",
         "android",

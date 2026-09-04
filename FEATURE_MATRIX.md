@@ -200,3 +200,20 @@ Legend:
 |---|---|---|---|---|---|---|---|
 | Dashboard license administration | New + MICAFP dashboard | Next.js admin panel + license APIs | Web/Dashboard | in progress: issue/validate/renew/revoke panel added | blocked: `eslint`/deps absent | pending DB-backed integration | MJS crypto self-test PASS after panel wiring; Next lint blocked |
 | Dashboard AI provider configuration/test | New + MICAFP dashboard | Next.js AI Provider Gateway panel | Web/Dashboard | in progress: no-code provider test panel added | blocked: `eslint`/deps absent | pending external/local provider tests | MJS gateway self-test PASS after panel wiring; Next lint blocked |
+
+---
+
+## 13) Milestone 68 status delta — continuation pass
+
+> **Date:** 2026-09-04 · **Branch:** `arena/01a06de6-v2rayez`
+> **Rule:** every status change below carries a reproducible evidence command in the
+> last column. No `blocked → pass` flip is claimed without an attached gate/test.
+
+| Feature / artifact | Component | Status | Build/E2E evidence (exact command / path) | Notes |
+|---|---|---|---|---|
+| Offline license manager: imported ledger verification | `license-admin/.../OfflineLicenseManager.java` | hardened | `node tools/offline_license_manager_gate.mjs` PASS | Imported ledger entries now verify Ed25519 signature + payload/record field match before merge; seed persistence moved from `apply()` to blocking `commit()`. No unverifiable license is accepted. |
+| Offline serial decision real behavior | `tools/license_serial_e2e_selftest.mjs` | extended | `node tools/license_serial_e2e_selftest.mjs` PASS | Pure-offline signed serial verifies with NO grace token; device binding, tamper, status, expiry, and signed revocation-list deny paths are all asserted against `MICAFP/dashboard/src/lib/license-crypto.mjs`. |
+| Anti-fabrication sweep | dashboard API + libs | found + fixed | `node tools/vor_anti_fabrication_gate.mjs` PASS | Removed `Math.random()` based fake telemetry from `health`, `cores`, `auto-reconnect`, `orchestrator`, `dpi-test`, `geo-router`, `ota`, `ai-engine`, `security-audit`, `threat-intel` routes; they now fail closed with `real_core_backend_unavailable`. Simulation-only dashboard libs are labeled `SIMULATION ONLY — NOT REAL TELEMETRY`. |
+| Brand rename | all shipping surfaces | Vor | `node tools/vor_brand_rename_gate.mjs` PASS | Android launcher/label, iOS bundle IDs (`app.vor.ios`, `app.vor.ios.PacketTunnel`, group `group.app.vor.ios`), desktop `productName`/`identifier`/window title (`Vor`, `app.vor.universal`), dashboard app name, OpenWrt/LuCI labels, brand SVG `aria-label="Vor"`. Internal `com.v2rayez.*` packages, `V2RayEZ-License` token types, ledger schemas, and donor source trees are retained for compatibility and listed in `CONTINUATION_REPORT.md`. |
+| Platform build matrix | Android/iOS/Windows/Linux/OpenWrt | **blocked** (unchanged) | No toolchains: `go`, `rustc`, `cargo`, `java`, Android SDK/NDK, Xcode, MSVC, OpenWrt SDK all absent; network to `static.crates.io`, `proxy.golang.org`, `dl.google.com`, `maven.google.com`, `go.dev` is blocked (npm/pip reachable). `scripts/build-release-artifacts.sh --check` still PASS because it fail-closes rather than faking artifacts. | Honest failure. No real `.apk`/`.ipa`/`.exe`/`.ipk` can be produced in this sandbox. |
+| Rust offline-grace gap | `universal-core/src/license.rs` `offline_start_decision` | **documented gap; blocked by compiler** | No `cargo`; `rustc` absent. | `offline_start_decision` currently requires a signed `grace_token` even when a valid serial carries `offlineGraceHours`, and does not enforce the serial's own `deviceIdHash` nor a signed revocation list. This contradicts `docs/SERVERLESS_LICENSE_MANAGER.md` offline behavior and must be resolved with a real Rust compile + test (see `CONTINUATION_REPORT.md`). |

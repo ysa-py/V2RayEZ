@@ -1,4 +1,4 @@
--- V2RayEZ Universal / UnifiedShield LuCI CBI model
+-- Vor Universal / UnifiedShield LuCI CBI model
 -- Additive License + AI Engine settings. Secrets are referenced by protected-file aliases
 -- and are never echoed back by this form.
 
@@ -18,14 +18,14 @@ local function safe_alias(alias)
     return nil
 end
 
-m = Map("unifiedshield", translate("V2RayEZ Universal"),
-    translate("Router-grade V2RayEZ anti-censorship gateway using the preserved OpenWrt runtime pipeline. License checks fail closed before the daemon starts; AI providers can be added without code changes and fall back to the local router policy when external APIs are blocked."))
+m = Map("unifiedshield", translate("Vor Universal"),
+    translate("Router-grade Vor anti-censorship gateway using the preserved OpenWrt runtime pipeline. License checks fail closed before the daemon starts; AI providers can be added without code changes and fall back to the local router policy when external APIs are blocked."))
 
 s = m:section(TypedSection, "unifiedshield", translate("General Settings"))
 s.anonymous = true
 s.addremove = false
 
-o = s:option(Flag, "enabled", translate("Enable"), translate("Enable or disable the V2RayEZ router service"))
+o = s:option(Flag, "enabled", translate("Enable"), translate("Enable or disable the Vor router service"))
 o.rmempty = false
 o.default = "0"
 
@@ -142,7 +142,7 @@ o.rmempty = false
 o = s:option(DummyValue, "license_last_server_time", translate("Last trusted server time"))
 o.default = ""
 
-o = s:option(TextValue, "_license_serial", translate("Install signed serial"), translate("Paste a signed V2RayEZ serial here. It is written to /etc/unifiedshield/license.token with root-only permissions and is never stored in UCI or echoed back."))
+o = s:option(TextValue, "_license_serial", translate("Install signed serial"), translate("Paste a signed Vor serial here. It is written to /etc/unifiedshield/license.token with root-only permissions and is never stored in UCI or echoed back."))
 o.rows = 3
 o.rmempty = true
 function o.cfgvalue()

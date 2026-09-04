@@ -1,5 +1,5 @@
 #!/bin/sh /etc/rc.common
-# V2RayEZ Universal / UnifiedShield OpenWrt procd service
+# Vor Universal / UnifiedShield OpenWrt procd service
 
 START=95
 STOP=10

@@ -1,8 +1,16 @@
-# Engineering Directive: V2RayEZ Universal — Full Feature Merge
+# Engineering Directive: Vor Universal — Full Feature Merge
 
-You are acting as the lead engineer for **V2RayEZ Universal**, the single canonical
+> **Brand note (2026-09-04):** The shipping product name is now **Vor**
+> (`V2RayEZ` is the legacy/internal project name). Product strings, Android/iOS
+> bundle identifiers that have been migrated, and brand assets use **Vor**. The
+> many remaining `v2rayez` tokens in this repository are internal/donor package
+> identifiers, protocol token types (`V2RayEZ-License`), ledger schemas
+> (`v2rayez.license.v1`), and donor source trees; they are intentionally retained
+> for compatibility and are listed in `CONTINUATION_REPORT.md`.
+
+You are acting as the lead engineer for **Vor Universal**, the single canonical
 successor to six existing codebases. Your job is to merge every feature below into
-V2RayEZ with **zero feature loss**, ship real, compilable, testable code (not
+Vor with **zero feature loss**, ship real, compilable, testable code (not
 placeholders or TODOs), and verify each platform build actually connects and passes
 traffic before calling anything "done." Do not silently drop, simplify, or "clean up"
 away any capability listed here — if something is genuinely impossible to preserve,

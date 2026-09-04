@@ -17,7 +17,7 @@ struct AIProviderDefinition: Codable, Identifiable, Equatable {
 
     static let local = AIProviderDefinition(
         id: "local-v2rayez",
-        name: "V2RayEZ Local AI",
+        name: "Vor Local AI",
         providerType: "local",
         enabled: true,
         baseUrl: "local://v2rayez",
@@ -44,7 +44,7 @@ struct AIProviderResult: Codable, Equatable {
 final class AIProviderGateway {
     static let shared = AIProviderGateway()
 
-    private let defaults = UserDefaults(suiteName: "group.app.v2rayez.ios") ?? .standard
+    private let defaults = UserDefaults(suiteName: "group.app.vor.ios") ?? .standard
     private let service = "com.v2rayez.universal.ai"
     private let providersKey = "aiProviders"
     private let selectedKey = "aiSelectedProviderId"
@@ -233,7 +233,7 @@ final class AIProviderGateway {
             providerId: provider.id,
             providerName: provider.name,
             source: "local_fallback",
-            text: "\(reason): retry conservative obfuscation, then switch core through V2RayEZ Smart Connect policy.",
+            text: "\(reason): retry conservative obfuscation, then switch core through Vor Smart Connect policy.",
             error: "",
             blockedOrUnreachable: false
         )

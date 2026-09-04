@@ -8,11 +8,11 @@
     </array>
     <key>com.apple.security.application-groups</key>
     <array>
-        <string>group.app.v2rayez.ios</string>
+        <string>group.app.vor.ios</string>
     </array>
     <key>keychain-access-groups</key>
     <array>
-        <string>$(AppIdentifierPrefix)app.v2rayez.ios</string>
+        <string>$(AppIdentifierPrefix)app.vor.ios</string>
     </array>
 </dict>
 </plist>

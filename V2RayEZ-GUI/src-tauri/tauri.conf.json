@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "V2RayEZ",
+  "productName": "Vor",
   "version": "2.0.0",
-  "identifier": "app.v2rayez.universal",
+  "identifier": "app.vor.universal",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "V2RayEZ",
+        "title": "Vor",
         "width": 430,
         "height": 860,
         "minWidth": 360,
@@ -36,10 +36,10 @@
       "rpm",
       "appimage"
     ],
-    "publisher": "V2RayEZ",
+    "publisher": "Vor",
     "category": "Utility",
-    "shortDescription": "V2RayEZ Universal desktop client",
-    "longDescription": "Connect through V2RayEZ Universal with preserved V2RayEZ GUI, Aether/MSN core adapter, TUN routing, DNS protection, recovery, license gating, and no-code AI Provider Gateway.",
+    "shortDescription": "Vor Universal desktop client",
+    "longDescription": "Connect through Vor Universal with preserved Vor GUI, Aether/MSN core adapter, TUN routing, DNS protection, recovery, license gating, and no-code AI Provider Gateway.",
     "externalBin": [
       "binaries/aether",
       "binaries/sing-box"

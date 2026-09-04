@@ -34,7 +34,7 @@ struct LicenseStatus: Codable, Equatable {
 final class LicenseManager {
     static let shared = LicenseManager()
 
-    private let defaults = UserDefaults(suiteName: "group.app.v2rayez.ios") ?? .standard
+    private let defaults = UserDefaults(suiteName: "group.app.vor.ios") ?? .standard
     private let service = "com.v2rayez.universal.license"
     private let serialKey = "v2rayez.license.serial"
     private let graceKey = "v2rayez.license.grace"

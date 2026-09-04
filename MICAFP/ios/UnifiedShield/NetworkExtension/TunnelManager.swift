@@ -117,12 +117,12 @@ class TunnelManager: ObservableObject {
         let manager = NETunnelProviderManager()
 
         manager.protocolConfiguration = NETunnelProviderProtocol(
-            providerBundleIdentifier: "app.v2rayez.ios.PacketTunnel",
+            providerBundleIdentifier: "app.vor.ios.PacketTunnel",
             providerConfiguration: [:],
-            serverAddress: "V2RayEZ"
+            serverAddress: "Vor"
         )
 
-        manager.localizedDescription = "V2RayEZ"
+        manager.localizedDescription = "Vor"
         manager.isEnabled = true
 
         // Enable always-on VPN (kill switch)
