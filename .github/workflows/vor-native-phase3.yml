@@ -109,7 +109,12 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v7
         with:
-          go-version: '1.22'
+          # The tree contains modules that require Go 1.25 (MasterDnsVPN,
+          # go-bridge) and Go 1.26 (EasySNI donor), so install one toolchain
+          # that satisfies all of them. GOTOOLCHAIN=local is the setup-go
+          # default, which would otherwise make `go mod tidy` fail for the
+          # newer module.
+          go-version: '1.26'
           # This is a multi-module repository; the default cache path (./go.sum)
           # does not exist, so setup-go would fail to restore its cache with a
           # misleading "Dependencies file is not found ... Supported file
