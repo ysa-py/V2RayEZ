@@ -87,7 +87,7 @@ const required = [
   ':app:assembleRelease',
   ':app:bundleRelease',
   'xcodebuild',
-  'cargo tauri build',
+  'npx tauri build',
   'scripts/build-openwrt-ipk.sh',
   'openwrt-sdk',
   // Fail-closed artifact verification.

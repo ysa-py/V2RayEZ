@@ -619,11 +619,11 @@ jobs:
           echo "prepare:sidecars rc=$?" >> "$LOG"
           echo "=== tauri build ==="
           if [[ "${{ matrix.platform }}" == "windows" ]]; then
-            cargo tauri build --bundles nsis,msi >> "$LOG" 2>&1
+            npx tauri build --bundles nsis,msi >> "$LOG" 2>&1
           elif [[ "${{ matrix.platform }}" == "macos" ]]; then
-            cargo tauri build --bundles app,dmg >> "$LOG" 2>&1
+            npx tauri build --bundles app,dmg >> "$LOG" 2>&1
           else
-            cargo tauri build --bundles deb,appimage >> "$LOG" 2>&1
+            npx tauri build --bundles deb,appimage >> "$LOG" 2>&1
           fi
           echo "tauri build rc=$?" >> "$LOG"
           tail -n 120 "$LOG"
@@ -670,8 +670,16 @@ jobs:
             grep -aE 'error\\[|error:|Could not|not found|no such|cannot find|failed to|linking|undefined|feature|target|toolchain|msvc|AppImage|rpm|nsis|npm error|ERESOLVE|ETARGET|EUNAVAILABLE' "$LOG" | tail -n 100 || true
             echo '--- tail ---'
             tail -c 6000 "$LOG" || true
-          } > /tmp/ph3-diag-desktop.txt
-          echo "::warning::PHASE3-DIAG-DESKTOP-B64-$(openssl base64 -A -in /tmp/ph3-diag-desktop.txt)"
+          } > "$GITHUB_WORKSPACE/ph3-diag-desktop-${{ matrix.os }}.txt"
+          echo "::warning::PHASE3-DIAG-DESKTOP-B64-$(openssl base64 -A -in "$GITHUB_WORKSPACE/ph3-diag-desktop-${{ matrix.os }}.txt")"
+
+      - name: Upload desktop failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ph3-diag-desktop-${{ matrix.os }}
+          path: ${{ github.workspace }}/ph3-diag-desktop-${{ matrix.os }}.txt
+          if-no-files-found: warn
 
   # ─────────────────────────────────────────────────────────────────────────────
   # OpenWrt: real SDK build for ARM64 + MIPS; no manual/fallback packaging.
@@ -760,8 +768,16 @@ jobs:
             grep -aE 'error\\[|error:|Could not|not found|no such|cannot find|failed|linking|undefined|fatal|unknown|toolchain|linker|target-feature|edition|rustc|compiler|std|process didn.t exit|exit status' "$LOG" | tail -n 120 || true
             echo '--- tail ---'
             tail -c 8000 "$LOG" || true
-          } > /tmp/ph3-diag-openwrt.txt
-          echo "::warning::PHASE3-DIAG-OPENWRT-B64-$(openssl base64 -A -in /tmp/ph3-diag-openwrt.txt)"
+          } > "$GITHUB_WORKSPACE/ph3-diag-openwrt-${{ matrix.target }}.txt"
+          echo "::warning::PHASE3-DIAG-OPENWRT-B64-$(openssl base64 -A -in "$GITHUB_WORKSPACE/ph3-diag-openwrt-${{ matrix.target }}.txt")"
+
+      - name: Upload OpenWrt failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ph3-diag-openwrt-${{ matrix.target }}
+          path: ${{ github.workspace }}/ph3-diag-openwrt-${{ matrix.target }}.txt
+          if-no-files-found: warn
 
       - name: Build OpenWrt IPK with real SDK
         shell: bash
