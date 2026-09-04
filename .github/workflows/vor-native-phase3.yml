@@ -323,6 +323,23 @@ jobs:
             exit 1
           fi
 
+      - name: Emit Android failure diagnostics (base64)
+        if: failure()
+        working-directory: ./universal-core/android
+        shell: bash
+        run: |
+          set -uo pipefail
+          if [[ -f android-gradle.log ]]; then
+            echo '::warning::PHASE3-DIAG-ANDROID-START'
+            grep -aE 'FAILURE|FAILED|error:|Exception|Caused by|lint|Could not|Couldn.t|variant|manifest|missing|compile' android-gradle.log | tail -n 60 || true
+            echo '::warning::PHASE3-DIAG-ANDROID-B64-'
+            tail -c 7000 android-gradle.log | base64 -w0
+            echo ''
+            echo '::warning::PHASE3-DIAG-ANDROID-END'
+          else
+            echo '::warning::PHASE3-DIAG-ANDROID-MISSING-LOG'
+          fi
+
       - name: Sign / verify Android artifacts
         shell: bash
         env:
@@ -439,10 +456,25 @@ jobs:
           OPTS="-project Vor.xcodeproj -scheme V2RayEZ -configuration Release -archivePath $(pwd)/dist-ios/Vor.xcarchive"
           if [[ "$SIGH_REQUIRED" == "true" ]]; then
             [[ -n "${APPLE_TEAM_ID:-}" ]] || { echo "error: APPLE_TEAM_ID missing (signed=true)" >&2; exit 1; }
-            xcodebuild "$OPTS" archive CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="$APPLE_TEAM_ID" PROVISIONING_PROFILE_SPECIFIER="$APPLE_PROVISIONING_PROFILE" -allowProvisioningUpdates
+            xcodebuild "$OPTS" archive CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="$APPLE_TEAM_ID" PROVISIONING_PROFILE_SPECIFIER="$APPLE_PROVISIONING_PROFILE" -allowProvisioningUpdates 2>&1 | tee /tmp/ios-build.log
           else
-            xcodebuild "$OPTS" archive CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+            xcodebuild "$OPTS" archive CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO 2>&1 | tee /tmp/ios-build.log
           fi
+
+      - name: Emit iOS failure diagnostics (base64)
+        if: failure()
+        working-directory: ./MICAFP/ios
+        shell: bash
+        run: |
+          set -uo pipefail
+          echo '::warning::PHASE3-DIAG-IOS-START'
+          grep -aE 'error|Error|CODE_SIGN|provision|team|SIMULATOR|SDK|No such|not found' /tmp/ios-build.log 2>/dev/null | tail -n 60 || true
+          if [[ -f /tmp/ios-build.log ]]; then
+            echo '::warning::PHASE3-DIAG-IOS-B64-'
+            tail -c 7000 /tmp/ios-build.log | base64 -w0
+            echo ''
+          fi
+          echo '::warning::PHASE3-DIAG-IOS-END'
 
       - name: Export iOS IPA
         working-directory: ./MICAFP/ios
@@ -546,6 +578,23 @@ jobs:
             exit 1
           fi
 
+      - name: Emit desktop failure diagnostics (base64)
+        if: failure()
+        working-directory: ./V2RayEZ-GUI
+        shell: bash
+        run: |
+          set -uo pipefail
+          if [[ -f tauri-build.log ]]; then
+            echo '::warning::PHASE3-DIAG-DESKTOP-START'
+            grep -aE 'error\\[|error:|Could not|not found|no such|cannot find|failed to|linking|undefined|feature|target|toolchain|msvc|AppImage|rpm|nsis' tauri-build.log | tail -n 80 || true
+            echo '::warning::PHASE3-DIAG-DESKTOP-B64-'
+            tail -c 7000 tauri-build.log | base64 -w0
+            echo ''
+            echo '::warning::PHASE3-DIAG-DESKTOP-END'
+          else
+            echo '::warning::PHASE3-DIAG-DESKTOP-MISSING-LOG'
+          fi
+
       - name: Stage desktop artifacts
         shell: bash
         run: |
@@ -592,8 +641,11 @@ jobs:
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.rust_target }}
+        # Do NOT request `targets` here. `mipsel-unknown-linux-musl` is no longer
+        # available on the latest stable rust-std component, which makes this
+        # action step fail before the SDK/compiler work even starts.
+        # universal-core/ci/build-target.sh probes and installs the correct
+        # pinned toolchain/target itself.
 
       - name: Cache OpenWrt SDK
         uses: actions/cache@v6
@@ -635,8 +687,25 @@ jobs:
         run: |
           set -euo pipefail
           chmod +x ci/build-target.sh
-          ./ci/build-target.sh "${{ matrix.rust_target }}" "std,post-quantum-lab"
+          ./ci/build-target.sh "${{ matrix.rust_target }}" "std,post-quantum-lab" 2>&1 | tee /tmp/openwrt-cross.log
           find target -path "*${{ matrix.rust_target }}/release/*" -type f | head -n 40
+
+      - name: Emit OpenWrt failure diagnostics (base64)
+        if: failure()
+        working-directory: ./universal-core
+        shell: bash
+        run: |
+          set -uo pipefail
+          if [[ -f /tmp/openwrt-cross.log ]]; then
+            echo '::warning::PHASE3-DIAG-OPENWRT-START'
+            grep -aE 'error\\[|error:|Could not|not found|no such|cannot find|failed|linking|undefined|fatal|unknown|toolchain|linker|target-feature|edition|rustc|compiler|std' /tmp/openwrt-cross.log | tail -n 120 || true
+            echo '::warning::PHASE3-DIAG-OPENWRT-B64-'
+            tail -c 8000 /tmp/openwrt-cross.log | base64 -w0
+            echo ''
+            echo '::warning::PHASE3-DIAG-OPENWRT-END'
+          else
+            echo '::warning::PHASE3-DIAG-OPENWRT-MISSING-LOG'
+          fi
 
       - name: Build OpenWrt IPK with real SDK
         shell: bash
