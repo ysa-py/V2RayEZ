@@ -179,8 +179,13 @@ jobs:
               # Surface the actual Go diagnostics in the job annotation; this is
               # the only reliable way to inspect a failed native step when log
               # artifacts cannot be downloaded (e.g. from a restricted runner).
-              echo "::error::Go test failure in $mod"
-              tail -n 200 go-module.log | sed 's/^/::error::  /'
+              # GitHub drops per-line annotations beyond a small per-step cap, so
+              # the dependency-download noise would hide the real compiler error.
+              # Emit the trailing diagnostics as ONE encoded annotation instead.
+              go_tail="$(tail -n 160 go-module.log)"
+              go_tail="${go_tail//%/%25}"
+              go_tail="${go_tail//$'\n'/%0A}"
+              echo "::error::Go test failure in $mod%0A${go_tail}"
               tail -n 200 go-module.log
               stage=1
               break
