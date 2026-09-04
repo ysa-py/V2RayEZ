@@ -586,6 +586,24 @@ fatal and the exact Go diagnostics are emitted as a single encoded
   `Android testDebugUnitTest` ✓, and **zero warning annotations** — the Node 20
   deprecation and setup-go `go.sum` cache restore warnings are gone.
   Build/checksum jobs correctly skipped on push.
+- Push run `33926134449` (commit `19d7183`, cache tar collision fix): `meta` ✓,
+  `cargo test --workspace --all-targets` ✓, `Go tests (all Go modules)` ✓,
+  `Android testDebugUnitTest` ✓, and **zero annotation warnings/errors** — the
+  10× `Cannot open: File exists` / `/usr/bin/tar exit 2` restore errors are gone.
+  Build/checksum jobs correctly skipped on push.
+
+### Cache collision remediation (2026-09-05)
+
+- **Root cause:** `actions/setup-go@v7` and the explicit `actions/cache` step
+  both restored into `~/go/pkg/mod`. Two tar extractions into the same
+  existing directory collide (`Cannot open: File exists` ×10, `/usr/bin/tar
+  failed with exit code 2`).
+- **Fix:** `actions/setup-go@v7` sets `cache: false` so only the single
+  `actions/cache` step owns `~/go/pkg/mod`. All `actions/cache` keys/restore
+  keys were bumped to the isolated `v4-cache-*` prefix to invalidate any stale
+  or overlapping archive created before the fix.
+- `tools/vor_phase3_pipeline_gate.mjs` now asserts `cache: false` and the
+  `v4-cache-vor-native-tests-` key prefix.
 
 ### Warning remediation (2026-09-05)
 
@@ -594,12 +612,10 @@ fatal and the exact Go diagnostics are emitted as a single encoded
   `actions/setup-node@v7`, `actions/cache@v6`, `actions/upload-artifact@v7`,
   `actions/download-artifact@v8`, `android-actions/setup-android@v4`,
   `nttld/setup-ndk@v1.6.0`.
-- `actions/setup-go@v7` now declares `cache-dependency-path: **/go.sum` so the
-  multi-module Go cache restore no longer emits the misleading “Dependencies
-  file is not found … Supported file pattern: go.sum” warning.
+- `actions/setup-go@v7` declarations keep `cache-dependency-path: **/go.sum`
+  (harmless with `cache: false`, and documents the multi-module layout).
 - Go toolchain pinned to `1.26`, which satisfies every discovered module
-  (`EasySNI` requires 1.26; `MasterDnsVPN` and Vor go-bridge require 1.25),
-  removing the `GOTOOLCHAIN=local` failure with the previous 1.22 toolchain.
+  (`EasySNI` requires 1.26; `MasterDnsVPN` and Vor go-bridge require 1.25).
 - `tools/vor_phase3_pipeline_gate.mjs` updated to assert the latest majors and
   the explicit cache dependency path.
 
