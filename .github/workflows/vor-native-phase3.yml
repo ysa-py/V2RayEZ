@@ -565,11 +565,16 @@ jobs:
         include:
           - os: windows-latest
             platform: windows
+            rust_targets: x86_64-pc-windows-msvc
+            target_triple: x86_64-pc-windows-msvc
           - os: macos-14
             platform: macos
             rust_targets: aarch64-apple-darwin, x86_64-apple-darwin
+            target_triple: aarch64-apple-darwin
           - os: ubuntu-latest
             platform: linux
+            rust_targets: x86_64-unknown-linux-gnu
+            target_triple: x86_64-unknown-linux-gnu
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -625,6 +630,10 @@ jobs:
           echo "=== npm ci ==="
           npm ci >> "$LOG" 2>&1
           echo "npm ci rc=$?" >> "$LOG"
+          echo "=== fetch-sidecars ==="
+          TAURI_ENV_TARGET_TRIPLE="${{ matrix.target_triple }}" node scripts/fetch-sidecars.mjs >> "$LOG" 2>&1
+          echo "fetch-sidecars rc=$?" >> "$LOG"
+          cp -v sidecar-digests.json ../sidecar-digests-${{ matrix.platform }}.json 2>/dev/null || true
           echo "=== prepare:sidecars ==="
           npm run prepare:sidecars >> "$LOG" 2>&1
           echo "prepare:sidecars rc=$?" >> "$LOG"
@@ -638,23 +647,25 @@ jobs:
           fi
           echo "tauri build rc=$?" >> "$LOG"
           tail -n 120 "$LOG"
-          if grep -q "error\[" "$LOG" || grep -qE "error: could not compile|error: failed to run custom build command" "$LOG"; then
+          if grep -q "error\[" "$LOG" || grep -qE "error: could not compile|error: failed to run custom build command|checksum mismatch" "$LOG"; then
             exit 1
           fi
-          if grep -qE "^npm ci rc=[1-9]" "$LOG" || grep -qE "^prepare:sidecars rc=[1-9]" "$LOG" || grep -qE "^tauri build rc=[1-9]" "$LOG"; then
+          if grep -qE "^npm ci rc=[1-9]" "$LOG" || grep -qE "^fetch-sidecars rc=[1-9]" "$LOG" || grep -qE "^prepare:sidecars rc=[1-9]" "$LOG" || grep -qE "^tauri build rc=[1-9]" "$LOG"; then
             exit 1
           fi
 
 
       - name: Stage desktop artifacts
+        working-directory: ./V2RayEZ-GUI
         shell: bash
         run: |
           set -euo pipefail
           VERSION="${{ needs.meta.outputs.version }}"
           mkdir -p dist-desktop
           find src-tauri/target -path '*release/bundle/*' -type f \
-            \( -name '*.exe' -o -name '*.msi' -o -name '*.dmg' -o -name '*.app' -o -name '*.deb' -o -name '*.AppImage' \) \
+            \( -name '*.exe' -o -name '*.msi' -o -name '*.dmg' -o -name '*.deb' -o -name '*.AppImage' \) \
             -exec cp -v {} dist-desktop/ \;
+          [[ -f sidecar-digests.json ]] && cp -v sidecar-digests.json dist-desktop/vor-sidecar-digests.json || true
           find dist-desktop -type f -empty -delete
           count="$(find dist-desktop -type f | wc -l)"
           [[ "$count" -gt 0 ]] || { echo "error: no desktop bundles produced" >&2; exit 1; }
@@ -672,10 +683,11 @@ jobs:
 
       - name: Emit desktop failure diagnostics (base64)
         if: failure()
+        working-directory: ./V2RayEZ-GUI
         shell: bash
         run: |
           set -uo pipefail
-          LOG="V2RayEZ-GUI/tauri-build-${{ matrix.os }}.log"
+          LOG="tauri-build-${{ matrix.os }}.log"
           {
             echo '--- last 1400 bytes ---'
             tail -c 1400 "$LOG" || true
@@ -759,7 +771,7 @@ jobs:
           set -euo pipefail
           chmod +x ci/build-target.sh
           ./ci/build-target.sh "${{ matrix.rust_target }}" "std,post-quantum-lab" 2>&1 | tee /tmp/openwrt-cross.log
-          find target -path "*${{ matrix.rust_target }}/release/*" -type f | head -n 40
+          find target -path "*${{ matrix.rust_target }}/release/*" -type f -print | head -n 40 || true
 
       - name: Emit OpenWrt failure diagnostics (base64)
         if: failure()

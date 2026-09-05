@@ -88,6 +88,15 @@ const required = [
   ':app:bundleRelease',
   'xcodebuild',
   'npx tauri build',
+  // Desktop sidecars must be provisioned + verified before Tauri's
+  // beforeBuildCommand runs prepare-sidecar.mjs; otherwise the build fails on
+  // real per-target aether/sing-box files.
+  'node scripts/fetch-sidecars.mjs',
+  'TAURI_ENV_TARGET_TRIPLE',
+  // OpenWrt cross-compile writes a staticlib successfully; the trailing
+  // `find ... | head -n 40` must not turn SIGPIPE into a step failure under
+  // `set -o pipefail`.
+  'find target -path "*${{ matrix.rust_target }}/release/*" -type f -print | head -n 40 || true',
   'scripts/build-openwrt-ipk.sh',
   'openwrt-sdk',
   // Fail-closed artifact verification.
