@@ -270,23 +270,55 @@ ios_is_macho() {
   esac
 }
 
+# Find the bundle's executable by content when the Info.plist cannot be parsed.
+# An .app has exactly one Mach-O executable at its root; detecting it by magic
+# bytes is the most reliable check available (and it is the property we care
+# about: the bundle must contain a real, compiled executable).
+ios_find_macho_in_app() {
+  local app="$1"
+  local candidate
+  for candidate in "$app"/*; do
+    [[ -f "$candidate" ]] || continue
+    case "${candidate##*/}" in
+      *.plist | *.dylib | *.framework | *.bundle) continue ;;
+    esac
+    if ios_is_macho "$candidate"; then
+      printf '%s' "${candidate##*/}"
+      return 0
+    fi
+  done
+  return 1
+}
+
 # Verify an unpacked .app bundle: Info.plist + Mach-O CFBundleExecutable.
 ios_verify_app_bundle() {
   local app="$1"
   [[ -d "$app" ]] || ios_die "app bundle missing: $app"
   [[ -f "$app/Info.plist" ]] || ios_die "app bundle has no Info.plist: $app"
 
+  # An archived app bundle ships a BINARY plist, so a text scan alone is not
+  # enough. Try the real plist tooling first and degrade gracefully.
   local exe=""
-  if command -v defaults >/dev/null 2>&1; then
+  if [[ -z "$exe" && -x /usr/libexec/PlistBuddy ]]; then
+    exe="$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$app/Info.plist" 2>/dev/null || true)"
+  fi
+  if [[ -z "$exe" ]] && command -v plutil >/dev/null 2>&1; then
+    exe="$(plutil -extract CFBundleExecutable raw -o - "$app/Info.plist" 2>/dev/null || true)"
+  fi
+  if [[ -z "$exe" ]] && command -v defaults >/dev/null 2>&1; then
     exe="$(defaults read "$app/Info.plist" CFBundleExecutable 2>/dev/null || true)"
   fi
   if [[ -z "$exe" ]]; then
-    # Works for both single-line and pretty-printed plists (newlines removed).
+    # XML plist (single-line or pretty-printed).
     local flat
-    flat="$(tr -d '\n' < "$app/Info.plist" 2>/dev/null || true)"
+    flat="$(tr -cd '[:print:]\n' < "$app/Info.plist" 2>/dev/null | tr -d '\n' || true)"
     exe="$(printf '%s' "$flat" |
       sed -n 's/.*<key>CFBundleExecutable<\/key>[[:space:]]*<string>\([^<]*\)<\/string>.*/\1/p' |
       head -n1)"
+  fi
+  if [[ -z "$exe" ]]; then
+    exe="$(ios_find_macho_in_app "$app" || true)"
+    [[ -n "$exe" ]] && ios_warn "CFBundleExecutable not parseable in $app/Info.plist; detected '$exe' by Mach-O magic bytes"
   fi
   [[ -n "$exe" ]] || ios_die "cannot read CFBundleExecutable from $app/Info.plist"
   ios_is_macho "$app/$exe" ||
