@@ -215,10 +215,17 @@ ios_verify_app_bundle() {
   [[ -d "$app" ]] || ios_die "app bundle missing: $app"
   [[ -f "$app/Info.plist" ]] || ios_die "app bundle has no Info.plist: $app"
 
-  local exe
-  exe="$(defaults read "$app/Info.plist" CFBundleExecutable 2>/dev/null || true)"
+  local exe=""
+  if command -v defaults >/dev/null 2>&1; then
+    exe="$(defaults read "$app/Info.plist" CFBundleExecutable 2>/dev/null || true)"
+  fi
   if [[ -z "$exe" ]]; then
-    exe="$(sed -n '/<key>CFBundleExecutable<\/key>/{n;s/.*<string>\(.*\)<\/string>.*/\1/p;}' "$app/Info.plist" | head -n1)"
+    # Works for both single-line and pretty-printed plists (newlines removed).
+    local flat
+    flat="$(tr -d '\n' < "$app/Info.plist" 2>/dev/null || true)"
+    exe="$(printf '%s' "$flat" |
+      sed -n 's/.*<key>CFBundleExecutable<\/key>[[:space:]]*<string>\([^<]*\)<\/string>.*/\1/p' |
+      head -n1)"
   fi
   [[ -n "$exe" ]] || ios_die "cannot read CFBundleExecutable from $app/Info.plist"
   ios_is_macho "$app/$exe" ||

@@ -427,6 +427,25 @@ jobs:
         with:
           targets: aarch64-apple-ios, x86_64-apple-ios, aarch64-apple-ios-sim, aarch64-apple-darwin, x86_64-apple-darwin
 
+      - name: Install Xcode tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          # xcodegen generates Vor.xcodeproj from MICAFP/ios/project.yml. Without
+          # it there is no Xcode project to archive (the generated project is not
+          # committed), and an earlier revision hid that behind a synthesized
+          # .ipa. Install it explicitly, with a retry for flaky Homebrew.
+          for attempt in 1 2 3; do
+            if brew install xcodegen; then break; fi
+            echo "warning: brew install xcodegen attempt ${attempt} failed; retrying" >&2
+            sleep 10
+          done
+          command -v xcodegen >/dev/null 2>&1 || {
+            echo "error: xcodegen is not installed; cannot generate the iOS Xcode project" >&2
+            exit 1
+          }
+
       - name: Cache cargo
         uses: actions/cache@v5
         with:

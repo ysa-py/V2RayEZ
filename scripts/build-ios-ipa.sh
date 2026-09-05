@@ -35,8 +35,11 @@ ios_log "project dir: $PROJECT_DIR"
 if command -v xcodegen >/dev/null 2>&1; then
   (cd "$PROJECT_DIR" && xcodegen generate 2>&1 | tail -n 20) ||
     ios_die "xcodegen generate failed in $PROJECT_DIR"
-else
-  ios_warn "xcodegen not installed; expecting an already-generated Xcode project"
+elif [[ ! -d "$(ios_resolve_xcodeproj "$PROJECT_DIR")" ]]; then
+  # Previously this silently fell through to a synthesized .ipa. The generated
+  # Xcode project is never committed, so without xcodegen there is nothing to
+  # build — say so instead of producing something fake.
+  ios_die "xcodegen is not installed and $PROJECT_DIR contains no generated Xcode project; install it with 'brew install xcodegen'"
 fi
 
 XCODEPROJ="$(ios_resolve_xcodeproj "$PROJECT_DIR")"
