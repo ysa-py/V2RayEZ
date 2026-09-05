@@ -767,6 +767,21 @@ jobs:
           [[ -f "openwrt-sdk/$TARGET/Makefile" ]] || { echo "error: SDK Makefile missing" >&2; exit 1; }
           [[ -f "openwrt-sdk/$TARGET/rules.mk" ]] || { echo "error: SDK rules.mk missing" >&2; exit 1; }
 
+      - name: Populate OpenWrt SDK feeds (libuci/libopenssl/netifd/...)
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK="$PWD/openwrt-sdk/${{ matrix.target }}"
+          cd "$SDK"
+          [[ -x ./scripts/feeds ]] || { echo "error: SDK scripts/feeds missing" >&2; exit 1; }
+          # The bare OpenWrt SDK does not bundle third-party/package feeds; without
+          # them 'make package/unifiedshield/compile' reports dependencies
+          # (libuci, ca-bundle, libopenssl, netifd, uclient-fetch) as not existing.
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+          ls -d package/system/uci package/libs/openssl package/network/services/ppp package/network/services/odhcpd 2>/dev/null || true
+          echo "OpenWrt feeds populated at $SDK"
+
       - name: Cross-compile universal-core for router (aarch64/mips)
         working-directory: ./universal-core
         run: |
