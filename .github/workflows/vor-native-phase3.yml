@@ -675,6 +675,7 @@ jobs:
           echo "Desktop artifact count: ${count}"
 
       - name: Upload desktop artifacts
+        working-directory: ./V2RayEZ-GUI
         uses: actions/upload-artifact@v7
         with:
           name: vor-desktop-${{ matrix.platform }}-${{ needs.meta.outputs.version }}
@@ -828,10 +829,10 @@ jobs:
             exit 0
           fi
           {
-            echo '--- grep (ANSI-stripped) ---'
-            sed -E 's/\x1B\[[0-9;]*[mGK]//g' "$LOG" | grep -aE 'error|failed|no such|not found|cannot|unable|No rule to make target|missing|mismatch|shared object|link|package.*not found' | tail -n 80 || true
-            echo '--- last 2500 bytes ---'
-            tail -c 2500 "$LOG" || true
+            echo '--- targeted error grep (ANSI-stripped) ---'
+            sed -E 's/\x1B\[[0-9;]*[mGK]//g' "$LOG" | grep -aiE 'error\[|error:|No rule to make target|make.*\*\*\*|could not|cannot|unable|not found|missing|failed|undefined reference|libuci|rustc|cargo|unifiedshield.*(error|not|fail)' | head -n 60 || true
+            echo '--- last 140 lines ---'
+            sed -E 's/\x1B\[[0-9;]*[mGK]//g' "$LOG" | tail -n 140 || true
           } > "$GITHUB_WORKSPACE/ph3-diag-openwrt-ipk-${{ matrix.target }}.txt"
           echo "::warning::PHASE3-DIAG-OPENWRT-IPK-B64-$(openssl base64 -A -in "$GITHUB_WORKSPACE/ph3-diag-openwrt-ipk-${{ matrix.target }}.txt")"
 

@@ -198,6 +198,10 @@ assert.ok(ipkScript.includes('--no-fallback'),
   'scripts/build-openwrt-ipk.sh must implement the --no-fallback fail-closed mode');
 assert.ok(ipkScript.includes('refusing manual placeholder packaging'),
   'scripts/build-openwrt-ipk.sh must refuse manual packaging in --no-fallback mode');
+// The SDK package must compile the preserved C daemon and install the real
+// cross-built binaries without re-running cargo/git-source inside OpenWrt.
+assert.ok(ipkScript.includes('scripts/openwrt-local-package.mk'),
+  'scripts/build-openwrt-ipk.sh must install the local prebuilt OpenWrt package Makefile');
 
 // Quality gates from earlier phases must still be referenced from the checksum job.
 assert.ok(wfBody.includes('for gate in tools/*.mjs'), 'checksum executor must run the full tools/*.mjs suite');

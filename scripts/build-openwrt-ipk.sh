@@ -124,9 +124,15 @@ if [[ -f "$SDK_DIR/Makefile" && -f "$SDK_DIR/rules.mk" ]]; then
   FEED_DST="$SDK_DIR/package/unifiedshield"
   rm -rf "$FEED_DST"
   mkdir -p "$(dirname "$FEED_DST")"
-  # Copy package source (prefer MICAFP/openwrt)
+  # Copy package source (prefer MICAFP/openwrt).
+  # The checked-in MICAFP/openwrt Makefile tries to compile the Rust daemon by
+  # re-running cargo inside the SDK (rust host + git source download). CI has
+  # already produced the real cross-compiled binaries, so the SDK package uses
+  # the local prebuilt package Makefile below. All files/LuCI/scripts are kept;
+  # no placeholder is generated.
   if [[ -d "$ROOT/MICAFP/openwrt" ]]; then
     cp -a "$ROOT/MICAFP/openwrt" "$FEED_DST"
+    cp -v "$ROOT/scripts/openwrt-local-package.mk" "$FEED_DST/Makefile" 2>&1 | tee -a "$LOG" || true
   else
     # Create minimal package from universal-core/openwrt
     mkdir -p "$FEED_DST"
