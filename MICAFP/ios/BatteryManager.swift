@@ -25,6 +25,7 @@
 
 import Foundation
 import UIKit
+import BackgroundTasks
 import os.log
 
 // MARK: - Power State
@@ -406,7 +407,7 @@ class BatteryManager {
             notificationCenter.addObserver(
                 self,
                 selector: #selector(lowPowerModeDidChange),
-                name: ProcessInfo.powerStateDidChangeNotification,
+                name: Notification.Name.NSProcessInfoPowerStateDidChange,
                 object: nil
             )
         }
@@ -452,7 +453,7 @@ class BatteryManager {
     // MARK: - Notification Handlers
 
     @objc private func batteryLevelDidChange() {
-        logger.debug("Battery level changed: \(getBatteryLevel())%")
+        logger.debug("Battery level changed: \(self.getBatteryLevel())%")
         updatePowerState()
 
         // Check for critical battery
@@ -464,12 +465,12 @@ class BatteryManager {
 
     @objc private func batteryStateDidChange() {
         let state = UIDevice.current.batteryState
-        logger.debug("Battery state changed: \(state.rawValue) (charging: \(isCharging()))")
+        logger.debug("Battery state changed: \(state.rawValue) (charging: \(self.isCharging()))")
         updatePowerState()
     }
 
     @objc private func lowPowerModeDidChange() {
-        logger.debug("Low power mode changed: \(isLowPowerMode())")
+        logger.debug("Low power mode changed: \(self.isLowPowerMode())")
         updatePowerState()
     }
 
@@ -549,9 +550,7 @@ class BatteryManager {
         // Manage idle timer based on state
         manageIdleTimer(state: state)
 
-        logger.debug("Power state updated: level=\(batteryLevel)%, charging=\(charging), " +
-                     "screen=\(screenOn), lowPower=\(lowPower), interval=\(nainInterval)s, " +
-                     "mode=\(scanMode.rawValue)")
+        logger.debug("Power state updated: level=\(batteryLevel)%, charging=\(charging), screen=\(screenOn), lowPower=\(lowPower), interval=\(nainInterval)s, mode=\(scanMode.rawValue)")
     }
 
     /// Manage the idle timer based on current power state.

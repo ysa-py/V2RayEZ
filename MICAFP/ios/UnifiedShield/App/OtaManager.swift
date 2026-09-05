@@ -1,5 +1,6 @@
 import Foundation
 import UIKit
+import CryptoKit
 
 /**
  * OTA (Over-The-Air) updater for iOS.
@@ -83,10 +84,10 @@ class OtaManager: ObservableObject {
      * Check if enough time has passed since last check.
      */
     var shouldCheckForUpdate: Bool {
-        guard let lastCheck = defaults.object(forKey: Companion.lastCheckKey) as? Date else {
+        guard let lastCheck = defaults.object(forKey: OtaManager.lastCheckKey) as? Date else {
             return true
         }
-        return Date().timeIntervalSince(lastCheck) >= Companion.checkInterval
+        return Date().timeIntervalSince(lastCheck) >= OtaManager.checkInterval
     }
 
     /**
@@ -98,8 +99,8 @@ class OtaManager: ObservableObject {
         defer { isChecking = false }
 
         let urls = [
-            Companion.githubApiUrl,
-            "\(Companion.ghproxyMirror)/\(Companion.githubApiUrl.removePrefix("https://"))"
+            OtaManager.githubApiUrl,
+            "\(OtaManager.ghproxyMirror)/\(OtaManager.githubApiUrl.replacingOccurrences(of: "https://", with: ""))"
         ]
 
         for url in urls {
@@ -125,13 +126,13 @@ class OtaManager: ObservableObject {
                 let sha256 = sha256Asset != nil ? fetchSha256(from: sha256Asset!.browserDownloadUrl) : ""
 
                 // Determine CDN mirror URL
-                let downloadUrl = "\(Companion.alibabaMirror)/\(ipaAsset.name)"
+                let downloadUrl = "\(OtaManager.alibabaMirror)/\(ipaAsset.name)"
 
                 let isCritical = release.body.localizedCaseInsensitiveContains("CRITICAL") ||
                     release.body.localizedCaseInsensitiveContains("SECURITY")
 
                 let updateInfo = UpdateInfo(
-                    versionName: release.tagName.removePrefix("v"),
+                    versionName: release.tagName.hasPrefix("v") ? String(release.tagName.dropFirst()) : release.tagName,
                     changelog: release.body,
                     downloadUrl: downloadUrl,
                     fileSize: ipaAsset.size,
@@ -144,7 +145,7 @@ class OtaManager: ObservableObject {
                 latestVersion = updateInfo.versionName
                 changelog = updateInfo.changelog
 
-                defaults.set(Date(), forKey: Companion.lastCheckKey)
+                defaults.set(Date(), forKey: OtaManager.lastCheckKey)
 
                 return updateInfo
             } catch {
@@ -163,12 +164,8 @@ class OtaManager: ObservableObject {
             return false
         }
 
-        var hash = [UInt8](repeating: 0, count: Int(CC_SHA256_DIGEST_LENGTH))
-        fileData.withUnsafeBytes {
-            _ = CC_SHA256($0.baseAddress, CC_LONG(fileData.count), &hash)
-        }
-
-        let computedHash = hash.map { String(format: "%02x", $0) }.joined()
+        let digest = SHA256.hash(data: fileData)
+        let computedHash = digest.map { String(format: "%02x", $0) }.joined()
         return computedHash.caseInsensitiveCompare(expectedSha256) == .orderedSame
     }
 
@@ -196,9 +193,6 @@ class OtaManager: ObservableObject {
      * Skip a specific version.
      */
     func skipVersion(_ version: String) {
-        defaults.set(version, forKey: Companion.skippedVersionKey)
+        defaults.set(version, forKey: OtaManager.skippedVersionKey)
     }
 }
-
-// CommonCrypto bridge
-import CommonCrypto
