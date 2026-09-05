@@ -689,10 +689,10 @@ jobs:
           set -uo pipefail
           LOG="tauri-build-${{ matrix.os }}.log"
           {
-            echo '--- error grep ---'
-            grep -aE 'error\[|error:|could not compile|failed to run custom build command|no matching|not found|unresolved import|mismatched types|expected' "$LOG" | tail -n 80 || true
-            echo '--- last 4000 bytes ---'
-            tail -c 4000 "$LOG" || true
+            echo '--- error grep (ANSI-stripped) ---'
+            sed -E 's/\x1B\[[0-9;]*[mGK]//g' "$LOG" | grep -aE 'error|panicked|not RGBA|could not compile|failed to run custom build command|no matching|not found|unresolved import|mismatched types|expected|No rule to make target' | tail -n 80 || true
+            echo '--- last 2500 bytes ---'
+            tail -c 2500 "$LOG" || true
           } > "$GITHUB_WORKSPACE/ph3-diag-desktop-${{ matrix.os }}.txt"
           echo "::warning::PHASE3-DIAG-DESKTOP-B64-$(openssl base64 -A -in "$GITHUB_WORKSPACE/ph3-diag-desktop-${{ matrix.os }}.txt")"
 
@@ -828,10 +828,10 @@ jobs:
             exit 0
           fi
           {
-            echo '--- grep ---'
-            grep -aE 'error:|Error|failed|no such|not found|cannot|unable|make|Missing|mismatch|shared object|link' "$LOG" | tail -n 60 || true
-            echo '--- last 3000 bytes ---'
-            tail -c 3000 "$LOG" || true
+            echo '--- grep (ANSI-stripped) ---'
+            sed -E 's/\x1B\[[0-9;]*[mGK]//g' "$LOG" | grep -aE 'error|failed|no such|not found|cannot|unable|No rule to make target|missing|mismatch|shared object|link|package.*not found' | tail -n 80 || true
+            echo '--- last 2500 bytes ---'
+            tail -c 2500 "$LOG" || true
           } > "$GITHUB_WORKSPACE/ph3-diag-openwrt-ipk-${{ matrix.target }}.txt"
           echo "::warning::PHASE3-DIAG-OPENWRT-IPK-B64-$(openssl base64 -A -in "$GITHUB_WORKSPACE/ph3-diag-openwrt-ipk-${{ matrix.target }}.txt")"
 
