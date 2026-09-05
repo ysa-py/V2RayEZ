@@ -173,14 +173,24 @@ assertContains(android, 'licenseConfig.revocationPollSeconds.coerceIn(5, 300) * 
 assertContains(android, 'decision.remainingSeconds in 1..300 -> minOf(decision.remainingSeconds * 1_000L, onlineRevokePollMs)');
 assert.ok(!/delay\(waitMs\)\s*delay\(waitMs\)/.test(text(android)), `${android}: duplicate watchdog delay found`);
 
-for (const [path, gate] of [
-  ['MICAFP/ios/UnifiedShield/NetworkExtension/PacketTunnelProvider.swift', 'ExtensionLicenseGate.shared.enforce()'],
-  ['MICAFP/ios/UnifiedShield/NetworkExtension/TunnelManager.swift', 'LicenseManager.shared.enforce()'],
+// Both iOS targets must enforce the license on a remaining-seconds-driven
+// watchdog. Inside the Network Extension only `ExtensionLicenseGate` is
+// usable: `LicenseManager` belongs to the app target and imports UIKit, which
+// an app extension cannot use (it never compiled there — the failure was
+// hidden behind the synthesized .ipa). The contract enforced here is the
+// behaviour (enforce -> remainingSeconds -> sleep), not the class name.
+for (const path of [
+  'MICAFP/ios/UnifiedShield/NetworkExtension/PacketTunnelProvider.swift',
+  'MICAFP/ios/UnifiedShield/NetworkExtension/TunnelManager.swift',
 ]) {
-  assertContains(path, `let status = await ${gate}`);
+  assertContains(path, 'let status = await ExtensionLicenseGate.shared.enforce()');
   assertContains(path, 'let waitSeconds = max(Int64(1), min(status.remainingSeconds > 0 ? status.remainingSeconds : 60, Int64(60)))');
-  assertOrder(path, `let status = await ${gate}`, 'try? await Task.sleep(nanoseconds: UInt64(waitSeconds) * 1_000_000_000)');
+  assertOrder(path, 'let status = await ExtensionLicenseGate.shared.enforce()', 'try? await Task.sleep(nanoseconds: UInt64(waitSeconds) * 1_000_000_000)');
+  // The extension must never reach for the UIKit-bound container-app manager.
+  assert.ok(!text(path).includes('LicenseManager.shared'), `${path} must use the extension-safe license gate, not the UIKit-bound LicenseManager`);
 }
+// The container app's own pre-connect path keeps its UIKit-capable manager.
+assertContains('MICAFP/ios/UnifiedShield/App/LicenseManager.swift', 'func enforce()');
 
 const openwrtInit = 'MICAFP/openwrt/files/etc/init.d/unifiedshield';
 assertContains(openwrtInit, 'LICENSE_WATCHDOG="/usr/libexec/unifiedshield/license-watchdog.sh"');
