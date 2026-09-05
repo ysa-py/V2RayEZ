@@ -675,11 +675,10 @@ jobs:
           echo "Desktop artifact count: ${count}"
 
       - name: Upload desktop artifacts
-        working-directory: ./V2RayEZ-GUI
         uses: actions/upload-artifact@v7
         with:
           name: vor-desktop-${{ matrix.platform }}-${{ needs.meta.outputs.version }}
-          path: dist-desktop/*
+          path: V2RayEZ-GUI/dist-desktop/*
           if-no-files-found: error
 
       - name: Emit desktop failure diagnostics (base64)
