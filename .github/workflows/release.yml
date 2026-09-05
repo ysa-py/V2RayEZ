@@ -481,6 +481,14 @@ jobs:
           chmod +x scripts/build-ios-ipa.sh
           bash scripts/build-ios-ipa.sh
 
+      - name: Upload iOS build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: v2rayez-ios-build-logs
+          path: dist-ios/*.log
+          if-no-files-found: warn
+
       - name: Stage & Verify iOS deliverables
         shell: bash
         run: |

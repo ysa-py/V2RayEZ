@@ -42,7 +42,14 @@ ios_root() {
 }
 
 ios_die() {
-  echo "error: $*" >&2
+  # Every failure path is published, not just the ones routed through
+  # ios_run_logged: a plain stderr line is invisible when the runner log cannot
+  # be downloaded, which is exactly what happened during this investigation.
+  if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
+    ios_annotate error "$*"
+  else
+    echo "error: $*" >&2
+  fi
   exit 1
 }
 
@@ -66,6 +73,16 @@ ios_annotate() {
     body="${body//$'\r'/}"
     body="${body//$'\n'/%0A}"
     echo "::${level}::${title//%/%25}%0A${body:0:60000}"
+    # Mirror it into the job summary so it is readable even when the raw log
+    # download is unavailable.
+    if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+      {
+        echo "### ${level}: ${title}"
+        echo '```'
+        printf '%s\n' "$3"
+        echo '```'
+      } >> "$GITHUB_STEP_SUMMARY"
+    fi
   fi
   echo "[ios-packaging] ${level}: ${title}" >&2
   [[ -n "$3" ]] && echo "$3" >&2
@@ -87,7 +104,7 @@ ios_run_logged() {
     diag="$({
       echo '--- errors ---'
       sed -e 's/\x1b\[[0-9;]*[A-Za-z]//g' "$log" |
-        grep -aE '(^|[^A-Za-z])error:|\*\*\* [A-Z ]+FAILED|\*\*\* BUILD FAILED|No such|not found|undefined symbol|Undefined symbols' |
+        grep -aE '(^|[^A-Za-z])error:|FAILED|No such|cannot find|not found|undefined symbol|Undefined symbols|requires a provisioning profile|Signing for' |
         sort -u | head -n 40 || true
       echo '--- tail ---'
       sed -e 's/\x1b\[[0-9;]*[A-Za-z]//g' "$log" | tail -n 40 || true
