@@ -119,7 +119,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     override func handleAppMessage(_ messageData: Data, completionHandler: ((Data?) -> Void)?) {
         guard let message = try? JSONSerialization.jsonObject(with: messageData) as? [String: Any],
               let action = message["action"] as? String else {
-            completionHandler(nil)
+            completionHandler?(nil)
             return
         }
 
@@ -127,12 +127,12 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         case "switchCore":
             if let core = message["core"] as? String {
                 switchCore(to: core)
-                completionHandler(nil)
+                completionHandler?(nil)
             }
         case "getStatus":
             let status = coreBridge.getStatus()
             let responseData = try? JSONSerialization.data(withJSONObject: ["status": status])
-            completionHandler(responseData)
+            completionHandler?(responseData)
         case "setKillSwitch":
             if let enabled = message["enabled"] as? Bool {
                 if enabled {
@@ -140,10 +140,10 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                 } else {
                     killSwitch.disable()
                 }
-                completionHandler(nil)
+                completionHandler?(nil)
             }
         default:
-            completionHandler(nil)
+            completionHandler?(nil)
         }
     }
 

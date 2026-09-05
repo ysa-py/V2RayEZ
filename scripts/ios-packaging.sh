@@ -80,9 +80,19 @@ ios_run_logged() {
   shift 2
   : > "$log"
   if ! "$@" 2>&1 | tee "$log"; then
-    local tail_text
-    tail_text="$(tail -n 80 "$log" 2>/dev/null || true)"
-    ios_annotate error "$title" "$tail_text"
+    # A raw tail is mostly compiler noise. Extract the real diagnostics first,
+    # then append the tail for context, and strip ANSI so `grep` and the
+    # annotation renderer keep working.
+    local diag
+    diag="$({
+      echo '--- errors ---'
+      sed -e 's/\x1b\[[0-9;]*[A-Za-z]//g' "$log" |
+        grep -aE '(^|[^A-Za-z])error:|\*\*\* [A-Z ]+FAILED|\*\*\* BUILD FAILED|No such|not found|undefined symbol|Undefined symbols' |
+        sort -u | head -n 40 || true
+      echo '--- tail ---'
+      sed -e 's/\x1b\[[0-9;]*[A-Za-z]//g' "$log" | tail -n 40 || true
+    } 2>/dev/null)"
+    ios_annotate error "$title" "$diag"
     return 1
   fi
   return 0
