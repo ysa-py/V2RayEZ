@@ -54,6 +54,40 @@ ios_warn() {
   echo "[ios-packaging] warning: $*" >&2
 }
 
+# Emit the real failure text as ONE GitHub annotation. Runner logs are not
+# always retrievable (restricted runners, expired artifacts), and a plain
+# stderr line is easy to miss inside thousands of build lines.
+ios_annotate() {
+  local level="$1"
+  local title="$2"
+  local body="${3:-}"
+  if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
+    body="${body//%/%25}"
+    body="${body//$'\r'/}"
+    body="${body//$'\n'/%0A}"
+    echo "::${level}::${title//%/%25}%0A${body:0:60000}"
+  fi
+  echo "[ios-packaging] ${level}: ${title}" >&2
+  [[ -n "$3" ]] && echo "$3" >&2
+  return 0
+}
+
+# Run a command, tee its output to a log, and on failure publish the tail as an
+# annotation before dying.
+ios_run_logged() {
+  local log="$1"
+  local title="$2"
+  shift 2
+  : > "$log"
+  if ! "$@" 2>&1 | tee "$log"; then
+    local tail_text
+    tail_text="$(tail -n 80 "$log" 2>/dev/null || true)"
+    ios_annotate error "$title" "$tail_text"
+    return 1
+  fi
+  return 0
+}
+
 # Resolve the directory that holds `project.yml` (the xcodegen input).
 ios_resolve_project_dir() {
   local root="$1"

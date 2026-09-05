@@ -84,22 +84,29 @@ else
   )
 fi
 
-(cd "$PROJECT_DIR" && xcodebuild "${ARGS[@]}" 2>&1 | tail -n 120) ||
-  ios_die "xcodebuild archive failed (see the log above)"
+ARCHIVE_LOG="$DIST/xcodebuild-archive.log"
+if ! (cd "$PROJECT_DIR" && ios_run_logged "$ARCHIVE_LOG" "xcodebuild archive failed" xcodebuild "${ARGS[@]}"); then
+  ios_die "xcodebuild archive failed (full log: $ARCHIVE_LOG)"
+fi
 
-[[ -d "$ARCHIVE" ]] || ios_die "xcodebuild did not produce $ARCHIVE"
+if [[ ! -d "$ARCHIVE" ]]; then
+  ios_annotate error "xcodebuild produced no .xcarchive" "$(tail -n 40 "$ARCHIVE_LOG" 2>/dev/null || true)"
+  ios_die "xcodebuild did not produce $ARCHIVE"
+fi
 
 EXPORT_PLIST="$(ios_ensure_export_options "$PROJECT_DIR" "$ROOT")"
 
 if ios_signing_available; then
   ios_log "exporting signed ipa with $EXPORT_PLIST"
   rm -rf "$DIST/export"
-  (cd "$PROJECT_DIR" && xcodebuild -exportArchive \
-    -archivePath "$ARCHIVE" \
-    -exportOptionsPlist "$EXPORT_PLIST" \
-    -exportPath "$DIST/export" \
-    -allowProvisioningUpdates 2>&1 | tail -n 60) ||
-    ios_die "xcodebuild -exportArchive failed (see the log above)"
+  EXPORT_LOG="$DIST/xcodebuild-export.log"
+  (cd "$PROJECT_DIR" && ios_run_logged "$EXPORT_LOG" "xcodebuild -exportArchive failed" \
+    xcodebuild -exportArchive \
+      -archivePath "$ARCHIVE" \
+      -exportOptionsPlist "$EXPORT_PLIST" \
+      -exportPath "$DIST/export" \
+      -allowProvisioningUpdates) ||
+    ios_die "xcodebuild -exportArchive failed (full log: $EXPORT_LOG)"
 
   IPA="$(find "$DIST/export" -name '*.ipa' -type f -print -quit 2>/dev/null || true)"
   [[ -n "$IPA" ]] || ios_die "no .ipa produced by -exportArchive"
