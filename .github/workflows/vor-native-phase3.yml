@@ -130,8 +130,20 @@ jobs:
       ios: ${{ steps.plan.outputs.ios }}
       android_missing: ${{ steps.plan.outputs.android_missing }}
       ios_missing: ${{ steps.plan.outputs.ios_missing }}
+      android_material: ${{ steps.plan.outputs.android_material }}
+      ios_material: ${{ steps.plan.outputs.ios_material }}
       on_missing_signing: ${{ steps.plan.outputs.on_missing_signing }}
     steps:
+      - uses: actions/checkout@v7
+
+      # keytool is required for REAL keystore material validation below
+      # (store-password proof, alias resolution, key-entry decryption probe).
+      - name: Set up JDK 17 (keytool for signing-material validation)
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+
       - name: Resolve signing capability
         id: plan
         shell: bash
@@ -151,14 +163,73 @@ jobs:
           [[ -n "${KS_PASSWORD:-}" ]] || android_missing+=(VOR_ANDROID_KEYSTORE_PASSWORD)
           [[ -n "${KS_ALIAS:-}" ]] || android_missing+=(VOR_ANDROID_KEY_ALIAS)
           [[ -n "${KS_KEY_PASSWORD:-}" ]] || android_missing+=(VOR_ANDROID_KEY_PASSWORD)
-          if ((${#android_missing[@]} == 0)); then android=ready; else android=blocked; fi
+
+          # Material VALIDATION, not just presence (run 33971338723 defect):
+          # a secret that is present but not decodable/keystore material used
+          # to be discovered only mid-build as a cryptic `base64: invalid
+          # input` exit 1. The plan now names the exact defect up front.
+          android=ready
+          android_material="absent"
+          if ((${#android_missing[@]} == 0)); then
+            source "$GITHUB_WORKSPACE/scripts/materialize-keystore.sh"
+            am_rc=0
+            vor_materialize_keystore "$KS_B64" /tmp/plan-keystore.bin \
+              "$KS_PASSWORD" "$KS_ALIAS" "$KS_KEY_PASSWORD" || am_rc=$?
+            rm -f /tmp/plan-keystore.bin
+            if [[ "$am_rc" == "0" ]]; then
+              android_material="ok: ${VOR_MATERIALIZATION_VERDICT#ok; }"
+            else
+              android_material="suspect: ${VOR_MATERIALIZATION_VERDICT#invalid: }"
+              android_missing+=("VOR_ANDROID_KEYSTORE_B64 (${android_material#suspect: })")
+              android=blocked
+            fi
+          else
+            android=blocked
+          fi
+          if [[ "$android" != "blocked" ]]; then android=ready; fi
 
           ios_missing=()
           [[ -n "${APPLE_TEAM:-}" ]] || ios_missing+=(APPLE_TEAM_ID)
           if [[ -z "${APPLE_PROFILE:-}" && -z "${APPLE_IDENTITY:-}" ]]; then
             ios_missing+=(APPLE_PROVISIONING_PROFILE-or-APPLE_SIGNING_IDENTITY)
           fi
-          if ((${#ios_missing[@]} == 0)); then ios=ready; else ios=blocked; fi
+
+          ios_material="absent"
+          if ((${#ios_missing[@]} == 0)); then
+            if ! [[ "${APPLE_TEAM}" =~ ^[A-Z0-9]{10}$ ]]; then
+              ios_material="suspect: APPLE_TEAM_ID is present but does not look like a 10-character Apple Team ID"
+              ios_missing+=("APPLE_TEAM_ID (malformed: expected 10 chars [A-Z0-9])")
+            elif [[ -n "${APPLE_PROFILE:-}" ]] \
+              && { ! printf '%s' "${APPLE_PROFILE}" | tr -d ' \t\r\n' | base64 -d >/tmp/plan-profile.bin 2>/dev/null \
+                   || ! grep -aq plist /tmp/plan-profile.bin; }; then
+              ios_material="suspect: APPLE_PROVISIONING_PROFILE is present but does not decode to a provisioning profile (plist)"
+              ios_missing+=("APPLE_PROVISIONING_PROFILE (not a decodable profile)")
+            else
+              ios_material="ok"
+            fi
+            rm -f /tmp/plan-profile.bin
+          fi
+          if [[ "$ios_material" == ok && -z "${APPLE_PROFILE:-}" && -n "${APPLE_IDENTITY:-}" ]]; then
+            ios_material="ok (identity-based signing; no profile secret by design)"
+          fi
+          if ((${#ios_missing[@]} == 0)) && [[ "$ios_material" == ok* ]]; then ios=ready; else ios=blocked; fi
+
+          # GitHub DROPS step outputs whose value contains any secret (run
+          # 33975689098: "Skip output 'android_material' since it may contain
+          # secret"), so every publishable verdict is redacted here first —
+          # after BOTH material verdicts are computed.
+          mask_secrets() {
+            local s="$1" sec
+            for sec in "${KS_B64:-}" "${KS_PASSWORD:-}" "${KS_ALIAS:-}" "${KS_KEY_PASSWORD:-}" "${APPLE_TEAM:-}" "${APPLE_PROFILE:-}" "${APPLE_IDENTITY:-}"; do
+              [[ -n "$sec" ]] || continue
+              s="${s//"$sec"/[redacted-secret]}"
+            done
+            printf '%s' "$s"
+          }
+          android_material="$(mask_secrets "$android_material")"
+          ios_material="$(mask_secrets "$ios_material")"
+          android_missing=("$(mask_secrets "${android_missing[*]:-}")")
+          ios_missing=("$(mask_secrets "${ios_missing[*]:-}")")
 
           on_missing="${ON_MISSING_INPUT:-report}"
           [[ "$on_missing" == "report" || "$on_missing" == "fail" ]] || on_missing=report
@@ -173,6 +244,8 @@ jobs:
           echo "ios=$ios" >> "$GITHUB_OUTPUT"
           echo "android_missing=${android_missing[*]:-}" >> "$GITHUB_OUTPUT"
           echo "ios_missing=${ios_missing[*]:-}" >> "$GITHUB_OUTPUT"
+          echo "android_material=$android_material" >> "$GITHUB_OUTPUT"
+          echo "ios_material=$ios_material" >> "$GITHUB_OUTPUT"
           echo "on_missing_signing=$on_missing" >> "$GITHUB_OUTPUT"
 
           android_missing_csv=""
@@ -192,12 +265,35 @@ jobs:
             "version": "${{ needs.meta.outputs.version }}",
             "signed_required": "${{ needs.meta.outputs.signed }}",
             "on_missing_signing": "$on_missing",
-            "android": {"status": "$android", "missing": [$android_missing_csv]},
-            "ios": {"status": "$ios", "missing": [$ios_missing_csv]}
+            "android": {"status": "$android", "material": "$android_material", "missing": [$android_missing_csv]},
+            "ios": {"status": "$ios", "material": "$ios_material", "missing": [$ios_missing_csv]}
           }
           JSON
 
           echo "### Signing capability plan" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo
+            echo "| platform | signing | material verdict |"
+            echo "|---|---|---|"
+            echo "| android | \`$android\` | $android_material |"
+            echo "| ios | \`$ios\` | $ios_material |"
+            echo
+            if [[ "${{ needs.meta.outputs.signed }}" == "true" ]]; then
+              if [[ "$android" != "ready" || "$ios" != "ready" ]]; then
+                if [[ "$on_missing" == "report" ]]; then
+                  echo "> **Smart plan:** a signed release is requested, but some material is missing."
+                  echo "> This run automatically ships the strongest REAL artifact (unsigned, clearly"
+                  echo "> labelled) instead of failing. Set \`on_missing_signing=fail\` to enforce the hard gate."
+                else
+                  echo "> **Smart plan:** \`on_missing_signing=fail\` is explicitly set — any platform with"
+                  echo "> missing material will fail the run ON PURPOSE (hard release gate). Rerun with"
+                  echo "> \`report\` to ship the real unsigned artifact automatically."
+                fi
+              else
+                echo "> **Smart plan:** all signing material present and validated — a fully signed release will be produced."
+              fi
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
           echo '```json' >> "$GITHUB_STEP_SUMMARY"
           cat "$report" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
@@ -207,6 +303,12 @@ jobs:
           fi
           if [[ "$ios" == "blocked" ]]; then
             echo "::warning::PHASE3-SIGNING-PLAN-IOS=blocked missing=${ios_missing[*]}"
+          fi
+          if [[ "$android_material" == suspect:* ]]; then
+            echo "::warning::PHASE3-SIGNING-PLAN-ANDROID-MATERIAL ${android_material#suspect: }"
+          fi
+          if [[ "$ios_material" == suspect:* ]]; then
+            echo "::warning::PHASE3-SIGNING-PLAN-IOS-MATERIAL ${ios_material#suspect: }"
           fi
 
       - name: Upload signing plan
@@ -479,23 +581,74 @@ jobs:
         shell: bash
         env:
           ANDROID_KEYSTORE_B64: ${{ secrets.VOR_ANDROID_KEYSTORE_B64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.VOR_ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.VOR_ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.VOR_ANDROID_KEY_PASSWORD }}
+          SIGNED: ${{ needs.meta.outputs.signed }}
+          SIGNING_PLAN: ${{ needs.signing-plan.outputs.android }}
+          ON_MISSING_SIGNING: ${{ needs.signing-plan.outputs.on_missing_signing }}
         run: |
           set -euo pipefail
-          if [[ -n "${ANDROID_KEYSTORE_B64:-}" ]]; then
-            echo "$ANDROID_KEYSTORE_B64" | base64 -d > "$GITHUB_WORKSPACE/vor-release.keystore"
-            echo "ANDROID_KEYSTORE_PATH=$GITHUB_WORKSPACE/vor-release.keystore" >> "$GITHUB_ENV"
-            echo "Release keystore materialized."
-          else
+          if [[ -z "${ANDROID_KEYSTORE_B64:-}" ]]; then
             echo "No release keystore secret; Gradle will use the CI debug keystore fallback."
+            exit 0
           fi
+
+          # Hardened, self-healing materialization (run 33971338723 defect):
+          # the old inline `echo | base64 -d` died with a bare exit 1 whenever
+          # the operator secret carried CR/wraps/PEM armour/URL-safe chars.
+          # Milestone 70 adds the Gradle-level proofs: store password, alias
+          # resolution (auto-resolves a single-entry keystore), entry-type
+          # (certificate ≠ key) and a REAL key-decryption probe (what Gradle
+          # performs) — run 33974072492 died in Gradle exactly there.
+          source "$GITHUB_WORKSPACE/scripts/materialize-keystore.sh"
+          out="$GITHUB_WORKSPACE/vor-release.keystore"
+          rm -f "$out"
+          rc=0
+          vor_materialize_keystore "$ANDROID_KEYSTORE_B64" "$out" \
+            "${ANDROID_KEYSTORE_PASSWORD:-}" "${ANDROID_KEY_ALIAS:-}" "${ANDROID_KEY_PASSWORD:-}" || rc=$?
+
+          if [[ "$rc" == "0" ]]; then
+            echo "Release keystore materialized: ${VOR_MATERIALIZATION_VERDICT}"
+            echo "ANDROID_KEYSTORE_PATH=$out" >> "$GITHUB_ENV"
+            if [[ -n "${VOR_ALIAS_EFFECTIVE:-}" && "$VOR_ALIAS_EFFECTIVE" != "${ANDROID_KEY_ALIAS:-}" ]]; then
+              {
+                echo "VOR_ALIAS_EFFECTIVE<<VOR_KSEOF"
+                printf '%s\n' "$VOR_ALIAS_EFFECTIVE"
+                echo "VOR_KSEOF"
+              } >> "$GITHUB_ENV"
+              echo "::warning::PHASE3-ALIAS-AUTO-RESOLVED the VOR_ANDROID_KEY_ALIAS secret ('${ANDROID_KEY_ALIAS:-}') does not exist in this keystore; signing uses its single key under alias '${VOR_ALIAS_EFFECTIVE}' (same key identity, only the label was corrected)"
+            fi
+            if [[ -n "${VOR_KEY_PASSWORD_EFFECTIVE:-}" ]]; then
+              {
+                echo "VOR_KEY_PASSWORD_EFFECTIVE<<VOR_KSEOF"
+                printf '%s\n' "$VOR_KEY_PASSWORD_EFFECTIVE"
+                echo "VOR_KSEOF"
+              } >> "$GITHUB_ENV"
+              echo "::warning::PHASE3-KEY-PASSWORD-AUTO-CORRECTED the key does not decrypt with the key-password secret; signing uses the STORE password, which verifiably opens the same key (identity unchanged). Fix the VOR_ANDROID_KEY_PASSWORD secret to silence this."
+            fi
+            exit 0
+          fi
+
+          echo "release keystore material unusable: ${VOR_MATERIALIZATION_VERDICT}" >&2
+          if [[ "$SIGNED" == "true" && "${ON_MISSING_SIGNING:-report}" == "fail" ]]; then
+            # Explicit strict release gate — preserved, but now with the exact defect named.
+            echo "error: signed=true with on_missing_signing=fail: ${VOR_MATERIALIZATION_VERDICT}" >&2
+            echo "error: fix the affected VOR_ANDROID_* secrets, or set on_missing_signing=report to ship the honest unsigned build automatically" >&2
+            exit 1
+          fi
+          echo "::warning::PHASE3-KEYSTORE-MATERIALIZATION-FALLBACK ${VOR_MATERIALIZATION_VERDICT}"
+          echo "::warning::PHASE3-KEYSTORE-MATERIALIZATION-FALLBACK Gradle falls back to the CI debug keystore; artifacts stay honest via SIGNING-STATUS.txt."
+          # No ANDROID_KEYSTORE_PATH exported → Gradle uses the debug keystore.
+          exit 0
 
       - name: Build Android app (assembleRelease + bundleRelease)
         working-directory: ./universal-core/android
         env:
           ANDROID_KEYSTORE_PATH: ${{ env.ANDROID_KEYSTORE_PATH }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.VOR_ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.VOR_ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.VOR_ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ env.VOR_ALIAS_EFFECTIVE || secrets.VOR_ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ env.VOR_KEY_PASSWORD_EFFECTIVE || secrets.VOR_ANDROID_KEY_PASSWORD }}
         run: |
           set -uo pipefail
           chmod +x ./gradlew
@@ -529,8 +682,8 @@ jobs:
         env:
           ANDROID_KEYSTORE_B64: ${{ secrets.VOR_ANDROID_KEYSTORE_B64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.VOR_ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.VOR_ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.VOR_ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ env.VOR_ALIAS_EFFECTIVE || secrets.VOR_ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ env.VOR_KEY_PASSWORD_EFFECTIVE || secrets.VOR_ANDROID_KEY_PASSWORD }}
           SIGNING_PLAN: ${{ needs.signing-plan.outputs.android }}
           SIGNING_MISSING: ${{ needs.signing-plan.outputs.android_missing }}
           ON_MISSING_SIGNING: ${{ needs.signing-plan.outputs.on_missing_signing }}
@@ -611,7 +764,25 @@ jobs:
             [[ -n "$ANDROID_KEYSTORE_PASSWORD" ]] || { echo "error: VOR_ANDROID_KEYSTORE_PASSWORD missing (signed=true)" >&2; exit 1; }
             [[ -n "$ANDROID_KEY_ALIAS" ]] || { echo "error: VOR_ANDROID_KEY_ALIAS missing (signed=true)" >&2; exit 1; }
             [[ -n "$ANDROID_KEY_PASSWORD" ]] || { echo "error: VOR_ANDROID_KEY_PASSWORD missing (signed=true)" >&2; exit 1; }
-            echo "$ANDROID_KEYSTORE_B64" | base64 -d > vor-release.keystore
+            # Hardened materialization (see "Materialize release keystore"):
+            # validates the payload is a real, openable keystore BEFORE apksigner
+            # runs, and auto-repairs imperfect encodings instead of dying.
+            source "$GITHUB_WORKSPACE/scripts/materialize-keystore.sh"
+            ks_rc=0
+            vor_materialize_keystore "$ANDROID_KEYSTORE_B64" "vor-release.keystore" \
+              "$ANDROID_KEYSTORE_PASSWORD" "$ANDROID_KEY_ALIAS" "$ANDROID_KEY_PASSWORD" || ks_rc=$?
+            if [[ "$ks_rc" != "0" ]]; then
+              if [[ "${ON_MISSING_SIGNING:-report}" == "fail" ]]; then
+                echo "error: signed=true with on_missing_signing=fail: ${VOR_MATERIALIZATION_VERDICT}" >&2
+                exit 1
+              fi
+              echo "::warning::PHASE3-SIGNING-MATERIAL-UNUSABLE ${VOR_MATERIALIZATION_VERDICT} (shipping real UNSIGNED artifacts)"
+              verify_android_package "$OUT/vor-android-v${VERSION}.apk"
+              verify_android_package "$OUT/vor-android-v${VERSION}.aab"
+              mark_unsigned
+              exit 0
+            fi
+            echo "keystore validated: ${VOR_MATERIALIZATION_VERDICT}"
             SDK_DIR="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-$HOME/android-sdk}}"
             [[ -d "$SDK_DIR/build-tools" ]] || { echo "error: Android SDK build-tools missing (SDK_DIR=${SDK_DIR})" >&2; exit 1; }
             APKSIGNER="$(find "$SDK_DIR/build-tools" -name apksigner | sort -V | tail -n1)"
@@ -650,6 +821,9 @@ jobs:
           echo "::warning::PHASE3-DIAG-ANDROID-SIGN-KEYSTORE_B64_PRESENT=${{ secrets.VOR_ANDROID_KEYSTORE_B64 != '' }}"
           echo "::warning::PHASE3-DIAG-ANDROID-SIGN-PASSWORD_PRESENT=${{ secrets.VOR_ANDROID_KEYSTORE_PASSWORD != '' }}"
           echo "::warning::PHASE3-DIAG-ANDROID-SIGN-ALIAS_PRESENT=${{ secrets.VOR_ANDROID_KEY_ALIAS != '' }}"
+          echo "::warning::PHASE3-DIAG-ANDROID-SIGN-KEY_PASSWORD_PRESENT=${{ secrets.VOR_ANDROID_KEY_PASSWORD != '' }}"
+          echo "::warning::PHASE3-DIAG-ANDROID-SIGN-ALIAS_EFFECTIVE_SET=${{ env.VOR_ALIAS_EFFECTIVE != '' }}"
+          echo "::warning::PHASE3-DIAG-ANDROID-SIGN-KEY_PASSWORD_EFFECTIVE_SET=${{ env.VOR_KEY_PASSWORD_EFFECTIVE != '' }}"
           [[ -d dist-android ]] && { echo "dist files:"; ls -lh dist-android || true; }
 
   # ─────────────────────────────────────────────────────────────────────────────
@@ -1322,6 +1496,8 @@ jobs:
           IOS_PLAN: ${{ needs.signing-plan.outputs.ios }}
           ANDROID_MISSING: ${{ needs.signing-plan.outputs.android_missing }}
           IOS_MISSING: ${{ needs.signing-plan.outputs.ios_missing }}
+          ANDROID_MATERIAL: ${{ needs.signing-plan.outputs.android_material }}
+          IOS_MATERIAL: ${{ needs.signing-plan.outputs.ios_material }}
           ON_MISSING: ${{ needs.signing-plan.outputs.on_missing_signing }}
           R_ANDROID: ${{ needs.build-android.result }}
           R_IOS: ${{ needs.build-ios.result }}
@@ -1342,6 +1518,11 @@ jobs:
             row "desktop" "${R_DESKTOP:-skipped}"
             row "openwrt" "${R_OPENWRT:-skipped}"
             echo
+            echo "| platform | signing material |"
+            echo "|---|---|"
+            row "android" "${ANDROID_MATERIAL:-absent}"
+            row "ios" "${IOS_MATERIAL:-absent}"
+            echo
             echo "signing required: \`${SIGNED}\` · on_missing_signing: \`${ON_MISSING:-report}\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -1351,7 +1532,29 @@ jobs:
           done
 
           if [[ "$hard_failure" == "1" ]]; then
-            echo "::error::Phase 3 pipeline has a genuine build/test failure — see the failing job for details." >&2
+            # A red run is EITHER a genuine build defect OR the caller's explicit
+            # strict release gate (signed=true + on_missing_signing=fail with
+            # material absent). Say which — loudly — so nobody has to guess.
+            strict_gate=false
+            if [[ "$SIGNED" == "true" && "${ON_MISSING:-report}" == "fail" ]]; then
+              if [[ "${R_ANDROID:-}" == "failure" && "${ANDROID_PLAN:-blocked}" != "ready" ]] \
+                || [[ "${R_IOS:-}" == "failure" && "${IOS_PLAN:-blocked}" != "ready" ]]; then
+                strict_gate=true
+              fi
+            fi
+            if [[ "$strict_gate" == "true" ]]; then
+              {
+                echo
+                echo "> **This run is red BY YOUR EXPLICIT CHOICE, not by a code defect.**"
+                echo "> \`signed=true\` + \`on_missing_signing=fail\` means: no signed release without"
+                echo "> real credentials. Missing: android=${ANDROID_MISSING:-none} · ios=${IOS_MISSING:-none}."
+                echo "> Automatic alternative: rerun with \`on_missing_signing=report\` — the same real"
+                echo "> builds then ship unsigned, clearly labelled, with a SIGNING-STATUS report."
+              } >> "$GITHUB_STEP_SUMMARY"
+              echo "::error::Phase 3 run failed by the EXPLICIT strict signing gate (on_missing_signing=fail with material absent: android=${ANDROID_MISSING:-none} ios=${IOS_MISSING:-none}) — not a build defect. Rerun with on_missing_signing=report for the automatic unsigned path." >&2
+            else
+              echo "::error::Phase 3 pipeline has a genuine build/test failure — see the failing job for details." >&2
+            fi
             exit 1
           fi
 

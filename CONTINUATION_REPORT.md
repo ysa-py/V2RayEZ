@@ -755,3 +755,50 @@ bash -n scripts/build-release-artifacts.sh scripts/build-android-apk.sh \
   MICAFP/openwrt/files/usr/libexec/unifiedshield/license-watchdog.sh
 python3 -m py_compile tools/*.py
 ```
+
+### Milestone 69 — self-healing keystore materialization (2026-09-05, branch `arena/01a071f4-v2rayez`)
+
+Run `33971338723` (workflow_dispatch, signed=true, on_missing_signing=fail)
+went red in `build-android` at `Materialize release keystore` **with the
+secret present** (`…KEYSTORE_B64_PRESENT=true`): the inline
+`echo "$B64" | base64 -d` exits 1 for secrets carrying CR / spaces / PEM
+armour / literal `\n` escapes. `build-ios` was red by the caller's explicit
+strict choice, not by a defect; every other job (openwrt ×2, desktop ×3,
+native tests) was already green.
+
+Fix (additive, strict gate preserved): shared `scripts/materialize-keystore.sh`
+— normalisation (data-URI, PEM armour, looped escape-sequence strip that cannot
+eat a payload `n`, whitespace/CR, quotes, URL-safe, base64-alphabet filter,
+padding), magic-driven candidate selection (strict b64 / hex / ignore-garbage
+must each prove the JKS/PKCS12/BKS magic), `keytool` password+alias proof with
+precise reasons, `report`-mode honest debug-keystore fallback and `fail`-mode
+exact-defect failure. `signing-plan` now validates material (keystore decode +
+magic, profile decode + plist, Team-ID shape) and publishes
+`android_material`/`ios_material`; `release-readiness` separates "genuine build
+failure" from "red by explicit strict choice". New gate
+`tools/keystore_materialization_gate.mjs` executes the helper's self-test
+(30/30 consecutive PASS) and pins the wiring + capability preservation.
+All 30 gates PASS; `auto-fix --check` PASS.
+
+### Milestone 70 — Gradle-level signing proofs + safe auto-correction (2026-09-05, PR #15)
+
+The operator's screenshots/decoded diagnostics from runs `33974072492` /
+`33974841906` (old `main`) showed Gradle dying on
+`No key with alias 'vor' found` and `keystore password was incorrect` /
+`BadPaddingException` — the `VOR_ANDROID_*` secrets are present but mismatched
+with the uploaded keystore. Milestone 69's ladder proved the store password and
+alias presence but not the KEY decryption or alias identity path.
+
+Fix (additive): validation ladder v1.1.0 in `scripts/materialize-keystore.sh` —
+alias resolution (single-entry keystore auto-resolves with a loud warning;
+multi-entry lists every alias, rc3), trustedCertEntry detection ("you uploaded a
+certificate, not a keystore"), and a real `keytool -importkeystore` key-decryption
+probe with store-password fallback auto-correction. Corrections flow through
+heredoc `GITHUB_ENV` (`VOR_ALIAS_EFFECTIVE`, `VOR_KEY_PASSWORD_EFFECTIVE`) into
+the Gradle and apksigner steps (`${{ env.VOR_… || secrets.VOR_… }}`), so the same
+real key signs and Gradle never discovers a secret defect first. `signing-plan`
+now installs a JDK and runs the full ladder (including the KEY password) before
+any build. Measured JDK behaviour documented: PKCS12 normalises keypass to the
+store password; JKS is strict. Self-test grown to 27 checks (30/30 consecutive
+PASS with a real JDK); gate section 7 pins the whole contract; exact-step dress
+rehearsal 8/8 PASS.
