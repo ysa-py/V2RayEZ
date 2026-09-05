@@ -116,11 +116,14 @@ class TunnelManager: ObservableObject {
     private func createTunnelConfiguration(completion: @escaping (Bool) -> Void) {
         let manager = NETunnelProviderManager()
 
-        manager.protocolConfiguration = NETunnelProviderProtocol(
-            providerBundleIdentifier: "app.vor.ios.PacketTunnel",
-            providerConfiguration: [:],
-            serverAddress: "Vor"
-        )
+        // NETunnelProviderProtocol only exposes a parameterless initializer;
+        // the labelled convenience initializer does not exist, so the values
+        // are assigned as properties.
+        let protocolConfiguration = NETunnelProviderProtocol()
+        protocolConfiguration.providerBundleIdentifier = "app.vor.ios.PacketTunnel"
+        protocolConfiguration.providerConfiguration = [:]
+        protocolConfiguration.serverAddress = "Vor"
+        manager.protocolConfiguration = protocolConfiguration
 
         manager.localizedDescription = "Vor"
         manager.isEnabled = true
@@ -151,7 +154,7 @@ class TunnelManager: ObservableObject {
     private func startVPN() {
         isConnecting = true
         Task { [weak self] in
-            let status = await LicenseManager.shared.enforce()
+            let status = await ExtensionLicenseGate.shared.enforce()
             await MainActor.run {
                 guard let self = self else { return }
                 guard status.allowed else {
@@ -177,7 +180,7 @@ class TunnelManager: ObservableObject {
             print("Failed to start tunnel: \(error)")
             isConnecting = false
             Task {
-                if let advice = await AIProviderGateway.shared.adviseOnFailure("startTunnel failed: \(error)") {
+                if let advice = await ExtensionAIAdvisor.shared.adviseOnFailure("startTunnel failed: \(error)") {
                     print("AI Engine advisor (\(advice.source)): \(advice.text)")
                 }
             }
@@ -188,7 +191,7 @@ class TunnelManager: ObservableObject {
         licenseWatchdogTask?.cancel()
         licenseWatchdogTask = Task { [weak self] in
             while !Task.isCancelled {
-                let status = await LicenseManager.shared.enforce()
+                let status = await ExtensionLicenseGate.shared.enforce()
                 if !status.allowed {
                     await MainActor.run {
                         guard let self = self else { return }

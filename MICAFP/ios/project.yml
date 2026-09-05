@@ -30,6 +30,15 @@ targets:
       - path: AdvancedSecurityBridge.swift
       - path: BatteryManager.swift
       - path: BleMeshManager.swift
+      # The SwiftUI screens (ContentView, CoreSwitcherView, StatusView) bind to
+      # TunnelManager, and TunnelManager calls the extension-safe license gate
+      # and AI advisor. These three files live under NetworkExtension/ but use
+      # no NEPacketTunnelProvider API, so they are compiled into BOTH targets:
+      # the app drives the tunnel lifecycle, the extension enforces the license.
+      # (They are UIKit-free, which is required inside an app extension.)
+      - path: UnifiedShield/NetworkExtension/TunnelManager.swift
+      - path: UnifiedShield/NetworkExtension/ExtensionLicenseGate.swift
+      - path: UnifiedShield/NetworkExtension/ExtensionAIAdvisor.swift
     dependencies:
       - target: V2RayEZPacketTunnel
         embed: true
