@@ -662,6 +662,52 @@ To run the real signed build from a properly-permissioned context:
    `MERGE_TRACEABILITY.md` (with the run ID), and update the Phase 3 rows to
    `signed artifacts produced`.
 
+### Authorized tag triggering + real matrix findings (2026-09-05)
+
+Because `workflow_dispatch` was rejected (HTTP 403, no `actions:write`), and the
+user explicitly authorized it, the release tag `vor-v1.0.0` was force-updated to
+each new matrix commit and re-pushed to trigger the full `build-android`,
+`build-ios`, `build-desktop`, `build-openwrt`, `checksum-ledger` matrix.
+
+Real runs triggered by the tag:
+`33926430878`, `33927089757`, `33928606078`, `33929199328`, `33929715629`
+(the last was still running when the sandbox's GitHub credential expired).
+
+What those runs proved on real runners:
+
+- **Cache collision: FIXED.** Tag runs no longer show the 10×
+  `Cannot open: File exists` / tar exit 2 collisions; the only remaining job
+  failures are real build/signing issues, not cache extraction.
+- **Tag = signed release:** `meta` now sets `signed=true` for tag events (and
+  honors `workflow_dispatch` input), so release tags require real platform
+  signing secrets instead of silently emitting unsigned artifacts.
+- **Android:** after adding a CI debug-keystore generator + release-keystore
+  materialization step, `Build Android JNI staticlibs`, `assembleRelease` and
+  `bundleRelease` now succeed and produce real `.apk`/`.aab` on the runner.
+  The downstream `Sign / verify Android artifacts` step then fail-closes when
+  `signed=true` and `VOR_ANDROID_*` secrets are absent (or signs when present).
+- **iOS:** still fail-closes on `signed=true` if Apple secrets/team/profile are
+  absent; the workflow emits `PHASE3-DIAG-IOS-B64-*` diagnostics. This is the
+  documented, intended behavior — no unsigned `.ipa` is fabricated.
+- **Desktop:** the build step previously invoked `cargo tauri`, which is not
+  installed on the runner (`no such command: tauri`). This was corrected to
+  `npx tauri build` (the `@tauri-apps/cli` installed by `npm ci`). The remaining
+  desktop blocker is genuine: `scripts/prepare-sidecar.mjs` requires real
+  `aether` and `sing-box` sidecars for the exact target triple, and the fetched
+  upstream Aether v1.7.0 / sing-box v1.13.14 assets are not yet provisioned for
+  macOS/Linux by a cross-platform verified fetcher (the existing PowerShell
+  fetch scripts only cover Windows). No placeholder sidecar is synthesized.
+- **OpenWrt:** both SDK branches still fail at `Cross-compile universal-core for
+  router`; raw diagnostics are emitted as `ph3-diag-openwrt-<target>` artifacts
+  and `PHASE3-DIAG-OPENWRT-B64-*` annotations for decode once the repo is
+  reachable again.
+
+**Current auth blocker:** while inspecting the last matrix run the sandbox's
+GitHub credential failed (`gh auth status` → "token no longer valid";
+`git ls-remote` → "could not read Username"; `gh api` → HTTP 401). Further
+push/read of runs is blocked until the GitHub connection is reconnected in
+Arena. No new commits beyond this report have been pushed after `5ebb454`.
+
 ### Local evidence now
 
 - `node tools/vor_phase3_pipeline_gate.mjs` → **PASS**.
