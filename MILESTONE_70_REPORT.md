@@ -118,3 +118,14 @@ steps, and the new diagnostics.
   untouched (`release.yml` never consumes these secrets; it generates its own
   keystore).
 * No donor tree, job, gate or artifact type dropped.
+
+## Post-push amendment — the workflow-parser catch
+
+The first push of this milestone failed instantly with "This run likely failed
+because of a workflow file issue" (run `33975596545`). Root cause: my edit had
+introduced a **duplicate `KS_KEY_PASSWORD` key** in the `signing-plan` env —
+PyYAML silently accepts duplicate keys (last-wins), GitHub's parser rejects
+the file. Fixed by removing the duplicate, and gate section 8 now runs the
+REAL YAML parser with a duplicate-key-rejecting loader over all three
+workflows (strict on runners; documented skip when PyYAML is absent locally),
+so this class of defect can never merge again.

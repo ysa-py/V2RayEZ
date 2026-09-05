@@ -156,4 +156,46 @@ assert.ok(signStepBlock2.includes('"$ANDROID_KEY_PASSWORD"'),
 assert.ok(wf.includes('PHASE3-DIAG-ANDROID-SIGN-KEY_PASSWORD_PRESENT'),
   'diagnostics must report key-password presence');
 
+// 8 ── GitHub's workflow parser rejects duplicate mapping keys while PyYAML's
+// default loader silently accepts them (last-wins). A duplicate env key broke
+// the whole workflow (run 33975596545: "likely failed because of a workflow
+// file issue"). Use the REAL YAML parser with a duplicate-key-rejecting loader
+// for every workflow. Requires python3+PyYAML (preinstalled on GitHub runners);
+// when unavailable locally this section degrades to a documented skip — every
+// other section of this gate stays mandatory.
+{
+  const probe = (() => {
+    try {
+      execFileSync('python3', ['-c', 'import yaml'], { stdio: 'pipe' });
+      return true;
+    } catch {
+      return false;
+    }
+  })();
+  if (probe) {
+    const checker = `
+import sys, yaml
+class StrictLoader(yaml.SafeLoader):
+    pass
+def no_dup(loader, node, deep=False):
+    keys = set()
+    for k, _v in node.value:
+        kk = loader.construct_object(k, deep=deep)
+        if kk in keys:
+            print(f"duplicate key '{kk}' at line {k.start_mark.line + 1}")
+        keys.add(kk)
+    return yaml.SafeLoader.construct_mapping(loader, node, deep)
+StrictLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, no_dup)
+yaml.load(open(sys.argv[1]), Loader=StrictLoader)
+`;
+    for (const f of ['.github/workflows/vor-native-phase3.yml', '.github/workflows/release.yml', '.github/workflows/universal-core-ci.yml']) {
+      const file = new URL(`../${f}`, import.meta.url).pathname;
+      const out = execFileSync('python3', ['-c', checker, file], { stdio: 'pipe', encoding: 'utf8' });
+      assert.equal(out.trim(), '', `${f} must contain no duplicate mapping keys: ${out.trim()}`);
+    }
+  } else {
+    console.log('note: python3/PyYAML unavailable — strict duplicate-key workflow scan skipped (runners enforce it)');
+  }
+}
+
 console.log('keystore_materialization_gate: PASS — self-healing materialization pinned, strict gate preserved');

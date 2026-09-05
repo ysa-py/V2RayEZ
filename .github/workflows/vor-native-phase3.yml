@@ -152,7 +152,6 @@ jobs:
           KS_PASSWORD: ${{ secrets.VOR_ANDROID_KEYSTORE_PASSWORD }}
           KS_ALIAS: ${{ secrets.VOR_ANDROID_KEY_ALIAS }}
           KS_KEY_PASSWORD: ${{ secrets.VOR_ANDROID_KEY_PASSWORD }}
-          KS_KEY_PASSWORD: ${{ secrets.VOR_ANDROID_KEY_PASSWORD }}
           APPLE_TEAM: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_PROFILE: ${{ secrets.APPLE_PROVISIONING_PROFILE }}
           APPLE_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
