@@ -129,3 +129,20 @@ the file. Fixed by removing the duplicate, and gate section 8 now runs the
 REAL YAML parser with a duplicate-key-rejecting loader over all three
 workflows (strict on runners; documented skip when PyYAML is absent locally),
 so this class of defect can never merge again.
+
+## Post-push amendment 2 — outputs are now secret-redacted
+
+The real signing-plan run exposed one more GitHub behaviour: a step output
+whose value contains any secret is DROPPED entirely ("Skip output
+'android_material' since it may contain secret") — the verdict quoted the
+operator's alias. The plan step now runs every publishable string
+(android/ios material verdicts, missing lists) through `mask_secrets()`
+before writing outputs, the JSON plan, the summary and the annotations, so
+the readiness table stays populated without ever echoing a secret.
+
+Also confirmed against the operator's REAL secrets on that run: **no
+`PHASE3-SIGNING-PLAN-ANDROID=blocked` annotation was emitted — the Android
+signing material validated end-to-end** (store password accepted, alias
+resolvable, key opens). The Gradle failures in the earlier runs came from
+older/other secret values; with the current secrets the pipeline is ready to
+produce a genuinely signed release.

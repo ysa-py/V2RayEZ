@@ -156,6 +156,19 @@ assert.ok(signStepBlock2.includes('"$ANDROID_KEY_PASSWORD"'),
 assert.ok(wf.includes('PHASE3-DIAG-ANDROID-SIGN-KEY_PASSWORD_PRESENT'),
   'diagnostics must report key-password presence');
 
+// 9 ── outputs must be secret-redacted before publishing: GitHub drops any
+// step output containing a secret value (run 33975689098: "Skip output
+// 'android_material' since it may contain secret"), which silently emptied
+// the readiness table.
+const planStepIdx2 = wf.indexOf('name: Resolve signing capability');
+const planStepBlock2 = wf.slice(planStepIdx2, wf.indexOf('- name:', planStepIdx2 + 10));
+assert.ok(planStepBlock2.includes('mask_secrets()'),
+  'signing-plan must redact secret values before publishing outputs');
+assert.ok(planStepBlock2.includes('[redacted-secret]'),
+  'signing-plan redaction placeholder must be present');
+assert.ok((planStepBlock2.match(/mask_secrets /g) || []).length >= 4,
+  'android/ios material + missing lists must all be redacted');
+
 // 8 ── GitHub's workflow parser rejects duplicate mapping keys while PyYAML's
 // default loader silently accepts them (last-wins). A duplicate env key broke
 // the whole workflow (run 33975596545: "likely failed because of a workflow

@@ -214,6 +214,23 @@ jobs:
           fi
           if ((${#ios_missing[@]} == 0)) && [[ "$ios_material" == ok* ]]; then ios=ready; else ios=blocked; fi
 
+          # GitHub DROPS step outputs whose value contains any secret (run
+          # 33975689098: "Skip output 'android_material' since it may contain
+          # secret"), so every publishable verdict is redacted here first —
+          # after BOTH material verdicts are computed.
+          mask_secrets() {
+            local s="$1" sec
+            for sec in "${KS_B64:-}" "${KS_PASSWORD:-}" "${KS_ALIAS:-}" "${KS_KEY_PASSWORD:-}" "${APPLE_TEAM:-}" "${APPLE_PROFILE:-}" "${APPLE_IDENTITY:-}"; do
+              [[ -n "$sec" ]] || continue
+              s="${s//"$sec"/[redacted-secret]}"
+            done
+            printf '%s' "$s"
+          }
+          android_material="$(mask_secrets "$android_material")"
+          ios_material="$(mask_secrets "$ios_material")"
+          android_missing=("$(mask_secrets "${android_missing[*]:-}")")
+          ios_missing=("$(mask_secrets "${ios_missing[*]:-}")")
+
           on_missing="${ON_MISSING_INPUT:-report}"
           [[ "$on_missing" == "report" || "$on_missing" == "fail" ]] || on_missing=report
 
