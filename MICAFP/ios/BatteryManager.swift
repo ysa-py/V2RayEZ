@@ -509,7 +509,7 @@ class BatteryManager {
     // MARK: - Power State Update
 
     /// Update the current power state and report it to the Rust daemon.
-    private func updatePowerState() {
+    func updatePowerState() {
         let batteryLevel = getBatteryLevel()
         let charging = isCharging()
         let screenOn = isScreenLikelyOn()
