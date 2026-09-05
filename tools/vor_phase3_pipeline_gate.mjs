@@ -39,6 +39,26 @@ for (const goMod of goMods) {
     }
   }
 }
+// Tauri's `generate_context!()` panics at compile time if a referenced .png
+// icon is not RGBA ("icon ... is not RGBA"). The Tauri bundle entry points are
+// 32x32.png, 128x128.png and icon.png, so every top-level icon must carry an
+// alpha channel (PNG color type 6). We parse the IHDR byte directly (no deps).
+const iconsDir = new URL('../V2RayEZ-GUI/src-tauri/icons/', import.meta.url).pathname;
+for (const name of readdirSync(iconsDir)) {
+  if (!name.endsWith('.png')) continue;
+  const png = readFileSync(iconsDir + name);
+  if (png.length < 29 || png[0] !== 0x89) {
+    throw new Error(`V2RayEZ-GUI/src-tauri/icons/${name} is not a valid PNG`);
+  }
+  const colorType = png[25];
+  if (colorType !== 6) {
+    throw new Error(
+      `V2RayEZ-GUI/src-tauri/icons/${name} is PNG color type ${colorType}; ` +
+        'Tauri requires RGBA (color type 6) or build fails with "icon is not RGBA"',
+    );
+  }
+}
+
 // Only inspect meaningful YAML body; the header intentionally documents why this
 // workflow does NOT call `gh release create/upload`.
 const wfBody = wf

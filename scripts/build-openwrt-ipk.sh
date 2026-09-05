@@ -116,7 +116,12 @@ fi
 # If SDK exists, try real build
 if [[ -f "$SDK_DIR/Makefile" && -f "$SDK_DIR/rules.mk" ]]; then
   echo "[openwrt] Attempting SDK build for $TARGET" | tee -a "$LOG"
-  FEED_DST="$SDK_DIR/package/network/services/unifiedshield"
+  # OpenWrt SDK resolves package targets as `package/<layer>/<name>/compile`
+  # only when the Makefile sits directly below the `package/` root (e.g.
+  # `package/unifiedshield`). Placing it under `package/network/services/...`
+  # makes `make package/unifiedshield/compile` report "No rule to make target"
+  # even though the SDK build actually works.
+  FEED_DST="$SDK_DIR/package/unifiedshield"
   rm -rf "$FEED_DST"
   mkdir -p "$(dirname "$FEED_DST")"
   # Copy package source (prefer MICAFP/openwrt)
