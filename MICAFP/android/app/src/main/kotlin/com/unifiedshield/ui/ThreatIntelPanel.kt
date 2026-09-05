@@ -79,7 +79,7 @@ fun ThreatIntelPanel(
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "تحلیل هوشمند بردارهای فیلترینگ و انطباق آنی با پروتکل‌های بهینه",
+                            text = "کاتالوگ بردارهای شناخته‌شده — تشخیص‌های واقعی تا اتصال بک‌اند در دسترس نیستند",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -87,10 +87,15 @@ fun ThreatIntelPanel(
                 }
 
                 Badge(
-                    containerColor = Color(0x2210B981),
-                    contentColor = Color(0xFF10B981)
+                    containerColor = if (storeState.backendUnavailable) Color(0x22B45309) else Color(0x2210B981),
+                    contentColor = if (storeState.backendUnavailable) Color(0xFFB45309) else Color(0xFF10B981)
                 ) {
-                    Text("${storeState.activeOptimizationCount} بهینه‌سازی فعال")
+                    Text(
+                        if (storeState.backendUnavailable)
+                            "UNAVAILABLE"
+                        else
+                            "${storeState.activeOptimizationCount} بهینه‌سازی فعال"
+                    )
                 }
             }
 
@@ -179,7 +184,7 @@ fun ThreatIntelPanel(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "تعداد تلاش مسدودسازی: ${sig.detectedCount}",
+                                text = if (storeState.backendUnavailable) "تعداد تلاش مسدودسازی: unavailable" else "تعداد تلاش مسدودسازی: ${sig.detectedCount}",
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -258,12 +263,12 @@ fun ThreatIntelPanel(
                                             Text(activeProtocol.name, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                         }
                                         Column {
-                                            Text("برش رکورد TLS", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                            Text("${aiState.tlsRecordSplitLength} بایت / TCP Record", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF6366F1))
+                                            Text("برش رکورد TLS (پیشنهادی)", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            Text(if (aiState.tlsRecordSplitLength > 0) "${aiState.tlsRecordSplitLength} بایت / TCP Record" else "unavailable", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                                         }
                                         Column {
-                                            Text("تزریق نویز تصادفی", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                            Text("${aiState.randomPaddingBytes} بایت پدینگ", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF10B981))
+                                            Text("پدینگ پیشنهادی", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            Text(if (aiState.randomPaddingBytes > 0) "${aiState.randomPaddingBytes} بایت" else "unavailable", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                                         }
                                     }
                                 }
@@ -273,7 +278,7 @@ fun ThreatIntelPanel(
                                 Button(
                                     onClick = {
                                         store.applyThreatOptimization(sig.id)
-                                        optimizationSuccessMsg = "پیکربندی با موفقیت روی پروتکل ${sig.recommendedProtocolName} با برش هوشمند TLS و قطعه‌بندی پکت اعمال شد."
+                                        optimizationSuccessMsg = "پیشنهاد بهینه‌سازی برای ${sig.recommendedProtocolName} ثبت شد (فقط مشاوره‌ای؛ بدون تغییر بسته واقعی)."
                                     },
                                     modifier = Modifier
                                         .fillMaxWidth()

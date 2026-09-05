@@ -73,39 +73,33 @@ data class MasterDnsResolverNode(
     val address: String,
     val port: Int = 53,
     val transport: DnsTransport = DnsTransport.UDP,
-    val pingMs: Int = 18,
+    val pingMs: Int = 0,
     val packetLossPct: Double = 0.0,
-    val weight: Int = 100,
-    val isAlive: Boolean = true,
+    val weight: Int = 0,
+    val isAlive: Boolean = false,
     val queriesSent: Long = 0,
-    val queriesAnswered: Long = 0
+    val queriesAnswered: Long = 0,
+    val measured: Boolean = false
 )
 
 data class MasterDnsConfig(
     val encryption: MasterDnsEncryption = MasterDnsEncryption.AES_128_GCM,
-    val headerOverheadBytes: Int = 5, // ARQ-5-7B = 88% lower than DNSTT, 71% lower than SlipStream
-    val arqWindowSize: Int = 128,
-    val arqTimeoutMs: Int = 35,
-    val customMtu: Int = 512, // Works even with very small MTU
+    val headerOverheadBytes: Int = 0,
+    val arqWindowSize: Int = 0,
+    val arqTimeoutMs: Int = 0,
+    val customMtu: Int = 512,
     val balancingMode: MasterDnsBalancingMode = MasterDnsBalancingMode.LATENCY_BASED,
     val enablePacketDuplication: Boolean = false,
     val duplicationFactor: Int = 2,
     val coreEngine: MasterDnsCoreEngine = MasterDnsCoreEngine.GO_NATIVE,
-    val enableSocksOptimization: Boolean = true, // Reduced SOCKS overhead
-    val enableTcpForwarding: Boolean = true, // TCPForwarding mode can carry Shadowsocks, VLESS, etc.
+    val enableSocksOptimization: Boolean = false,
+    val enableTcpForwarding: Boolean = false,
     val tcpCarrier: MasterDnsTcpCarrier = MasterDnsTcpCarrier.SHADOWSOCKS_CARRIER,
-    val enableStrongDnsCache: Boolean = true, // 0.270s handshake
-    val cachedHandshakeLatencyMs: Int = 270, // 0.270s vs 1.746s standard
-    val rawXorKey: String = "MASTER-DNS-KEY-7X9B",
+    val enableStrongDnsCache: Boolean = false,
+    val cachedHandshakeLatencyMs: Int = 0,
+    val rawXorKey: String = "",
     val serverDomain: String = "mdns.unifiedshield.net",
-    val resolvers: List<MasterDnsResolverNode> = listOf(
-        MasterDnsResolverNode("r1", "Alibaba Anycast Resolver", "223.5.5.5", 53, DnsTransport.UDP, 14, 0.0, 100, true),
-        MasterDnsResolverNode("r2", "Tencent Clean DNS", "119.29.29.29", 53, DnsTransport.UDP, 18, 0.0, 95, true),
-        MasterDnsResolverNode("r3", "Alibaba DoH Ultra-Fast", "https://dns.alidns.com/dns-query", 443, DnsTransport.DOH, 19, 0.0, 90, true),
-        MasterDnsResolverNode("r4", "Cloudflare Low-Jitter DNS", "1.1.1.1", 53, DnsTransport.UDP, 22, 0.5, 80, true),
-        MasterDnsResolverNode("r5", "Baidu Public DNS", "180.76.76.76", 53, DnsTransport.UDP, 25, 0.0, 75, true),
-        MasterDnsResolverNode("r6", "Quad9 Privacy Resolver", "9.9.9.9", 53, DnsTransport.UDP, 28, 1.0, 70, true),
-        MasterDnsResolverNode("r7", "Clean DNS Edge Backup", "223.6.6.6", 53, DnsTransport.UDP, 16, 0.0, 92, true),
-        MasterDnsResolverNode("r8", "Tencent DoT Secondary", "1.12.12.12", 853, DnsTransport.DOT, 20, 0.0, 85, true)
-    )
+    val resolvers: List<MasterDnsResolverNode> = emptyList(),
+    val backendUnavailable: Boolean = true,
+    val backendNote: String = "No real MasterDns resolver/probe backend is wired in; telemetry is unavailable."
 )

@@ -96,19 +96,22 @@ fun CottenDnsScreen() {
                                 }
                             }
 
-                            Badge(containerColor = Color(0xFF10B981), contentColor = Color.White) {
-                                Text("Active Matrix", fontWeight = FontWeight.Bold)
+                            Badge(containerColor = if (state.backendUnavailable) Color(0xFFB45309) else Color(0xFF10B981), contentColor = Color.White) {
+                                Text(if (state.backendUnavailable) "UNAVAILABLE" else "Active Matrix", fontWeight = FontWeight.Bold)
                             }
                         }
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        Text(
-                            text = "موتور فوق‌انعطاف‌پذیر CottenDNS برای ارزیابی مستقل هر مسیر (Resolver, Transport)، کشف پویای MTU، تصحیح خطای پیش‌رو (Super-FEC)، شناسایی زودهنگام و مسابقه با جعل DNS (Poison Racing) و استتار فرمت کوئری.",
-                            fontSize = 12.sp,
-                            color = Color(0xFFE2E8F0),
-                            lineHeight = 18.sp
-                        )
+                            Text(
+                                text = if (state.backendUnavailable)
+                                    "CottenDNS کانفیگ‌ها آماده‌اند، اما هیچ بک‌اند واقعی متصل نیست؛ آمارها در دسترس نیستند و جعل نمی‌شوند."
+                                else
+                                    "موتور CottenDNS برای ارزیابی مستقل هر مسیر، کشف MTU، تصحیح خطای پیش‌رو و مسابقه با جعل DNS.",
+                                fontSize = 12.sp,
+                                color = Color(0xFFE2E8F0),
+                                lineHeight = 18.sp
+                            )
 
                         Spacer(modifier = Modifier.height(10.dp))
 
@@ -141,19 +144,19 @@ fun CottenDnsScreen() {
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("بسته‌های بازیابی FEC:", fontSize = 10.sp, color = Color(0xFF94A3B8))
-                        Text("${state.fecFramesRecovered}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF34D399))
+                        Text(if (state.backendUnavailable || state.fecFramesRecovered == 0L) "unavailable" else "${state.fecFramesRecovered}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (state.backendUnavailable) Color(0xFFB45309) else Color(0xFF34D399))
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("جعل‌های خنثی شده:", fontSize = 10.sp, color = Color(0xFF94A3B8))
-                        Text("${state.poisonAttemptsDefeated}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF38BDF8))
+                        Text(if (state.backendUnavailable || state.poisonAttemptsDefeated == 0L) "unavailable" else "${state.poisonAttemptsDefeated}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (state.backendUnavailable) Color(0xFFB45309) else Color(0xFF38BDF8))
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("بازتکرار فریم در پرواز:", fontSize = 10.sp, color = Color(0xFF94A3B8))
-                        Text("${state.inFlightFrameReplayCount}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFBBF24))
+                        Text(if (state.backendUnavailable || state.inFlightFrameReplayCount == 0L) "unavailable" else "${state.inFlightFrameReplayCount}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (state.backendUnavailable) Color(0xFFB45309) else Color(0xFFFBBF24))
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("بودجه ازدحام:", fontSize = 10.sp, color = Color(0xFF94A3B8))
-                        Text("${state.singleCongestionBudgetPct}%", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text(if (state.backendUnavailable || state.singleCongestionBudgetPct == 0) "unavailable" else "${state.singleCongestionBudgetPct}%", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
                     }
                 }
             }
@@ -272,10 +275,20 @@ fun CottenDnsScreen() {
         }
 
         // Paths List
+        if (state.paths.isEmpty()) {
+            item {
+                Text(
+                    "No real CottenDNS path measurements (backend not wired).",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
         items(state.paths, key = { it.id }) { path ->
             Card(
                 shape = RoundedCornerShape(14.dp),
-                border = BorderStroke(1.dp, if (path.isCurrentlyActive) Color(0xFF10B981).copy(alpha = 0.6f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                border = BorderStroke(1.dp, if (path.measured && path.isCurrentlyActive) Color(0xFF10B981).copy(alpha = 0.6f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -290,7 +303,13 @@ fun CottenDnsScreen() {
                                 modifier = Modifier
                                     .size(10.dp)
                                     .clip(CircleShape)
-                                    .background(if (path.isCurrentlyActive) Color(0xFF10B981) else Color(0xFF94A3B8))
+                                    .background(
+                                        when {
+                                            !path.measured -> Color(0xFFB45309)
+                                            path.isCurrentlyActive -> Color(0xFF10B981)
+                                            else -> Color(0xFF94A3B8)
+                                        }
+                                    )
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
@@ -302,10 +321,10 @@ fun CottenDnsScreen() {
                         }
 
                         Badge(
-                            containerColor = if (path.confidenceScore > 95) Color(0xFF10B981) else Color(0xFFF59E0B),
+                            containerColor = if (!path.measured) Color(0xFFB45309) else if (path.confidenceScore > 95) Color(0xFF10B981) else Color(0xFFF59E0B),
                             contentColor = Color.White
                         ) {
-                            Text("اطمینان: ${path.confidenceScore}%")
+                            Text(if (path.measured) "اطمینان: ${path.confidenceScore}%" else "unmeasured")
                         }
                     }
 
@@ -313,10 +332,10 @@ fun CottenDnsScreen() {
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("ارسال (Upload): ${path.uploadDeliveryPct}%", fontSize = 11.sp, color = Color(0xFF10B981))
-                        Text("دریافت (Download): ${path.downloadDeliveryPct}%", fontSize = 11.sp, color = Color(0xFF38BDF8))
-                        Text("RTT: ${path.directionalRttMs}ms", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        Text("MTU: ${path.pathMtu}B", fontSize = 11.sp)
+                        Text(if (path.measured) "ارسال (Upload): ${path.uploadDeliveryPct}%" else "unavailable", fontSize = 11.sp, color = if (path.measured) Color(0xFF10B981) else Color(0xFFB45309))
+                        Text(if (path.measured) "دریافت (Download): ${path.downloadDeliveryPct}%" else "unavailable", fontSize = 11.sp, color = if (path.measured) Color(0xFF38BDF8) else Color(0xFFB45309))
+                        Text(if (path.measured) "RTT: ${path.directionalRttMs}ms" else "unavailable", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text(if (path.measured) "MTU: ${path.pathMtu}B" else "unavailable", fontSize = 11.sp)
                     }
                 }
             }

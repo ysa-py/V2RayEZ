@@ -14,7 +14,7 @@ function index()
     local page = entry(
         {"admin", "services", "unifiedshield"},
         alias("admin", "services", "unifiedshield", "status"),
-        _("V2RayEZ Universal"),
+        _("Vor Universal"),
         60
     )
     page.dependent = true
@@ -211,7 +211,7 @@ function action_api_start()
     luci.http.prepare_content("application/json")
     luci.http.write_json({
         success = success,
-        message = success and "V2RayEZ started" or "V2RayEZ failed to start",
+        message = success and "Vor started" or "Vor failed to start",
         output = output
     })
 end
@@ -223,7 +223,7 @@ function action_api_stop()
     luci.http.prepare_content("application/json")
     luci.http.write_json({
         success = success,
-        message = success and "V2RayEZ stopped" or "V2RayEZ is still running"
+        message = success and "Vor stopped" or "Vor is still running"
     })
 end
 
@@ -234,7 +234,7 @@ function action_api_restart()
     luci.http.prepare_content("application/json")
     luci.http.write_json({
         success = success,
-        message = success and "V2RayEZ restarted" or "V2RayEZ restart failed",
+        message = success and "Vor restarted" or "Vor restart failed",
         output = output
     })
 end

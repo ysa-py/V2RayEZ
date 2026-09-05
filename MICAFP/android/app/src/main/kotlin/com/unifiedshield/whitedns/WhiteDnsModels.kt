@@ -63,7 +63,7 @@ data class WhiteDnsScannerState(
     val scanDepth: WhiteDnsScanDepth = WhiteDnsScanDepth.FAST,
     val concurrencyWorkers: Int = 16,
     val inputCidrOrDomain: String = "104.16.0.0/16",
-    val totalTargets: Int = 256,
+    val totalTargets: Int = 0,
     val scannedTargets: Int = 0,
     val cleanTargetsFound: Int = 0,
     val currentScanningTarget: String = "",
@@ -71,5 +71,7 @@ data class WhiteDnsScannerState(
     val currentSpeedPps: Int = 0,
     val activeProtocol: WhiteDnsDnsProtocol = WhiteDnsDnsProtocol.DOT_853,
     val results: List<WhiteDnsScanResult> = emptyList(),
-    val exportStatusMessage: String? = null
+    val exportStatusMessage: String? = null,
+    val backendUnavailable: Boolean = true,
+    val backendNote: String = "No real WhiteDNS probe backend is wired in; scan results are unavailable."
 )

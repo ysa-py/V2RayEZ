@@ -1,4 +1,7 @@
-# V2RayEZ Universal Release Pipeline - Refactored
+# Vor Universal Release Pipeline - Refactored
+
+> Brand note 2026-09-04: the shipping product name is **Vor**; `V2RayEZ` is the
+> legacy/internal project name and remains in internal identifiers/donor code.
 
 ## Problem Fixed
 

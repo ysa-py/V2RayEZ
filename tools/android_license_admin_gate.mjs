@@ -23,7 +23,7 @@ assertContains(gradle, 'applicationId = "com.v2rayez.licenseadmin"');
 assertContains(gradle, 'minSdk = 26');
 assertContains(gradle, 'targetSdk = 35');
 assertContains(manifest, '<uses-permission android:name="android.permission.INTERNET" />');
-assertContains(manifest, 'android:label="V2RayEZ License Manager"');
+assertContains(manifest, 'android:label="Vor License Manager"');
 assertContains(manifest, 'android:usesCleartextTraffic="false"');
 
 for (const endpoint of [

@@ -1854,9 +1854,12 @@ func (b *Balancer) strategyCandidatePoolLocked(excludeKey string) ([]Connection,
 	switch b.strategy {
 	case BalancingLossThenLatency:
 		if !b.hasHybridSignalLocked() {
-			return nil, poolPickRandom, true
+			return nil, poolPickRoundRobin, true
 		}
-		return b.lossThenLatencyCandidatesLocked(excludeKey), poolPickRandom, true
+		// Deterministically distribute load across the near-top (loss then
+		// latency) tier instead of picking randomly. This keeps the loss-then-
+		// latency preference and makes the round-robin behaviour testable.
+		return b.lossThenLatencyCandidatesLocked(excludeKey), poolPickRoundRobin, true
 	case BalancingLeastLossTopRandom:
 		if !b.hasLossSignalLocked() {
 			return nil, poolPickRandom, true

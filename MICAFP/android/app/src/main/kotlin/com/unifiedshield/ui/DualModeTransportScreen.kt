@@ -60,20 +60,20 @@ fun DualModeTransportScreen() {
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                "Dual-Mode Rust Core • QUIC MultiPath & 5-Hop Sphinx",
+                                if (state.backendUnavailable) "Dual-Mode core present; telemetry backend not measured" else "Dual-Mode Rust Core • QUIC MultiPath & 5-Hop Sphinx",
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.primary
                             )
                         }
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = MaterialTheme.colorScheme.primaryContainer
+                            color = if (state.backendUnavailable) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer
                         ) {
                             Text(
-                                "v70.0 RUST CORE",
+                                if (state.backendUnavailable) "TELEMETRY UNAVAILABLE" else "v70.0 RUST CORE",
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.ExtraBold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                color = if (state.backendUnavailable) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onPrimaryContainer,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                             )
                         }
@@ -225,12 +225,22 @@ fun DualModeTransportScreen() {
                                 state.dpiDetectionLevel,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (state.dpiDetectionLevel.contains("بحرانی")) Color(0xFFEF4444) else Color(0xFF10B981)
+                                color = when {
+                                    state.dpiDetectionLevel.contains("شبیه‌سازی") -> Color(0xFFF59E0B)
+                                    state.dpiDetectionLevel.contains("بحرانی") -> Color(0xFFEF4444)
+                                    state.dpiDetectionLevel.contains("نامشخص") -> Color(0xFFB45309)
+                                    else -> Color(0xFF10B981)
+                                }
                             )
                         }
                         Column(horizontalAlignment = Alignment.End) {
                             Text("ضریب انتروپی ترافیک:", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text("${state.dpiEntropyScore} / 1.00", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                            Text(
+                                if (state.dpiEntropyScore > 0.0) "${state.dpiEntropyScore} / 1.00" else "unavailable",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
                         }
                     }
 
@@ -264,7 +274,7 @@ fun DualModeTransportScreen() {
                         ) {
                             Icon(Icons.Default.BugReport, contentDescription = null, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("تست تزریق اختلال DPI", fontSize = 11.sp)
+                            Text("شبیه‌سازی اختلال DPI (SIMULATION)", fontSize = 11.sp)
                         }
                     }
                 }
@@ -300,26 +310,26 @@ fun DualModeTransportScreen() {
                             Spacer(modifier = Modifier.width(8.dp))
                             Column {
                                 Text(
-                                    "محافظت عبور از چالش‌های Cloudflare و TLS",
+                                    "پیکربندی Cloudflare / TLS Guard (advisory)",
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    "TCP MSS Clamping (1360B) + De-Jitter Reordering",
+                                    "TCP MSS Clamping configured value (not a live mitigation claim)",
                                     fontSize = 10.sp,
-                                    color = Color(0xFF10B981)
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
                         Surface(
                             shape = RoundedCornerShape(6.dp),
-                            color = Color(0xFF10B981).copy(alpha = 0.15f)
+                            color = if (state.isTcpMssClampingActive) Color(0xFF10B981).copy(alpha = 0.15f) else Color(0xFFB45309).copy(alpha = 0.15f)
                         ) {
                             Text(
-                                "DF-SAFE ACTIVE",
+                                if (state.isTcpMssClampingActive) "TCP MSS ACTIVE" else "NOT ACTIVE",
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF10B981),
+                                color = if (state.isTcpMssClampingActive) Color(0xFF10B981) else Color(0xFFB45309),
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }
@@ -337,17 +347,17 @@ fun DualModeTransportScreen() {
                         }
                         Column {
                             Text("تعداد چالش حل‌شده:", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text("${state.cloudflareStallsMitigated}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF10B981))
+                            Text(if (state.cloudflareStallsMitigated > 0) "${state.cloudflareStallsMitigated}" else "unavailable", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (state.cloudflareStallsMitigated > 0) Color(0xFF10B981) else Color(0xFFB45309))
                         }
                         Column {
                             Text("تراز فریم‌های نامرتب:", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text("${state.outOfOrderRealignedCount} پکت", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF8B5CF6))
+                            Text(if (state.outOfOrderRealignedCount > 0) "${state.outOfOrderRealignedCount} پکت" else "unavailable", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (state.outOfOrderRealignedCount > 0) Color(0xFF8B5CF6) else Color(0xFFB45309))
                         }
                     }
 
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        "تضمین عبور بی‌درنگ از تست‌های راستی‌آزمایی بات Cloudflare (Verifying you are human) بدون هنگ کردن و ممانعت از تکه‌تکه شدن بسته‌ها (IP Fragmentation).",
+                        "این بخش فقط پیکربندی است؛ هیچ ادعای عبور زنده از چالش Cloudflare بدون بک‌اند واقعی ثبت نمی‌شود.",
                         fontSize = 10.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         lineHeight = 14.sp
@@ -376,7 +386,7 @@ fun DualModeTransportScreen() {
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text("تنظیمات انتقال چندمسیره (Mode A)", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                             }
-                            Text("${state.concurrentPaths} مسیر همزمان", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                            Text("${state.concurrentPaths} مسیر درخواستی (بدون اندازه‌گیری واقعی)", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                         }
 
                         Spacer(modifier = Modifier.height(12.dp))
@@ -425,6 +435,17 @@ fun DualModeTransportScreen() {
             }
 
             // Path Matrix
+            if (state.paths.isEmpty()) {
+                item {
+                    Text(
+                        "No real QUIC path measurements (backend not wired).",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 4.dp)
+                    )
+                }
+            }
+
             items(state.paths) { path ->
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
@@ -441,7 +462,7 @@ fun DualModeTransportScreen() {
                                 Box(
                                     modifier = Modifier
                                         .size(10.dp)
-                                        .background(Color(0xFF10B981), CircleShape)
+                                        .background(if (path.measured) Color(0xFF10B981) else Color(0xFFB45309), CircleShape)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text("مسیر #${path.pathId}: ${path.regionTag}", fontSize = 13.sp, fontWeight = FontWeight.Bold)
@@ -517,7 +538,7 @@ fun DualModeTransportScreen() {
 
                         Spacer(modifier = Modifier.height(10.dp))
                         Text(
-                            "در این حالت بسته‌ها با ۵ لایه رمزنگاری متقارن درون‌هم کپسوله‌سازی می‌شوند. هر هاپ صرفاً لایه خود را رمزگشایی کرده و آدرس هاپ بعدی را بدون دسترسی به محتوا پیدا می‌کند.",
+                            "این حالت پیکربندی Mode B را فعال می‌کند، اما هیچ هاپ واقعی در این بیلد اندازه‌گیری نشده است.",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -540,6 +561,17 @@ fun DualModeTransportScreen() {
             }
 
             // 5-Hop Nodes Chain
+            if (state.hops.isEmpty()) {
+                item {
+                    Text(
+                        "No real layered-hop measurements (backend not wired).",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 4.dp)
+                    )
+                }
+            }
+
             items(state.hops) { hop ->
                 Card(
                     colors = CardDefaults.cardColors(
@@ -548,7 +580,11 @@ fun DualModeTransportScreen() {
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.border(
                         1.dp,
-                        if (hop.isHealthy) MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f) else Color(0xFFEF4444).copy(alpha = 0.5f),
+                        when {
+                            !hop.measured -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+                            hop.isHealthy -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+                            else -> Color(0xFFEF4444).copy(alpha = 0.5f)
+                        },
                         RoundedCornerShape(12.dp)
                     )
                 ) {
@@ -562,7 +598,14 @@ fun DualModeTransportScreen() {
                                 Box(
                                     modifier = Modifier
                                         .size(10.dp)
-                                        .background(if (hop.isHealthy) Color(0xFF10B981) else Color(0xFFEF4444), CircleShape)
+                                        .background(
+                                            when {
+                                                !hop.measured -> Color(0xFFB45309)
+                                                hop.isHealthy -> Color(0xFF10B981)
+                                                else -> Color(0xFFEF4444)
+                                            },
+                                            CircleShape
+                                        )
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text("هاپ #${hop.hopIndex}: ${hop.regionTag}", fontSize = 13.sp, fontWeight = FontWeight.Bold)
@@ -570,22 +613,29 @@ fun DualModeTransportScreen() {
                             Button(
                                 onClick = { engine.toggleHopHealth(hop.hopIndex) },
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (hop.isHealthy) MaterialTheme.colorScheme.surfaceVariant else Color(0xFFEF4444)
+                                    containerColor = if (!hop.measured) MaterialTheme.colorScheme.surfaceVariant else if (hop.isHealthy) MaterialTheme.colorScheme.surfaceVariant else Color(0xFFEF4444)
                                 ),
                                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
                                 modifier = Modifier.height(28.dp)
                             ) {
                                 Text(
-                                    if (hop.isHealthy) "تست قطعی" else "بازیابی نود",
+                                    if (!hop.measured) "شبیه‌سازی" else if (hop.isHealthy) "تست قطعی" else "بازیابی نود",
                                     fontSize = 10.sp,
-                                    color = if (hop.isHealthy) MaterialTheme.colorScheme.onSurface else Color.White
+                                    color = if (hop.isHealthy || !hop.measured) MaterialTheme.colorScheme.onSurface else Color.White
                                 )
                             }
                         }
 
                         Spacer(modifier = Modifier.height(6.dp))
                         Text("لایه رمزنگاری: ${hop.encryptionLayer}", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary)
-                        Text("آدرس نود: ${hop.endpoint} • تاخیر تخمینی: ${hop.rttMs} ms", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            if (hop.measured)
+                                "آدرس نود: ${hop.endpoint} • تاخیر اندازه‌گیری‌شده: ${hop.rttMs} ms"
+                            else
+                                "آدرس نود: ${hop.endpoint} • بدون اندازه‌گیری واقعی",
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }
@@ -607,7 +657,7 @@ fun DualModeTransportScreen() {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.Speed, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(20.dp))
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("سنجش عملکرد واقعی (Directive v70 Benchmark)", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            Text("سنجش عملکرد (Benchmark — بدون بک‌اند واقعی)", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                         }
 
                         Button(
@@ -624,6 +674,15 @@ fun DualModeTransportScreen() {
                                 Text("اجرای بنچمارک", fontSize = 11.sp)
                             }
                         }
+                    }
+
+                    if (state.benchmarkResults.isEmpty()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "No real benchmark backend is wired in; no results are generated.",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
 
                     if (state.benchmarkResults.isNotEmpty()) {

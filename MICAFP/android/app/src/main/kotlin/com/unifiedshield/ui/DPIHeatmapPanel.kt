@@ -30,6 +30,7 @@ fun DPIHeatmapPanel(
     val context = LocalContext.current
     val store = remember { UnifiedShieldStore.getInstance(context) }
     val storeState by store.state.collectAsState()
+    val heatmapUnavailable = storeState.heatmapNodes.all { it.backendUnavailable }
 
     Card(
         modifier = modifier
@@ -71,7 +72,10 @@ fun DPIHeatmapPanel(
                             color = if (storeState.isPanicModeActive) Color(0xFFFCA5A5) else MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "ماتریس حرارتی شدت فیلترینگ در هاب‌های اپراتوری و سوئیچ خودکار به هسته سایه",
+                            text = if (heatmapUnavailable)
+                                "هیچ پروب واقعی DPI متصل نیست؛ نتایج حرارتی در دسترس نیست"
+                            else
+                                "ماتریس حرارتی شدت فیلترینگ در هاب‌های اپراتوری",
                             fontSize = 11.sp,
                             color = if (storeState.isPanicModeActive) Color(0xFFFECACA) else MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -83,8 +87,8 @@ fun DPIHeatmapPanel(
                         Text("PANIC ACTIVE")
                     }
                 } else {
-                    Badge(containerColor = Color(0x2210B981), contentColor = Color(0xFF10B981)) {
-                        Text("SECURE")
+                    Badge(containerColor = if (heatmapUnavailable) Color(0x22B45309) else Color(0x2210B981), contentColor = if (heatmapUnavailable) Color(0xFFB45309) else Color(0xFF10B981)) {
+                        Text(if (heatmapUnavailable) "UNAVAILABLE" else "SECURE")
                     }
                 }
             }
@@ -167,6 +171,7 @@ fun DPIHeatmapPanel(
 
             storeState.heatmapNodes.forEach { node ->
                 val nodeColor = when {
+                    node.backendUnavailable -> Color(0xFFB45309)
                     node.dpiThreatScore >= storeState.dpiCriticalThreshold -> Color(0xFFEF4444)
                     node.dpiThreatScore >= 70 -> Color(0xFFF59E0B)
                     else -> Color(0xFF10B981)
@@ -206,13 +211,16 @@ fun DPIHeatmapPanel(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(horizontalAlignment = Alignment.End) {
                                 Text(
-                                    text = "${node.dpiThreatScore}% Threat",
+                                    text = if (node.backendUnavailable) "unavailable" else "${node.dpiThreatScore}% Threat",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = nodeColor
                                 )
                                 Text(
-                                    text = "RST: ${(node.rstRate * 100).toInt()}% | Drop: ${(node.packetDropRate * 100).toInt()}%",
+                                    text = if (node.backendUnavailable)
+                                        "بدون پروب واقعی"
+                                    else
+                                        "RST: ${(node.rstRate * 100).toInt()}% | Drop: ${(node.packetDropRate * 100).toInt()}%",
                                     fontSize = 9.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )

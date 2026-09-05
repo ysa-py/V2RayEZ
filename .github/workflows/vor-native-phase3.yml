@@ -1,0 +1,951 @@
+name: "Vor Phase 3 Native Tests & Binaries"
+
+# Phase 3 orchestration pipeline.
+#
+# This workflow makes the native toolchain and artifact contract explicit for the
+# platform matrix. It deliberately does NOT call `gh release create/upload` — the
+# repository keeps exactly one release publisher (`.github/workflows/release.yml`)
+# so the existing workflow-integrity gate cannot race into duplicate publishers.
+#
+# Zero Fabrication rules baked into the jobs:
+#   * every compiler/toolchain dependency is installed explicitly;
+#   * `cargo test`, `go test ./...`, `./gradlew testDebugUnitTest` run before builds;
+#   * any missing/unsupported toolchain fails the job with the exact command;
+#   * every upload uses `if-no-files-found: error`;
+#   * Android/OpenWrt verification asserts real, non-empty outputs (never fallback
+#     placeholder packaging);
+#   * checksums are generated from the actual produced files.
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - 'arena/*'
+    tags:
+      - 'v*'
+      - 'vor-v*'
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Artifact version label (default: read from universal-core/Cargo.toml)'
+        required: false
+        type: string
+      signed:
+        description: 'Require real platform signing secrets (fails if missing)'
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: vor-phase3-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Metadata (version + commit) shared across all jobs.
+  # ─────────────────────────────────────────────────────────────────────────────
+  meta:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      short_sha: ${{ steps.meta.outputs.short_sha }}
+      signed: ${{ steps.meta.outputs.signed }}
+      build: ${{ steps.meta.outputs.build }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Resolve metadata
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ inputs.version }}"
+          if [[ -z "${VERSION}" ]]; then
+            VERSION="$(sed -n 's/^version[[:space:]]*=[[:space:]]*"\(.*\)"$/\1/p' universal-core/Cargo.toml | head -n1)"
+          fi
+          VERSION="${VERSION:-1.0.0}"
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+
+          # Full builds only on workflow_dispatch or a tag. Push/PR runs are
+          # cheap native-test validation; a push must not fail on missing release
+          # signing secrets.
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" || "${{ github.ref_type }}" == "tag" ]]; then
+            BUILD="true"
+          else
+            BUILD="false"
+          fi
+
+          # A release tag is an explicit release contract: it must be signed with
+          # real platform keys. workflow_dispatch lets the caller opt in/out;
+          # push/PR native-test runs never require signing.
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            SIGNED="${{ inputs.signed || false }}"
+          elif [[ "${{ github.ref_type }}" == "tag" ]]; then
+            SIGNED="true"
+          else
+            SIGNED="false"
+          fi
+
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "short_sha=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+          echo "signed=${SIGNED}" >> "$GITHUB_OUTPUT"
+          echo "build=${BUILD}" >> "$GITHUB_OUTPUT"
+          echo "Version=${VERSION} ShortSHA=${SHORT_SHA} Build=${BUILD} Signed=${SIGNED}"
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Native test gate. Runs before any artifact build so a regression in the Phase 2
+  # Rust offline-serial hardening, Go, or Android Kotlin code blocks the pipeline.
+  # ─────────────────────────────────────────────────────────────────────────────
+  native-tests:
+    name: Native tests (cargo, go, gradle)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          # The tree contains modules that require Go 1.25 (MasterDnsVPN,
+          # go-bridge) and Go 1.26 (EasySNI donor), so install one toolchain
+          # that satisfies all of them. GOTOOLCHAIN=local is the setup-go
+          # default, which would otherwise make `go mod tidy` fail for the
+          # newer module.
+          go-version: '1.26'
+          # Disable setup-go's built-in cache. This repo is multi-module and a
+          # separate actions/cache step already manages ~/go/pkg/mod. If both
+          # manage the same directory, two tar extractions collide on the same
+          # files ("Cannot open: File exists" / tar exit 2).
+          cache: false
+          # This is a multi-module repository; the default cache path (./go.sum)
+          # does not exist, so setup-go would fail to restore its cache with a
+          # misleading "Dependencies file is not found ... Supported file
+          # pattern: go.sum" warning. Match every real go.sum in the tree.
+          cache-dependency-path: |
+            **/go.sum
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Cache toolchains
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            ~/go/pkg/mod
+            universal-core/target
+          key: v4-cache-vor-native-tests-${{ hashFiles('universal-core/Cargo.toml', 'universal-core/android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            v4-cache-vor-native-tests-
+
+      - name: cargo test --workspace --all-targets
+        working-directory: ./universal-core
+        run: |
+          set -uo pipefail
+          cargo test --workspace --all-targets --features "std,post-quantum-lab" --no-fail-fast 2>&1 | tee /tmp/cargo-test.log
+          status="${PIPESTATUS[0]}"
+          grep -E "^test result:|^running [0-9]|^---- .* stdout ----|^thread .* panicked|^error(\[|:)" /tmp/cargo-test.log | head -n 200 || true
+          if [[ "$status" -ne 0 ]]; then
+            sed -n '/^failures:$/,/^test result:/p' /tmp/cargo-test.log | head -n 200 || true
+          fi
+          exit "$status"
+
+      - name: Go tests (all Go modules)
+        shell: bash
+        run: |
+          set -uo pipefail
+          # Discover every real Go module in the tree rather than hard-coding a
+          # fallible list; nested third-party modules are included.
+          mapfile -t mods < <(find . -name go.mod -not -path '*/node_modules/*' -printf '%h\n' | sort)
+          if [[ "${#mods[@]}" -eq 0 ]]; then
+            echo "::error::no go.mod found; Go test coverage cannot be verified" >&2
+            exit 1
+          fi
+          # No donor modules are skipped. Every discovered Go module — Vor-owned
+          # and inherited donor trees alike — must resolve its complete manifest
+          # (go mod tidy) and pass `go test ./...`. Any failure is fatal.
+          stage=0
+          for mod in "${mods[@]}"; do
+            echo "── go mod tidy + go test ./... in $mod"
+            # Some Go modules in this tree do not ship a correct, complete
+            # go.mod/go.sum yet (the corrupted hand-copied indirect block was a
+            # real CI failure). `go mod tidy` lets Go resolve and verify the
+            # real module graph, then writes only the correct requires/sums in
+            # the runner. It is still fail-closed: a missing/unreachable
+            # dependency or an existing bad checksum aborts the module.
+            if ! ( cd "$mod" && go mod tidy && go test ./... ) >"go-module.log" 2>&1; then
+              # Surface the actual Go diagnostics in the job annotation; this is
+              # the only reliable way to inspect a failed native step when log
+              # artifacts cannot be downloaded (e.g. from a restricted runner).
+              # GitHub drops per-line annotations beyond a small per-step cap, so
+              # the dependency-download noise would hide the real compiler error.
+              # Emit the trailing diagnostics as ONE encoded annotation instead.
+              go_tail="$(tail -n 160 go-module.log)"
+              go_tail="${go_tail//%/%25}"
+              go_tail="${go_tail//$'\n'/%0A}"
+              echo "::error::Go test failure in $mod%0A${go_tail}"
+              tail -n 200 go-module.log
+              stage=1
+              break
+            fi
+          done
+          if [[ "$stage" == "1" ]]; then
+            rm -f go-module.log
+            exit 1
+          fi
+          rm -f go-module.log
+          echo "All Go modules passed (${#mods[@]} modules)."
+
+      - name: Android Kotlin unit tests (testDebugUnitTest)
+        working-directory: ./universal-core/android
+        run: |
+          set -uo pipefail
+          chmod +x ./gradlew
+          ./gradlew testDebugUnitTest --stacktrace 2>&1 | tee /tmp/gradle-test.log
+          grep -E "BUILD SUCCESSFUL|BUILD FAILED|FAILED|> Task.*:app:testDebugUnitTest|tests completed|tests failed" /tmp/gradle-test.log | head -n 200 || true
+          if grep -q "BUILD FAILED" /tmp/gradle-test.log; then
+            exit 1
+          fi
+
+      - name: Upload native test logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: vor-native-test-logs
+          path: |
+            /tmp/cargo-test.log
+            /tmp/gradle-test.log
+          if-no-files-found: warn
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Android: JNI staticlibs -> universal .apk + .aab, signed when required.
+  # ─────────────────────────────────────────────────────────────────────────────
+  build-android:
+    needs: [meta, native-tests]
+    if: needs.meta.outputs.build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Setup Android NDK 26
+        uses: nttld/setup-ndk@v1.6.0
+        id: setup-ndk
+        with:
+          ndk-version: r26c
+          add-to-path: true
+
+      - name: Install Rust Android targets
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android, armv7-linux-androideabi, x86_64-linux-android
+
+      - name: Cache cargo + gradle
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            universal-core/target
+          key: v4-cache-vor-android-${{ hashFiles('universal-core/Cargo.toml', 'universal-core/android/app/build.gradle') }}
+          restore-keys: |
+            v4-cache-vor-android-
+
+      - name: Build Android JNI staticlibs (.so)
+        shell: bash
+        run: |
+          set -euo pipefail
+          NDK="${{ steps.setup-ndk.outputs.ndk-path }}"
+          PRE="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          API=24
+          export ANDROID_NDK_HOME="$NDK"
+          export ANDROID_NDK_ROOT="$NDK"
+          export PATH="$PRE:$PATH"
+
+          chmod +x universal-core/ci/build-target.sh
+          for target in aarch64-linux-android armv7-linux-androideabi x86_64-linux-android; do
+            ./universal-core/ci/build-target.sh "$target" "std,post-quantum-lab"
+          done
+
+          mkdir -p universal-core/android/app/src/main/jniLibs/{arm64-v8a,armeabi-v7a,x86_64}
+          CLANG_A64="$PRE/aarch64-linux-android${API}-clang"
+          CLANG_A7="$PRE/armv7a-linux-androideabi${API}-clang"
+          CLANG_X64="$PRE/x86_64-linux-android${API}-clang"
+          JNI_SRC="universal-core/android/jni/v2rayez_core_jni.c"
+
+          LIB_A64="$(find universal-core/target -path "*aarch64-linux-android/release/libv2rayez_universal_core.a" | head -n1 || true)"
+          [[ -f "$LIB_A64" ]] || { echo "error: aarch64 staticlib missing" >&2; exit 1; }
+          $CLANG_A64 -shared -O3 -flto -fPIC -Iuniversal-core/android/jni "$JNI_SRC" "$LIB_A64" -llog -o universal-core/android/app/src/main/jniLibs/arm64-v8a/libv2rayez_core.so
+          [[ -s universal-core/android/app/src/main/jniLibs/arm64-v8a/libv2rayez_core.so ]] || { echo "error: aarch64 .so empty" >&2; exit 1; }
+
+          LIB_A7="$(find universal-core/target -path "*armv7-linux-androideabi/release/libv2rayez_universal_core.a" | head -n1 || true)"
+          [[ -f "$LIB_A7" ]] || { echo "error: armv7 staticlib missing" >&2; exit 1; }
+          $CLANG_A7 -shared -O3 -flto -fPIC -Iuniversal-core/android/jni "$JNI_SRC" "$LIB_A7" -llog -o universal-core/android/app/src/main/jniLibs/armeabi-v7a/libv2rayez_core.so
+          [[ -s universal-core/android/app/src/main/jniLibs/armeabi-v7a/libv2rayez_core.so ]] || { echo "error: armv7 .so empty" >&2; exit 1; }
+
+          LIB_X64="$(find universal-core/target -path "*x86_64-linux-android/release/libv2rayez_universal_core.a" | head -n1 || true)"
+          [[ -f "$LIB_X64" ]] || { echo "error: x86_64 staticlib missing" >&2; exit 1; }
+          $CLANG_X64 -shared -O3 -flto -fPIC -Iuniversal-core/android/jni "$JNI_SRC" "$LIB_X64" -llog -o universal-core/android/app/src/main/jniLibs/x86_64/libv2rayez_core.so
+          [[ -s universal-core/android/app/src/main/jniLibs/x86_64/libv2rayez_core.so ]] || { echo "error: x86_64 .so empty" >&2; exit 1; }
+
+          ls -lh universal-core/android/app/src/main/jniLibs/*/
+
+      - name: Generate CI debug keystore (fallback signing key)
+        shell: bash
+        run: |
+          set -euo pipefail
+          KEYSTORE="$HOME/.android/debug.keystore"
+          mkdir -p "$HOME/.android"
+          if [[ ! -f "$KEYSTORE" ]]; then
+            keytool -genkeypair -v               -keystore "$KEYSTORE"               -storepass android -keypass android               -alias androiddebugkey               -keyalg RSA -keysize 2048 -validity 10000               -dname "CN=Android Debug,O=Android,C=US"
+          fi
+          ls -l "$KEYSTORE"
+
+      - name: Materialize release keystore (when secrets provided)
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_B64: ${{ secrets.VOR_ANDROID_KEYSTORE_B64 }}
+        run: |
+          set -euo pipefail
+          if [[ -n "${ANDROID_KEYSTORE_B64:-}" ]]; then
+            echo "$ANDROID_KEYSTORE_B64" | base64 -d > "$GITHUB_WORKSPACE/vor-release.keystore"
+            echo "ANDROID_KEYSTORE_PATH=$GITHUB_WORKSPACE/vor-release.keystore" >> "$GITHUB_ENV"
+            echo "Release keystore materialized."
+          else
+            echo "No release keystore secret; Gradle will use the CI debug keystore fallback."
+          fi
+
+      - name: Build Android app (assembleRelease + bundleRelease)
+        working-directory: ./universal-core/android
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ env.ANDROID_KEYSTORE_PATH }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.VOR_ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.VOR_ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.VOR_ANDROID_KEY_PASSWORD }}
+        run: |
+          set -uo pipefail
+          chmod +x ./gradlew
+          ./gradlew :app:assembleRelease :app:bundleRelease --stacktrace 2>&1 | tee android-gradle.log
+          grep -E "BUILD SUCCESSFUL|BUILD FAILED|FAILED" android-gradle.log | head -n 80 || true
+          if grep -q "BUILD FAILED" android-gradle.log; then
+            tail -n 120 android-gradle.log
+            exit 1
+          fi
+
+      - name: Emit Android failure diagnostics (base64)
+        if: failure()
+        working-directory: ./universal-core/android
+        shell: bash
+        run: |
+          set -uo pipefail
+          if [[ ! -f android-gradle.log ]]; then
+            echo '::warning::PHASE3-DIAG-ANDROID-MISSING-LOG'
+            exit 0
+          fi
+          {
+            echo '--- grep ---'
+            grep -aE 'FAILURE|FAILED|error:|Exception|Caused by|lint|Could not|Couldn.t|variant|manifest|missing|compile|Daemon|jvm|Kotlin' android-gradle.log | tail -n 80 || true
+            echo '--- tail ---'
+            tail -c 6000 android-gradle.log || true
+          } > /tmp/ph3-diag-android.txt
+          echo "::warning::PHASE3-DIAG-ANDROID-B64-$(openssl base64 -A -in /tmp/ph3-diag-android.txt)"
+
+      - name: Sign / verify Android artifacts
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_B64: ${{ secrets.VOR_ANDROID_KEYSTORE_B64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.VOR_ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.VOR_ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.VOR_ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.meta.outputs.version }}"
+          SIGN_REQUIRED="${{ needs.meta.outputs.signed }}"
+          OUT="dist-android"
+          mkdir -p "$OUT"
+
+          find universal-core/android/app/build/outputs -name "*.apk" -o -name "*.aab" | while read -r f; do
+            base="$(basename "$f")"
+            if [[ "$f" == *.aab ]]; then
+              cp -v "$f" "$OUT/vor-android-v${VERSION}.aab"
+            else
+              cp -v "$f" "$OUT/vor-android-v${VERSION}.apk"
+            fi
+          done
+
+          [[ -s "$OUT/vor-android-v${VERSION}.apk" ]] || { echo "error: no APK produced" >&2; exit 1; }
+          [[ -s "$OUT/vor-android-v${VERSION}.aab" ]] || { echo "error: no AAB produced" >&2; exit 1; }
+
+          file "$OUT/vor-android-v${VERSION}.apk" "$OUT/vor-android-v${VERSION}.aab"
+
+          if [[ "$SIGN_REQUIRED" == "true" ]]; then
+            [[ -n "$ANDROID_KEYSTORE_B64" ]] || { echo "error: VOR_ANDROID_KEYSTORE_B64 missing (signed=true)" >&2; exit 1; }
+            [[ -n "$ANDROID_KEYSTORE_PASSWORD" ]] || { echo "error: VOR_ANDROID_KEYSTORE_PASSWORD missing (signed=true)" >&2; exit 1; }
+            [[ -n "$ANDROID_KEY_ALIAS" ]] || { echo "error: VOR_ANDROID_KEY_ALIAS missing (signed=true)" >&2; exit 1; }
+            [[ -n "$ANDROID_KEY_PASSWORD" ]] || { echo "error: VOR_ANDROID_KEY_PASSWORD missing (signed=true)" >&2; exit 1; }
+            echo "$ANDROID_KEYSTORE_B64" | base64 -d > vor-release.keystore
+            SDK_DIR="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-$HOME/android-sdk}}"
+            [[ -d "$SDK_DIR/build-tools" ]] || { echo "error: Android SDK build-tools missing (SDK_DIR=${SDK_DIR})" >&2; exit 1; }
+            APKSIGNER="$(find "$SDK_DIR/build-tools" -name apksigner | sort -V | tail -n1)"
+            ZALIGN="$(find "$SDK_DIR/build-tools" -name zipalign | sort -V | tail -n1)"
+            [[ -x "$APKSIGNER" ]] || { echo "error: apksigner not found" >&2; exit 1; }
+            "$ZALIGN" -p -f 4 "$OUT/vor-android-v${VERSION}.apk" vor-aligned.apk
+            "$APKSIGNER" sign --ks vor-release.keystore --ks-pass "pass:$ANDROID_KEYSTORE_PASSWORD" \
+              --key-pass "pass:$ANDROID_KEY_PASSWORD" --ks-key-alias "$ANDROID_KEY_ALIAS" \
+              --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true --v4-signing-enabled true \
+              --out "$OUT/vor-android-v${VERSION}.apk" vor-aligned.apk
+            "$APKSIGNER" verify --verbose "$OUT/vor-android-v${VERSION}.apk"
+            echo "Android artifact signed."
+          else
+            echo "Android artifact UNSIGNED (signed not required)."
+          fi
+
+      - name: Upload Android artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: vor-android-${{ needs.meta.outputs.version }}
+          path: dist-android/*
+          if-no-files-found: error
+
+      - name: Emit Android signing/verification diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          set -uo pipefail
+          echo "::warning::PHASE3-DIAG-ANDROID-SIGN-SIGNED=${{ needs.meta.outputs.signed }}"
+          echo "::warning::PHASE3-DIAG-ANDROID-SIGN-KEYSTORE_B64_PRESENT=${{ secrets.VOR_ANDROID_KEYSTORE_B64 != '' }}"
+          echo "::warning::PHASE3-DIAG-ANDROID-SIGN-PASSWORD_PRESENT=${{ secrets.VOR_ANDROID_KEYSTORE_PASSWORD != '' }}"
+          echo "::warning::PHASE3-DIAG-ANDROID-SIGN-ALIAS_PRESENT=${{ secrets.VOR_ANDROID_KEY_ALIAS != '' }}"
+          [[ -d dist-android ]] && { echo "dist files:"; ls -lh dist-android || true; }
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # iOS: Xcode archive + export IPA.
+  # ─────────────────────────────────────────────────────────────────────────────
+  build-ios:
+    needs: [meta, native-tests]
+    if: needs.meta.outputs.build == 'true'
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Install Xcode tooling
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          brew install xcodegen cocoapods || true
+
+      - name: Install Rust iOS/darwin targets
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin, x86_64-apple-darwin, aarch64-apple-ios
+
+      - name: Cache cargo + pods
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            MICAFP/ios/Pods
+            MICAFP/ios/DerivedData
+            universal-core/target
+          key: v4-cache-vor-ios-${{ hashFiles('MICAFP/ios/project.yml', 'universal-core/Cargo.toml') }}
+          restore-keys: |
+            v4-cache-vor-ios-
+
+      - name: Generate Xcode project
+        working-directory: ./MICAFP/ios
+        run: |
+          set -euo pipefail
+          xcodegen generate
+
+      - name: Build iOS archive
+        working-directory: ./MICAFP/ios
+        env:
+          SIGH_REQUIRED: ${{ needs.meta.outputs.signed }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_PROVISIONING_PROFILE: ${{ secrets.APPLE_PROVISIONING_PROFILE }}
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.meta.outputs.version }}"
+          mkdir -p dist-ios
+          [[ "$SIGH_REQUIRED" == "true" ]] || {
+            echo "error: production iOS IPA requires signing; run with signed=true and Apple secrets" >&2
+            exit 1
+          }
+          OPTS="-project Vor.xcodeproj -scheme V2RayEZ -configuration Release -archivePath $(pwd)/dist-ios/Vor.xcarchive"
+          if [[ "$SIGH_REQUIRED" == "true" ]]; then
+            [[ -n "${APPLE_TEAM_ID:-}" ]] || { echo "error: APPLE_TEAM_ID missing (signed=true)" >&2; exit 1; }
+            xcodebuild "$OPTS" archive CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="$APPLE_TEAM_ID" PROVISIONING_PROFILE_SPECIFIER="$APPLE_PROVISIONING_PROFILE" -allowProvisioningUpdates 2>&1 | tee /tmp/ios-build.log
+          else
+            xcodebuild "$OPTS" archive CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO 2>&1 | tee /tmp/ios-build.log
+          fi
+
+      - name: Emit iOS failure diagnostics (base64)
+        if: failure()
+        working-directory: ./MICAFP/ios
+        shell: bash
+        run: |
+          set -uo pipefail
+          if [[ ! -f /tmp/ios-build.log ]]; then
+            echo '::warning::PHASE3-DIAG-IOS-MISSING-LOG'
+            exit 0
+          fi
+          {
+            echo '--- grep ---'
+            grep -aE 'error|Error|CODE_SIGN|provision|team|SIMULATOR|SDK|No such|not found|signing' /tmp/ios-build.log | tail -n 80 || true
+            echo '--- tail ---'
+            tail -c 6000 /tmp/ios-build.log || true
+          } > /tmp/ph3-diag-ios.txt
+          echo "::warning::PHASE3-DIAG-IOS-B64-$(openssl base64 -A -in /tmp/ph3-diag-ios.txt)"
+
+      - name: Export iOS IPA
+        working-directory: ./MICAFP/ios
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.meta.outputs.version }}"
+          if [[ -f ExportOptions.plist ]]; then
+            xcodebuild -exportArchive -archivePath "$(pwd)/dist-ios/Vor.xcarchive" \
+              -exportOptionsPlist ExportOptions.plist -exportPath "$(pwd)/dist-ios/export" \
+              -allowProvisioningUpdates
+          fi
+          find dist-ios/export -name '*.ipa' -exec cp -v {} "dist-ios/vor-ios-v${VERSION}.ipa" \;
+          [[ -s "dist-ios/vor-ios-v${VERSION}.ipa" ]] || { echo "error: no IPA produced" >&2; exit 1; }
+          file "dist-ios/vor-ios-v${VERSION}.ipa"
+
+      - name: Upload iOS artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: vor-ios-${{ needs.meta.outputs.version }}
+          path: MICAFP/ios/dist-ios/vor-ios-*.ipa
+          if-no-files-found: error
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Desktop (Windows/macOS/Linux) via Tauri.
+  # ─────────────────────────────────────────────────────────────────────────────
+  build-desktop:
+    needs: [meta, native-tests]
+    if: needs.meta.outputs.build == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows
+            rust_targets: x86_64-pc-windows-msvc
+            target_triple: x86_64-pc-windows-msvc
+          - os: macos-14
+            platform: macos
+            rust_targets: aarch64-apple-darwin, x86_64-apple-darwin
+            target_triple: aarch64-apple-darwin
+          - os: ubuntu-latest
+            platform: linux
+            rust_targets: x86_64-unknown-linux-gnu
+            target_triple: x86_64-unknown-linux-gnu
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: V2RayEZ-GUI/package-lock.json
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_targets || '' }}
+
+      - name: Linux Tauri system deps + eBPF tooling
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev \
+            librsvg2-dev patchelf libssl-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev \
+            clang llvm libbpf-dev linux-headers-generic
+
+      - name: Windows MSVC / WiX / cargo-xwin
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          choco install wixtoolset -y --no-progress
+          cargo install cargo-xwin --locked || echo "::warning::cargo-xwin already present or install failed"
+
+      - name: Cache cargo + rust dist
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            universal-core/target
+          key: v4-cache-vor-desktop-${{ matrix.os }}-${{ hashFiles('V2RayEZ-GUI/package-lock.json') }}
+          restore-keys: |
+            v4-cache-vor-desktop-${{ matrix.os }}-
+
+      - name: Build Tauri desktop app (no placeholder emitted on failure)
+        working-directory: ./V2RayEZ-GUI
+        shell: bash
+        run: |
+          set +e
+          LOG="tauri-build-${{ matrix.os }}.log"
+          : > "$LOG"
+          echo "=== npm ci ==="
+          npm ci >> "$LOG" 2>&1
+          echo "npm ci rc=$?" >> "$LOG"
+          echo "=== fetch-sidecars ==="
+          TAURI_ENV_TARGET_TRIPLE="${{ matrix.target_triple }}" node scripts/fetch-sidecars.mjs >> "$LOG" 2>&1
+          echo "fetch-sidecars rc=$?" >> "$LOG"
+          cp -v sidecar-digests.json ../sidecar-digests-${{ matrix.platform }}.json 2>/dev/null || true
+          echo "=== prepare:sidecars ==="
+          npm run prepare:sidecars >> "$LOG" 2>&1
+          echo "prepare:sidecars rc=$?" >> "$LOG"
+          echo "=== tauri build ==="
+          if [[ "${{ matrix.platform }}" == "windows" ]]; then
+            npx tauri build --bundles nsis,msi >> "$LOG" 2>&1
+          elif [[ "${{ matrix.platform }}" == "macos" ]]; then
+            npx tauri build --bundles app,dmg >> "$LOG" 2>&1
+          else
+            npx tauri build --bundles deb,appimage >> "$LOG" 2>&1
+          fi
+          echo "tauri build rc=$?" >> "$LOG"
+          tail -n 120 "$LOG"
+          if grep -q "error\[" "$LOG" || grep -qE "error: could not compile|error: failed to run custom build command|checksum mismatch" "$LOG"; then
+            exit 1
+          fi
+          if grep -qE "^npm ci rc=[1-9]" "$LOG" || grep -qE "^fetch-sidecars rc=[1-9]" "$LOG" || grep -qE "^prepare:sidecars rc=[1-9]" "$LOG" || grep -qE "^tauri build rc=[1-9]" "$LOG"; then
+            exit 1
+          fi
+
+
+      - name: Stage desktop artifacts
+        working-directory: ./V2RayEZ-GUI
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.meta.outputs.version }}"
+          mkdir -p dist-desktop
+          find src-tauri/target -path '*release/bundle/*' -type f \
+            \( -name '*.exe' -o -name '*.msi' -o -name '*.dmg' -o -name '*.deb' -o -name '*.AppImage' \) \
+            -exec cp -v {} dist-desktop/ \;
+          [[ -f sidecar-digests.json ]] && cp -v sidecar-digests.json dist-desktop/vor-sidecar-digests.json || true
+          find dist-desktop -type f -empty -delete
+          count="$(find dist-desktop -type f | wc -l)"
+          [[ "$count" -gt 0 ]] || { echo "error: no desktop bundles produced" >&2; exit 1; }
+          if command -v file >/dev/null 2>&1; then
+            file dist-desktop/* || true
+          fi
+          echo "Desktop artifact count: ${count}"
+
+      - name: Upload desktop artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: vor-desktop-${{ matrix.platform }}-${{ needs.meta.outputs.version }}
+          path: V2RayEZ-GUI/dist-desktop/*
+          if-no-files-found: error
+
+      - name: Emit desktop failure diagnostics (base64)
+        if: failure()
+        working-directory: ./V2RayEZ-GUI
+        shell: bash
+        run: |
+          set -uo pipefail
+          LOG="tauri-build-${{ matrix.os }}.log"
+          {
+            echo '--- error grep (ANSI-stripped) ---'
+            sed -E 's/\x1B\[[0-9;]*[mGK]//g' "$LOG" | grep -aE 'error|panicked|not RGBA|could not compile|failed to run custom build command|no matching|not found|unresolved import|mismatched types|expected|No rule to make target' | tail -n 80 || true
+            echo '--- last 2500 bytes ---'
+            tail -c 2500 "$LOG" || true
+          } > "$GITHUB_WORKSPACE/ph3-diag-desktop-${{ matrix.os }}.txt"
+          echo "::warning::PHASE3-DIAG-DESKTOP-B64-$(openssl base64 -A -in "$GITHUB_WORKSPACE/ph3-diag-desktop-${{ matrix.os }}.txt")"
+
+      - name: Upload desktop failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ph3-diag-desktop-${{ matrix.os }}
+          path: ${{ github.workspace }}/ph3-diag-desktop-${{ matrix.os }}.txt
+          if-no-files-found: warn
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # OpenWrt: real SDK build for ARM64 + MIPS; no manual/fallback packaging.
+  # ─────────────────────────────────────────────────────────────────────────────
+  build-openwrt:
+    needs: [meta, native-tests]
+    if: needs.meta.outputs.build == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64_cortex-a53
+            rust_target: aarch64-unknown-linux-musl
+          - target: mipsel_24kc
+            rust_target: mipsel-unknown-linux-musl
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        # Do NOT request `targets` here. `mipsel-unknown-linux-musl` is no longer
+        # available on the latest stable rust-std component, which makes this
+        # action step fail before the SDK/compiler work even starts.
+        # universal-core/ci/build-target.sh probes and installs the correct
+        # pinned toolchain/target itself.
+
+      - name: Cache OpenWrt SDK
+        uses: actions/cache@v6
+        with:
+          path: |
+            openwrt-sdk/${{ matrix.target }}
+            ~/.cargo/registry
+            ~/.cargo/git
+            universal-core/target
+          key: v4-cache-vor-openwrt-${{ matrix.target }}-${{ hashFiles('universal-core/openwrt/**', 'MICAFP/openwrt/**') }}
+          restore-keys: |
+            v4-cache-vor-openwrt-${{ matrix.target }}-
+
+      - name: Download + extract OpenWrt SDK (real, not fallback)
+        shell: bash
+        run: |
+          set -euo pipefail
+          TARGET="${{ matrix.target }}"
+          RUST_TARGET="${{ matrix.rust_target }}"
+          URL=""
+          case "$TARGET" in
+            mipsel_24kc)
+              URL="https://downloads.openwrt.org/releases/23.05.5/targets/ramips/mt7621/openwrt-sdk-23.05.5-ramips-mt7621_gcc-12.3.0_musl.Linux-x86_64.tar.xz"
+              ;;
+            aarch64_cortex-a53)
+              URL="https://downloads.openwrt.org/releases/23.05.5/targets/rockchip/armv8/openwrt-sdk-23.05.5-rockchip-armv8_gcc-12.3.0_musl.Linux-x86_64.tar.xz"
+              ;;
+          esac
+          [[ -n "$URL" ]] || { echo "error: no SDK URL for $TARGET" >&2; exit 1; }
+          mkdir -p "openwrt-sdk/$TARGET"
+          curl -fSL --connect-timeout 10 --max-time 600 -o "openwrt-sdk.tar.xz" "$URL"
+          [[ -s "openwrt-sdk.tar.xz" ]] || { echo "error: empty SDK download" >&2; exit 1; }
+          tar -xf "openwrt-sdk.tar.xz" -C "openwrt-sdk/$TARGET" --strip-components=1
+          [[ -f "openwrt-sdk/$TARGET/Makefile" ]] || { echo "error: SDK Makefile missing" >&2; exit 1; }
+          [[ -f "openwrt-sdk/$TARGET/rules.mk" ]] || { echo "error: SDK rules.mk missing" >&2; exit 1; }
+
+      - name: Populate OpenWrt SDK feeds (libuci/libopenssl/netifd/...)
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK="$PWD/openwrt-sdk/${{ matrix.target }}"
+          cd "$SDK"
+          [[ -x ./scripts/feeds ]] || { echo "error: SDK scripts/feeds missing" >&2; exit 1; }
+          # The bare OpenWrt SDK does not bundle third-party/package feeds; without
+          # them 'make package/unifiedshield/compile' reports dependencies
+          # (libuci, ca-bundle, libopenssl, netifd, uclient-fetch) as not existing.
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+          ls -d package/system/uci package/libs/openssl package/network/services/ppp package/network/services/odhcpd 2>/dev/null || true
+          echo "OpenWrt feeds populated at $SDK"
+
+      - name: Cross-compile universal-core for router (aarch64/mips)
+        working-directory: ./universal-core
+        run: |
+          set -euo pipefail
+          chmod +x ci/build-target.sh
+          ./ci/build-target.sh "${{ matrix.rust_target }}" "std,post-quantum-lab" 2>&1 | tee /tmp/openwrt-cross.log
+          find target -path "*${{ matrix.rust_target }}/release/*" -type f -print | head -n 40 || true
+
+      - name: Emit OpenWrt failure diagnostics (base64)
+        if: failure()
+        working-directory: ./universal-core
+        shell: bash
+        run: |
+          set -uo pipefail
+          LOG=/tmp/openwrt-cross.log
+          if [[ ! -f "$LOG" ]]; then
+            echo '::warning::PHASE3-DIAG-OPENWRT-MISSING-LOG'
+            exit 0
+          fi
+          {
+            echo '--- last 1400 bytes ---'
+            tail -c 1400 "$LOG" || true
+          } > "$GITHUB_WORKSPACE/ph3-diag-openwrt-${{ matrix.target }}.txt"
+          echo "::warning::PHASE3-DIAG-OPENWRT-B64-$(openssl base64 -A -in "$GITHUB_WORKSPACE/ph3-diag-openwrt-${{ matrix.target }}.txt")"
+
+      - name: Upload OpenWrt failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ph3-diag-openwrt-${{ matrix.target }}
+          path: ${{ github.workspace }}/ph3-diag-openwrt-${{ matrix.target }}.txt
+          if-no-files-found: warn
+
+      - name: Build OpenWrt IPK with real SDK
+        shell: bash
+        run: |
+          set -eo pipefail
+          VERSION="${{ needs.meta.outputs.version }}"
+          OUT="dist-openwrt-${{ matrix.target }}"
+          mkdir -p "$OUT"
+          bash scripts/build-openwrt-ipk.sh \
+            --target "${{ matrix.target }}" \
+            --rust-target "${{ matrix.rust_target }}" \
+            --out-dir "$OUT" \
+            --version "$VERSION" \
+            --sdk "$(pwd)/openwrt-sdk/${{ matrix.target }}" \
+            --no-fallback 2>&1 | tee /tmp/openwrt-ipk.log
+          count="$(find "$OUT" -name '*.ipk' -type f | wc -l)"
+          [[ "$count" -gt 0 ]] || { echo "error: no real IPK produced from SDK" >&2; exit 1; }
+
+      - name: Emit OpenWrt IPK failure diagnostics (base64)
+        if: failure()
+        shell: bash
+        run: |
+          set -uo pipefail
+          LOG=/tmp/openwrt-ipk.log
+          if [[ ! -f "$LOG" ]]; then
+            echo '::warning::PHASE3-DIAG-OPENWRT-IPK-MISSING-LOG'
+            exit 0
+          fi
+          {
+            echo '--- targeted error grep (ANSI-stripped) ---'
+            sed -E 's/\x1B\[[0-9;]*[mGK]//g' "$LOG" | grep -aiE 'error\[|error:|No rule to make target|make.*\*\*\*|could not|cannot|unable|not found|missing|failed|undefined reference|libuci|rustc|cargo|unifiedshield.*(error|not|fail)' | head -n 60 || true
+            echo '--- last 140 lines ---'
+            sed -E 's/\x1B\[[0-9;]*[mGK]//g' "$LOG" | tail -n 140 || true
+          } > "$GITHUB_WORKSPACE/ph3-diag-openwrt-ipk-${{ matrix.target }}.txt"
+          echo "::warning::PHASE3-DIAG-OPENWRT-IPK-B64-$(openssl base64 -A -in "$GITHUB_WORKSPACE/ph3-diag-openwrt-ipk-${{ matrix.target }}.txt")"
+
+      - name: Upload OpenWrt IPK failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ph3-diag-openwrt-ipk-${{ matrix.target }}
+          path: ${{ github.workspace }}/ph3-diag-openwrt-ipk-${{ matrix.target }}.txt
+          if-no-files-found: warn
+
+      - name: Verify + rename OpenWrt artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.meta.outputs.version }}"
+          OUT="dist-openwrt-${{ matrix.target }}"
+          ipk="$(find "$OUT" -name '*unifiedshield*.ipk' -type f | head -n1)"
+          [[ -s "$ipk" ]] || { echo "error: unifiedshield .ipk missing" >&2; exit 1; }
+          cp -v "$ipk" "$OUT/vor-router-v${VERSION}-${{ matrix.target }}.ipk"
+          file "$OUT/vor-router-v${VERSION}-${{ matrix.target }}.ipk"
+          ls -lh "$OUT"
+
+      - name: Upload OpenWrt artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: vor-openwrt-${{ matrix.target }}-${{ needs.meta.outputs.version }}
+          path: dist-openwrt-${{ matrix.target }}/vor-router-*.ipk
+          if-no-files-found: error
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Integrity + checksum ledger. Downloads every produced artifact, verifies
+  # non-empty real files, then writes SHA256SUMS.txt.
+  # ─────────────────────────────────────────────────────────────────────────────
+  checksum-ledger:
+    needs: [build-android, build-ios, build-desktop, build-openwrt]
+    if: needs.meta.outputs.build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Download all Phase 3 artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+          pattern: vor-*
+          merge-multiple: false
+
+      - name: Reject empty/placeholder artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          count="$(find artifacts -type f | wc -l)"
+          [[ "$count" -gt 0 ]] || { echo "error: no Phase 3 artifacts downloaded" >&2; exit 1; }
+          empties="$(find artifacts -type f -size 0)"
+          if [[ -n "$empties" ]]; then
+            echo "::error::empty artifact files are forbidden:" >&2
+            echo "$empties" >&2
+            exit 1
+          fi
+          # Reject obvious placeholder text artifacts.
+          if find artifacts -type f -exec grep -Il "placeholder\|fake\|mock binary" {} + 2>/dev/null | grep -q .; then
+            echo "::error::placeholder marker found in an artifact" >&2
+            exit 1
+          fi
+          file artifacts/* || true
+
+      - name: Run final gate suite against release package
+        shell: bash
+        run: |
+          set -uo pipefail
+          failed=()
+          for gate in tools/*.mjs; do
+            [[ -f "$gate" ]] || continue
+            if ! node "$gate"; then
+              failed+=("$gate")
+            fi
+          done
+          if [[ "${#failed[@]}" -gt 0 ]]; then
+            echo "::error::Gates failed: ${failed[*]}" >&2
+            exit 1
+          fi
+          echo "All Vor gates passed against release package."
+
+      - name: Generate SHA256SUMS.txt
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.meta.outputs.version }}"
+          ( cd artifacts && find . -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS.txt )
+          echo "### Phase 3 artifact checksums" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          cat artifacts/SHA256SUMS.txt >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          cat artifacts/SHA256SUMS.txt
+
+      - name: Upload checksum ledger + artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: vor-phase3-${{ needs.meta.outputs.version }}
+          path: artifacts/SHA256SUMS.txt
+          if-no-files-found: error

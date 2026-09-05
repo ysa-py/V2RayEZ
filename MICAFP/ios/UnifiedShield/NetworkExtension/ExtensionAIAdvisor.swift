@@ -7,7 +7,7 @@ struct ExtensionAIAdvice {
 
 final class ExtensionAIAdvisor {
     static let shared = ExtensionAIAdvisor()
-    private let defaults = UserDefaults(suiteName: "group.app.v2rayez.ios") ?? .standard
+    private let defaults = UserDefaults(suiteName: "group.app.vor.ios") ?? .standard
 
     private init() {}
 
@@ -21,7 +21,7 @@ final class ExtensionAIAdvisor {
         if lower.contains("dns") {
             text = "local_fallback: force tunnel DNS, keep domestic split exclusions, and retry conservative obfuscation."
         } else if lower.contains("core") || lower.contains("start") {
-            text = "local_fallback: switch V2RayEZ core profile, lower MTU, then retry Smart Connect policy."
+            text = "local_fallback: switch Vor core profile, lower MTU, then retry Smart Connect policy."
         } else {
             text = "local_fallback: retry conservative obfuscation, then switch core while kill-switch remains enabled."
         }

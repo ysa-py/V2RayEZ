@@ -4,17 +4,17 @@
 <dict>
     <!-- App identity — V2RayEZ is the final product/GUI identity. -->
     <key>CFBundleName</key>
-    <string>V2RayEZ</string>
+    <string>Vor</string>
     <key>CFBundleDisplayName</key>
-    <string>V2RayEZ</string>
+    <string>Vor</string>
     <key>CFBundleIdentifier</key>
-    <string>app.v2rayez.ios</string>
+    <string>app.vor.ios</string>
     <key>CFBundleVersion</key>
     <string>200</string>
     <key>CFBundleShortVersionString</key>
     <string>2.0.0</string>
     <key>V2RayEZKeychainAccessGroup</key>
-    <string>$(AppIdentifierPrefix)app.v2rayez.ios</string>
+    <string>$(AppIdentifierPrefix)app.vor.ios</string>
 
     <!-- Network Extension entitlement -->
     <key>UIBackgroundModes</key>
@@ -26,11 +26,11 @@
 
     <!-- Microphone permission for acoustic channel -->
     <key>NSMicrophoneUsageDescription</key>
-    <string>V2RayEZ needs microphone access for audio processing features.</string>
+    <string>Vor needs microphone access for audio processing features.</string>
 
     <!-- Privacy descriptions -->
     <key>NSLocalNetworkUsageDescription</key>
-    <string>V2RayEZ needs local network access for device communication.</string>
+    <string>Vor needs local network access for device communication.</string>
 
     <!-- App Transport Security — allow custom endpoints -->
     <key>NSAppTransportSecurity</key>
@@ -44,7 +44,7 @@
     <dict>
         <key>NEProviderExtensions</key>
         <dict>
-            <key>app.v2rayez.ios.PacketTunnel</key>
+            <key>app.vor.ios.PacketTunnel</key>
             <dict>
                 <key>TeamIdentifier</key>
                 <string>$(TeamIdentifierPrefix)</string>

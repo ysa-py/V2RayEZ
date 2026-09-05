@@ -1,5 +1,5 @@
 #!/usr/bin/env lua
--- V2RayEZ Universal / UnifiedShield OpenWrt AI Provider Gateway smoke test.
+-- Vor Universal / UnifiedShield OpenWrt AI Provider Gateway smoke test.
 -- Provider definitions live in UCI. Secrets are read from protected alias files and
 -- are never written back to UCI or LuCI output.
 
@@ -56,7 +56,7 @@ local function selected_provider()
 end
 
 local function local_fallback(provider, reason)
-    local name = provider and (provider.name or provider.id) or "V2RayEZ Local AI"
+    local name = provider and (provider.name or provider.id) or "Vor Local AI"
     local text = "local_fallback:" .. name .. ":" .. reason .. ": retry conservative obfuscation, then Smart Core switch"
     set_status(text)
     print(text)
@@ -92,7 +92,7 @@ local url = endpoint ~= "" and (base_url .. "/" .. endpoint) or base_url
 local alias = provider.api_key_alias or ""
 local api_key = alias ~= "" and read_file(SECRET_DIR .. "/" .. alias .. ".secret") or ""
 
-local prompt = "Suggest a safe V2RayEZ/OpenWrt anti-DPI fallback for a blocked TLS connection."
+local prompt = "Suggest a safe Vor/OpenWrt anti-DPI fallback for a blocked TLS connection."
 local payload
 if provider.request_template and provider.request_template ~= "" then
     payload = provider.request_template

@@ -35,20 +35,28 @@ pub fn protected_write(path: &Path, data: &[u8]) -> Result<(), String> {
     Ok(())
 }
 
+// windows-sys 0.59 renamed the Win32 DPAPI blob struct to CRYPT_INTEGER_BLOB
+// and no longer re-exports LocalFree from Win32::System::Memory. The blob is
+// still allocated by the DPAPI callee with LocalAlloc, so free it with the
+// real kernel32 LocalFree (declared here; identical ABI across Windows).
+#[cfg(windows)]
+unsafe extern "system" {
+    fn LocalFree(h_mem: *mut core::ffi::c_void) -> *mut core::ffi::c_void;
+}
+
 #[cfg(windows)]
 fn dpapi_protect(data: &[u8]) -> Result<Vec<u8>, String> {
     use std::ptr::{null, null_mut};
     use windows_sys::Win32::Security::Cryptography::{
-        CryptProtectData, CRYPTPROTECT_UI_FORBIDDEN, DATA_BLOB,
+        CryptProtectData, CRYPTPROTECT_UI_FORBIDDEN, CRYPT_INTEGER_BLOB,
     };
-    use windows_sys::Win32::System::Memory::LocalFree;
 
     unsafe {
-        let input = DATA_BLOB {
+        let input = CRYPT_INTEGER_BLOB {
             cbData: data.len().try_into().map_err(|_| "secret is too large")?,
             pbData: data.as_ptr() as *mut u8,
         };
-        let mut output = DATA_BLOB { cbData: 0, pbData: null_mut() };
+        let mut output = CRYPT_INTEGER_BLOB { cbData: 0, pbData: null_mut() };
         let ok = CryptProtectData(
             &input,
             null(),
@@ -71,16 +79,15 @@ fn dpapi_protect(data: &[u8]) -> Result<Vec<u8>, String> {
 fn dpapi_unprotect(data: &[u8]) -> Result<Vec<u8>, String> {
     use std::ptr::{null, null_mut};
     use windows_sys::Win32::Security::Cryptography::{
-        CryptUnprotectData, CRYPTPROTECT_UI_FORBIDDEN, DATA_BLOB,
+        CryptUnprotectData, CRYPTPROTECT_UI_FORBIDDEN, CRYPT_INTEGER_BLOB,
     };
-    use windows_sys::Win32::System::Memory::LocalFree;
 
     unsafe {
-        let input = DATA_BLOB {
+        let input = CRYPT_INTEGER_BLOB {
             cbData: data.len().try_into().map_err(|_| "secret is too large")?,
             pbData: data.as_ptr() as *mut u8,
         };
-        let mut output = DATA_BLOB { cbData: 0, pbData: null_mut() };
+        let mut output = CRYPT_INTEGER_BLOB { cbData: 0, pbData: null_mut() };
         let ok = CryptUnprotectData(
             &input,
             null_mut(),

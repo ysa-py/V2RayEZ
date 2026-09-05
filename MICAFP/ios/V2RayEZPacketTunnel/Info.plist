@@ -3,17 +3,17 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleName</key>
-    <string>V2RayEZPacketTunnel</string>
+    <string>VorPacketTunnel</string>
     <key>CFBundleDisplayName</key>
-    <string>V2RayEZ Packet Tunnel</string>
+    <string>Vor Packet Tunnel</string>
     <key>CFBundleIdentifier</key>
-    <string>app.v2rayez.ios.PacketTunnel</string>
+    <string>app.vor.ios.PacketTunnel</string>
     <key>CFBundleVersion</key>
     <string>200</string>
     <key>CFBundleShortVersionString</key>
     <string>2.0.0</string>
     <key>V2RayEZKeychainAccessGroup</key>
-    <string>$(AppIdentifierPrefix)app.v2rayez.ios</string>
+    <string>$(AppIdentifierPrefix)app.vor.ios</string>
     <key>NSExtension</key>
     <dict>
         <key>NSExtensionPointIdentifier</key>

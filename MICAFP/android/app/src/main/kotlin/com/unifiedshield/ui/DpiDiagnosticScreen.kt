@@ -66,20 +66,23 @@ fun DpiDiagnosticScreen() {
                             }
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
-                                Text("Live DPI Inspector & Spectrum", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                                Text("اسکنر زنده فیلترینگ و بردارهای سانسور هوشمند", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("DPI Inspector & Spectrum", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                Text("بررسی بردارهای سانسور — بدون پروب واقعی نتیجه‌ای در دسترس نیست", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
 
-                        Badge(containerColor = Color(0xFF10B981), contentColor = Color.White) {
-                            Text("${summary.bypassHealthScore}% سلامت عبور")
+                        Badge(
+                            containerColor = if (summary.backendUnavailable) Color(0x22F59E0B) else Color(0xFF10B981),
+                            contentColor = if (summary.backendUnavailable) Color(0xFFB45309) else Color.White
+                        ) {
+                            Text(if (summary.backendUnavailable) "UNAVAILABLE" else "${summary.bypassHealthScore}% سلامت عبور")
                         }
                     }
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    Text("اپراتور و گیت‌وی شناسایی شده: ${summary.ispName}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    Text("وضعیت مقابله فعال: ${summary.activeCureApplied}", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary)
+                    Text("اپراتور و گیت‌وی شناسایی شده: ${if (summary.ispName.isBlank()) "not measured" else summary.ispName}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Text("وضعیت مقابله فعال: ${if (summary.activeCureApplied.isBlank() || summary.activeCureApplied == "none") "none" else summary.activeCureApplied}", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary)
 
                     Spacer(modifier = Modifier.height(12.dp))
 
@@ -95,11 +98,11 @@ fun DpiDiagnosticScreen() {
                         if (summary.isRunningTest) {
                             CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("در حال تست بلادرنگ امواج و پروتکل‌ها...", fontSize = 13.sp)
+                            Text("در حال ثبت درخواست (بدون پروب واقعی)...", fontSize = 13.sp)
                         } else {
                             Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(20.dp))
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("شروع اسکن و رفع فوری فیلترینگ (Live Scan)", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Text("ثبت درخواست اسکن (پروب واقعی متصل نیست)", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -139,9 +142,9 @@ fun DpiDiagnosticScreen() {
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
-                                imageVector = if (item.isBlocked) Icons.Default.Cancel else Icons.Default.CheckCircle,
+                                imageVector = if (item.backendUnavailable) Icons.Default.Info else (if (item.isBlocked) Icons.Default.Cancel else Icons.Default.CheckCircle),
                                 contentDescription = null,
-                                tint = if (item.isBlocked) Color(0xFFEF4444) else Color(0xFF10B981),
+                                tint = if (item.backendUnavailable) Color(0xFFB45309) else (if (item.isBlocked) Color(0xFFEF4444) else Color(0xFF10B981)),
                                 modifier = Modifier.size(20.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
@@ -151,7 +154,12 @@ fun DpiDiagnosticScreen() {
                         if (item.isTesting) {
                             CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
                         } else {
-                            Text("${item.latencyMs} ms", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF10B981))
+                            Text(
+                                if (item.backendUnavailable || item.latencyMs <= 0) "unavailable" else "${item.latencyMs} ms",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (item.backendUnavailable) Color(0xFFB45309) else Color(0xFF10B981)
+                            )
                         }
                     }
 
@@ -160,16 +168,21 @@ fun DpiDiagnosticScreen() {
                     Spacer(modifier = Modifier.height(6.dp))
 
                     Surface(
-                        color = Color(0x1510B981),
+                        color = if (item.backendUnavailable) Color(0x22B45309) else Color(0x1510B981),
                         shape = RoundedCornerShape(8.dp)
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.Shield, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(14.dp))
+                            Icon(
+                                Icons.Default.Shield,
+                                contentDescription = null,
+                                tint = if (item.backendUnavailable) Color(0xFFB45309) else Color(0xFF10B981),
+                                modifier = Modifier.size(14.dp)
+                            )
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text(item.statusTextPersian, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = Color(0xFF10B981))
+                            Text(item.statusTextPersian, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = if (item.backendUnavailable) Color(0xFFB45309) else Color(0xFF10B981))
                         }
                     }
                 }

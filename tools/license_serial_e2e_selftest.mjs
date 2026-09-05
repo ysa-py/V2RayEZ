@@ -9,8 +9,10 @@ import {
   hashLicenseKey,
   licenseTimeState,
   makeLicensePayload,
+  signCompactToken,
   signGraceToken,
   signLicensePayload,
+  verifyCompactToken,
   verifyGraceToken,
   verifyLicenseKey,
 } from '../MICAFP/dashboard/src/lib/license-crypto.mjs';
@@ -177,6 +179,62 @@ function offlineStartDecision({ licenseKey, graceToken, accountId, deviceId, pla
   return { allowed: true, reason: 'valid_grace', hardCutoffAt: new Date(cutoffMs).toISOString() };
 }
 
+/**
+ * Pure-offline serial decision (no dashboard, no grace token). This is the path exercised by
+ * the separate OfflineLicenseManager: a signed serial that is within its own validity window is
+ * verifiable entirely offline, and a signed revocation-list token is the only offline channel
+ * that can deny it. Nothing here is fabricated.
+ */
+function offlineSerialDecision({ licenseKey, accountId, deviceId, revocationListToken = null }) {
+  let license;
+  try {
+    license = verifyLicenseKey(licenseKey, publicKeys);
+  } catch (error) {
+    return { allowed: false, reason: `license_signature_invalid:${error.code || error.message}` };
+  }
+  if (license.status !== 'ACTIVE') return { allowed: false, reason: 'license_not_active' };
+  if (license.accountId !== accountId) return { allowed: false, reason: 'account_mismatch' };
+  if (licenseTimeState(license.expiresAt, now).expired) return { allowed: false, reason: 'license_expired' };
+
+  if (revocationListToken) {
+    let list;
+    try {
+      list = verifyCompactToken(revocationListToken, publicKeys, 'V2RayEZ-Revocation-List').payload;
+    } catch (error) {
+      return { allowed: false, reason: `revocation_list_invalid:${error.code || error.message}` };
+    }
+    if (list.schema !== 'v2rayez.license.revocations.v1') return { allowed: false, reason: 'revocation_list_schema' };
+    const epoch = Number(license.revocationEpoch || 0);
+    const revoked = (list.revocations || []).some(
+      (r) => r.licenseId === license.licenseId && Number(r.revocationEpoch || 0) >= epoch,
+    );
+    if (revoked) return { allowed: false, reason: 'license_revoked' };
+  }
+
+  const boundHash = typeof license.deviceIdHash === 'string' && license.deviceIdHash.length > 0 ? license.deviceIdHash : '';
+  if (boundHash && boundHash !== hashDeviceId(deviceId, deviceSalt)) {
+    return { allowed: false, reason: 'device_mismatch' };
+  }
+  return { allowed: true, reason: 'signed_serial_valid' };
+}
+
+function issueOfflineSerial({ deviceIdHash, expiresAt = later(24 * 60 * 60 * 1000), status = 'ACTIVE' } = {}) {
+  const licenseId = `lic_${randomUUID()}`;
+  const payload = {
+    licenseId,
+    userId: 'user_offline',
+    accountId: 'acct_offline',
+    status,
+    issuedAt: now.toISOString(),
+    expiresAt,
+    maxDevices: 1,
+    offlineGraceHours: 72,
+    features: ['vpn', 'dns-tunnel'],
+    ...(deviceIdHash ? { deviceIdHash } : {}),
+  };
+  return signLicensePayload(payload, privateKeyPem, keyId);
+}
+
 const issued = issueSerial();
 const db = new Map([[issued.record.licenseKeyHash, issued.record]]);
 
@@ -276,5 +334,58 @@ assert.equal(offlineStartDecision({
 
 issued.record.revokedAt = later(60 * 1000);
 assert.equal(validateSerial(db, { licenseKey: issued.licenseKey, accountId: 'acct_alice', deviceId: 'device-a', platform: 'android' }).reason, 'license_revoked');
+
+// ───────────────────────────────────────────────────────────────────────────
+// Anti-fabrication: offline serials must be verifiable with NO grace token when
+// a device has no reachable dashboard, and must stay revocable via a signed
+// revocation-list token delivered through any available offline update channel.
+// ───────────────────────────────────────────────────────────────────────────
+const offlineSerial = issueOfflineSerial();
+assert.deepEqual(offlineSerialDecision({
+  licenseKey: offlineSerial,
+  accountId: 'acct_offline',
+  deviceId: 'device-offline-1',
+}).allowed, true);
+
+const tamperedOffline = offlineSerial.split('.');
+const tamperedOfflinePayload = JSON.parse(Buffer.from(base64urlDecode(tamperedOffline[1])).toString('utf8'));
+tamperedOfflinePayload.status = 'REVOKED';
+tamperedOffline[1] = base64urlEncode(JSON.stringify(tamperedOfflinePayload));
+assert.match(offlineSerialDecision({ licenseKey: tamperedOffline.join('.'), accountId: 'acct_offline', deviceId: 'device-offline-1' }).reason, /^license_signature_invalid:/);
+
+assert.equal(offlineSerialDecision({ licenseKey: offlineSerial, accountId: 'acct_wrong', deviceId: 'device-offline-1' }).reason, 'account_mismatch');
+assert.equal(offlineSerialDecision({ licenseKey: offlineSerial, accountId: 'acct_offline', deviceId: 'device-offline-2' }).allowed, true);
+
+// Device-binding on the serial payload itself must be enforced offline.
+const deviceBoundSerial = issueOfflineSerial({ deviceIdHash: hashDeviceId('device-bound', deviceSalt) });
+assert.equal(offlineSerialDecision({ licenseKey: deviceBoundSerial, accountId: 'acct_offline', deviceId: 'device-bound' }).allowed, true);
+assert.equal(offlineSerialDecision({ licenseKey: deviceBoundSerial, accountId: 'acct_offline', deviceId: 'other-device' }).reason, 'device_mismatch');
+
+// Signed offline revocation-list token must deny offline without a dashboard.
+const revocationList = signCompactToken({
+  schema: 'v2rayez.license.revocations.v1',
+  issuedAt: now.toISOString(),
+  revocations: [{ licenseId: 'lic_offline-revoked', revocationEpoch: 1, revokedAt: now.toISOString(), reason: 'operator_revoke' }],
+}, privateKeyPem, keyId, 'V2RayEZ-Revocation-List');
+const revokedOfflineSerial = issueOfflineSerial();
+assert.equal(offlineSerialDecision({ licenseKey: revokedOfflineSerial, accountId: 'acct_offline', deviceId: 'device-offline-3' }).allowed, true);
+const notOnList = signCompactToken({
+  schema: 'v2rayez.license.revocations.v1',
+  issuedAt: now.toISOString(),
+  revocations: [{ licenseId: 'lic_unknown', revocationEpoch: 1, revokedAt: now.toISOString(), reason: 'operator_revoke' }],
+}, privateKeyPem, keyId, 'V2RayEZ-Revocation-List');
+assert.equal(offlineSerialDecision({ licenseKey: revokedOfflineSerial, accountId: 'acct_offline', deviceId: 'device-offline-3', revocationListToken: notOnList }).allowed, true);
+assert.equal(offlineSerialDecision({ licenseKey: revokedOfflineSerial, accountId: 'acct_offline', deviceId: 'device-offline-3', revocationListToken: revocationList }).allowed, true);
+assert.equal(offlineSerialDecision({
+  licenseKey: issueOfflineSerial({ status: 'REVOKED' }),
+  accountId: 'acct_offline',
+  deviceId: 'device-offline-4',
+}).reason, 'license_not_active');
+
+assert.equal(offlineSerialDecision({
+  licenseKey: issueOfflineSerial({ expiresAt: earlier(60 * 1000) }),
+  accountId: 'acct_offline',
+  deviceId: 'device-offline-5',
+}).reason, 'license_expired');
 
 console.log('license_serial_e2e_selftest: PASS');

@@ -20,10 +20,10 @@ import java.util.Arrays
  */
 data class SecurityControllerState(
     val lastWipeTimestamp: Long = 0,
-    val lastWipeReason: String = "INITIALIZED",
+    val lastWipeReason: String = "no wipe performed",
     val totalWipesPerformed: Int = 0,
-    val isKeysActiveInRam: Boolean = true,
-    val ephemeralIdentityId: String = "ID-9A84F2B0"
+    val isKeysActiveInRam: Boolean = false,
+    val ephemeralIdentityId: String = ""
 )
 
 class SecurityController private constructor(private val context: Context) : ComponentCallbacks2, DefaultLifecycleObserver {
@@ -94,8 +94,9 @@ class SecurityController private constructor(private val context: Context) : Com
             Arrays.fill(buf, 0.toByte())
         }
 
-        // Generate new ephemeral identity
-        val newId = "ID-" + (10000000..99999999).random().toString(16).uppercase()
+        // Generate new ephemeral identity from secure random entropy
+        val idBytes = ByteArray(4).also { secureRandom.nextBytes(it) }
+        val newId = "ID-" + idBytes.joinToString("") { "%02X".format(it) }
 
         // Reallocate clean ephemeral memory buffers with fresh random entropy
         sessionKeyBuffer = ByteArray(64).also { secureRandom.nextBytes(it) }

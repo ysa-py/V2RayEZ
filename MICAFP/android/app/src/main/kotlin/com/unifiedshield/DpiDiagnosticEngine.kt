@@ -1,12 +1,9 @@
 package com.unifiedshield
 
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import kotlin.random.Random
 
 data class DpiDiagnosticItem(
     val id: String,
@@ -18,16 +15,20 @@ data class DpiDiagnosticItem(
     val statusText: String,
     val statusTextPersian: String,
     val recommendedCure: String,
-    val isTesting: Boolean = false
+    val isTesting: Boolean = false,
+    val backendUnavailable: Boolean = true,
+    val backendNote: String = "No real DPI probe is wired in; result is unavailable."
 )
 
 data class DpiDiagnosticSummary(
-    val overallDpiThreatLevel: String = "CRITICAL (National Intranet Blackout)",
-    val overallDpiThreatLevelPersian: String = "بحرانی (شرایط فیلترینگ شدید / اینترنت ملی)",
-    val bypassHealthScore: Int = 98,
-    val ispName: String = "همراه اول (MCI - TIC Gateways)",
-    val activeCureApplied: String = "Quantum-Morph v4 + SNI Split Active",
-    val isRunningTest: Boolean = false
+    val overallDpiThreatLevel: String = "UNKNOWN",
+    val overallDpiThreatLevelPersian: String = "نامشخص",
+    val bypassHealthScore: Int = 0,
+    val ispName: String = "",
+    val activeCureApplied: String = "none",
+    val isRunningTest: Boolean = false,
+    val backendUnavailable: Boolean = true,
+    val backendNote: String = "No real DPI probe wire is connected; test results are unavailable."
 )
 
 class DpiDiagnosticEngine private constructor() {
@@ -41,75 +42,72 @@ class DpiDiagnosticEngine private constructor() {
                 id = "sni-probe",
                 title = "SNI Header Inspection",
                 titlePersian = "بازرسی سرآیند نام دامنه (SNI Inspection)",
-                targetSignature = "GFW/Iran TIC Hardware SNI Sniffer",
+                targetSignature = "Unavailable — probe not wired",
                 isBlocked = false,
-                latencyMs = 19,
-                statusText = "BYPASS ACTIVE (Fragmented into 3-byte TCP slices)",
-                statusTextPersian = "خنثی شد (قطعه‌بندی به بسته‌های ۳ بایتی)",
-                recommendedCure = "Neural TLS ClientHello Fragmentation"
+                latencyMs = 0,
+                statusText = "UNAVAILABLE",
+                statusTextPersian = "در دسترس نیست",
+                recommendedCure = "Wire a real SNI probe before reporting a result"
             ),
             DpiDiagnosticItem(
                 id = "dns-poison",
                 title = "DNS Hijacking & Poisoning",
                 titlePersian = "مسموم‌سازی و انحراف DNS (DNS Poisoning)",
-                targetSignature = "Port 53 UDP Hijack & NXDOMAIN Injection",
+                targetSignature = "Unavailable — probe not wired",
                 isBlocked = false,
-                latencyMs = 24,
-                statusText = "SECURED (DoH/DoQ via Alibaba Encrypted Resolver)",
-                statusTextPersian = "امن شد (استفاده از DNS رمزنگاری‌شده DoQ)",
-                recommendedCure = "Encrypted DoQ + Covert-NTP Resolvers"
+                latencyMs = 0,
+                statusText = "UNAVAILABLE",
+                statusTextPersian = "در دسترس نیست",
+                recommendedCure = "Wire a real DNS query probe before reporting a result"
             ),
             DpiDiagnosticItem(
                 id = "udp-throttle",
                 title = "UDP QoS Throttling & Drop",
                 titlePersian = "محدودیت و افت عمدی ترافیک UDP (UDP Throttling)",
-                targetSignature = "MCI/Irancell 85% Drop on Unrecognized UDP",
+                targetSignature = "Unavailable — probe not wired",
                 isBlocked = false,
-                latencyMs = 15,
-                statusText = "ACCELERATED (Hysteria2 Brutal Congestion Active)",
-                statusTextPersian = "رفع شد (کنترل ازدحام هیستریا ۲ فعال است)",
-                recommendedCure = "Hysteria 2 Brutal + Port Hopping"
+                latencyMs = 0,
+                statusText = "UNAVAILABLE",
+                statusTextPersian = "در دسترس نیست",
+                recommendedCure = "Wire a real UDP probe before reporting a result"
             ),
             DpiDiagnosticItem(
                 id = "ml-classifier",
                 title = "AI Packet Length & Flow ML Classifier",
                 titlePersian = "مدل‌های یادگیری ماشین تشخیص الگو (ML Classifier)",
-                targetSignature = "Flow-based Statistical Payload Identifier",
+                targetSignature = "Unavailable — probe not wired",
                 isBlocked = false,
-                latencyMs = 21,
-                statusText = "CAMOUFLAGED (Injected 184B High-Entropy Noise)",
-                statusTextPersian = "استتار شد (تزریق نویز انتروپی بالا)",
-                recommendedCure = "Adversarial Noise Generator + Video Masquerade"
+                latencyMs = 0,
+                statusText = "UNAVAILABLE",
+                statusTextPersian = "در دسترس نیست",
+                recommendedCure = "Wire a real ML classifier probe before reporting a result"
             )
         )
     )
     val diagnosticItems: StateFlow<List<DpiDiagnosticItem>> = _diagnosticItems
 
+    /**
+     * Placeholder for a live diagnostic run. The real probe/backend is not wired
+     * in, so it marks the run as unavailable instead of fabricating latencies and
+     * a bypass-health score.
+     */
     fun runLiveDiagnostic() {
         if (_summary.value.isRunningTest) return
         _summary.value = _summary.value.copy(isRunningTest = true)
 
-        CoroutineScope(Dispatchers.Default).launch {
-            val currentList = _diagnosticItems.value.map { it.copy(isTesting = true) }
-            _diagnosticItems.value = currentList
-
-            for (i in currentList.indices) {
-                delay(600)
-                _diagnosticItems.value = _diagnosticItems.value.mapIndexed { idx, item ->
-                    if (idx == i) {
-                        item.copy(
-                            isTesting = false,
-                            latencyMs = Random.nextLong(14, 28),
-                            isBlocked = false
-                        )
-                    } else item
-                }
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default).launch {
+            delay(300)
+            val unavailableList = _diagnosticItems.value.map {
+                it.copy(isTesting = false, isBlocked = false, latencyMs = 0)
             }
+            _diagnosticItems.value = unavailableList
 
             _summary.value = _summary.value.copy(
                 isRunningTest = false,
-                bypassHealthScore = Random.nextInt(97, 100),
-                activeCureApplied = "All DPI Vectors Neutralized by Quantum-Morph v4"
+                bypassHealthScore = 0,
+                activeCureApplied = "none",
+                backendUnavailable = true,
+                backendNote = "Live diagnostic completed with no real probe connected; no result generated."
             )
         }
     }

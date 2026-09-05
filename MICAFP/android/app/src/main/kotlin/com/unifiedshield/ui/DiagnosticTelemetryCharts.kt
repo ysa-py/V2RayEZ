@@ -94,23 +94,23 @@ fun DiagnosticTelemetrySection() {
                         Spacer(modifier = Modifier.width(8.dp))
                         Column {
                             Text("شاخص فشار سانسور (Censorship Pressure Index)", fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                            Text("همبستگی بلادرنگ با حملات DPI و قطعی‌های بسته‌ای", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("در صورت نبود پروب واقعی، نتیجه در دسترس نیست", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                     Badge(
-                        containerColor = when {
+                        containerColor = if (censorshipPressure > 0f) when {
                             censorshipPressure > 65f -> Color(0xFFEF4444)
                             censorshipPressure > 35f -> Color(0xFFF59E0B)
                             else -> Color(0xFF10B981)
-                        },
+                        } else Color(0xFFB45309),
                         contentColor = Color.White
                     ) {
                         Text(
-                            when {
+                            if (censorshipPressure > 0f) when {
                                 censorshipPressure > 65f -> "بسیار بالا (حمله DPI)"
                                 censorshipPressure > 35f -> "متوسط (پایش)"
                                 else -> "عادی و امن"
-                            }
+                            } else "UNAVAILABLE"
                         )
                     }
                 }
@@ -130,10 +130,11 @@ fun DiagnosticTelemetrySection() {
                         Column(modifier = Modifier.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                             Text("شاخص فشار", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(
-                                "$censorshipPressure %",
+                                if (censorshipPressure > 0f) "$censorshipPressure %" else "unavailable",
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = when {
+                                    censorshipPressure <= 0f -> Color(0xFFB45309)
                                     censorshipPressure > 65f -> Color(0xFFEF4444)
                                     censorshipPressure > 35f -> Color(0xFFF59E0B)
                                     else -> Color(0xFF10B981)
@@ -150,7 +151,12 @@ fun DiagnosticTelemetrySection() {
                     ) {
                         Column(modifier = Modifier.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                             Text("بسته‌های DPI مسدود", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text("$dpiBlocksCount", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF3B82F6))
+                            Text(
+                                if (dpiBlocksCount > 0) "$dpiBlocksCount" else "unavailable",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (dpiBlocksCount > 0) Color(0xFF3B82F6) else Color(0xFFB45309)
+                            )
                         }
                     }
 
@@ -162,7 +168,7 @@ fun DiagnosticTelemetrySection() {
                     ) {
                         Column(modifier = Modifier.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                             Text("استراتژی فعال", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text("Auto-Evade", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF8B5CF6))
+                            Text("unwired", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (censorshipPressure > 0f) Color(0xFF8B5CF6) else Color(0xFFB45309))
                         }
                     }
                 }
@@ -186,8 +192,13 @@ fun DiagnosticTelemetrySection() {
                         Spacer(modifier = Modifier.width(8.dp))
                         Text("نمودار خطی تاخیر رفت و برگشت (RTT Line Chart)", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     }
-                    val latestRtt = telemetryHistory.lastOrNull()?.rttMs ?: 14f
-                    Text("${Math.round(latestRtt * 10) / 10.0} ms", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF10B981))
+                    val latestRtt = telemetryHistory.lastOrNull()?.rttMs ?: 0f
+                    Text(
+                        if (latestRtt > 0f) "${Math.round(latestRtt * 10) / 10.0} ms" else "unavailable",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (latestRtt > 0f) Color(0xFF10B981) else Color(0xFFB45309)
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(10.dp))
@@ -214,8 +225,12 @@ fun DiagnosticTelemetrySection() {
                         Spacer(modifier = Modifier.width(8.dp))
                         Text("توزیع پراکندگی افت بسته (Packet Loss Scatter Plot)", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     }
-                    val avgLoss = telemetryHistory.map { it.packetLossPct }.average().takeIf { !it.isNaN() } ?: 0.2
-                    Text("${Math.round(avgLoss * 10) / 10.0}% avg loss", fontSize = 12.sp, color = Color(0xFF3B82F6))
+                    val avgLoss = telemetryHistory.map { it.packetLossPct }.average().takeIf { !it.isNaN() && it > 0.0 } ?: 0.0
+                    Text(
+                        if (avgLoss > 0.0) "${Math.round(avgLoss * 10) / 10.0}% avg loss" else "unavailable",
+                        fontSize = 12.sp,
+                        color = if (avgLoss > 0.0) Color(0xFF3B82F6) else Color(0xFFB45309)
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(10.dp))
@@ -243,7 +258,7 @@ fun DiagnosticTelemetrySection() {
                         Spacer(modifier = Modifier.width(8.dp))
                         Column {
                             Text("پروفایلر تطبیقی شبکه (Adaptive Network Profiler)", fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                            Text("پینگ سیستماتیک هر ۳۰ ثانیه برای شبکه‌های همراه پرجیتر", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("پروب واقعی شبکه متصل نیست؛ هیچ نتیجه‌ای جعل نمی‌شود", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                     IconButton(onClick = {
@@ -302,6 +317,7 @@ fun DiagnosticTelemetrySection() {
                                     .background(
                                         when {
                                             isBlacklistedNow -> Color(0xFFEF4444)
+                                            core.backendUnavailable -> Color(0xFFB45309)
                                             core.coreId == activeCoreId -> Color(0xFF10B981)
                                             else -> Color(0xFF3B82F6)
                                         }
@@ -313,8 +329,8 @@ fun DiagnosticTelemetrySection() {
                                     Text(core.name, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                                     if (core.coreId == activeCoreId) {
                                         Spacer(modifier = Modifier.width(6.dp))
-                                        Badge(containerColor = Color(0xFF10B981), contentColor = Color.White) {
-                                            Text("فعال", fontSize = 9.sp)
+                                        Badge(containerColor = if (core.backendUnavailable) Color(0xFFB45309) else Color(0xFF10B981), contentColor = Color.White) {
+                                            Text(if (core.backendUnavailable) "اختصاص‌یافته (بدون اندازه‌گیری)" else "فعال", fontSize = 9.sp)
                                         }
                                     }
                                     if (isBlacklistedNow) {
@@ -325,7 +341,10 @@ fun DiagnosticTelemetrySection() {
                                     }
                                 }
                                 Text(
-                                    "${core.protocolType} • تاخیر: ${core.latencyMs}ms • افت بسته: ${core.packetLossPct}% • هندشیک: ${(core.handshakeSuccessRate * 100).toInt()}%",
+                                    if (core.backendUnavailable)
+                                        "${core.protocolType} • بدون اندازه‌گیری واقعی"
+                                    else
+                                        "${core.protocolType} • تاخیر: ${core.latencyMs}ms • افت بسته: ${core.packetLossPct}% • هندشیک: ${(core.handshakeSuccessRate * 100).toInt()}%",
                                     fontSize = 10.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -333,7 +352,16 @@ fun DiagnosticTelemetrySection() {
                         }
 
                         Column(horizontalAlignment = Alignment.End) {
-                            Text("${core.score} pts", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (isBlacklistedNow) Color(0xFFEF4444) else Color(0xFF10B981))
+                            Text(
+                                if (core.backendUnavailable) "— pts" else "${core.score} pts",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = when {
+                                    isBlacklistedNow -> Color(0xFFEF4444)
+                                    core.backendUnavailable -> Color(0xFFB45309)
+                                    else -> Color(0xFF10B981)
+                                }
+                            )
                             if (core.consecutiveFailures > 0) {
                                 Text("خطا: ${core.consecutiveFailures}/3", fontSize = 9.sp, color = Color(0xFFEF4444))
                             }
@@ -358,6 +386,14 @@ fun DiagnosticTelemetrySection() {
                 }
 
                 Spacer(modifier = Modifier.height(10.dp))
+
+                if (anomalyEvents.isEmpty()) {
+                    Text(
+                        "No DPI anomaly events recorded (backend not wired).",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
 
                 anomalyEvents.take(4).forEach { event ->
                     Column(

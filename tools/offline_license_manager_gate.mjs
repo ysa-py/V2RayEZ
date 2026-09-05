@@ -48,9 +48,19 @@ for (const forbidden of [
   'TODO',
 ]) lacks(manager, forbidden);
 
+// Milestone 68 hardening: imported ledger records must verify against the manager's own
+// Ed25519 public key before being accepted, and the encrypted signing seed must be persisted
+// synchronously (commit(), never apply()) so a process death cannot rotate the key silently.
+has(manager, 'Ed25519PublicKeyParameters');
+has(manager, 'verifyImportedRecord(JSONObject record)');
+has(manager, 'verifySignature(base64UrlDecode(parts[2]))');
+has(manager, "Imported license key signature verification failed");
+has(manager, 'Failed to persist encrypted license-manager seed');
+lacks(manager, 'prefs.edit().putString(KEY_ENCRYPTED_SEED, encryptSeed(seed)).apply()');
+
 has(adminGradle, 'implementation(libs.bouncycastle.bcprov)');
 for (const needle of [
-  'V2RayEZ License Manager / Admin',
+  'Vor License Manager / Admin',
   'Offline issue serial',
   'Offline renew serial',
   'Offline revoke license',

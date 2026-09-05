@@ -36,7 +36,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * Separate Android companion for V2RayEZ license operators.
+ * Separate Android companion for Vor license operators.
  *
  * It calls the same dashboard REST API used by the web admin panel. The bearer/session token is
  * intentionally kept in memory only and is never written to SharedPreferences. It never embeds a signing key:
@@ -95,7 +95,7 @@ public final class MainActivity extends Activity {
         root.setPadding(dp(18), dp(18), dp(18), dp(24));
         scroll.addView(root);
 
-        TextView title = text("V2RayEZ License Manager / Admin", 24, Color.WHITE, true);
+        TextView title = text("Vor License Manager / Admin", 24, Color.WHITE, true);
         TextView sub = text("Issue offline signed serials, maintain an encrypted local ledger, or operate the dashboard license API from a separate Android operator app.", 14, Color.WHITE, false);
         LinearLayout header = card(DARK);
         header.addView(title);
@@ -264,7 +264,7 @@ public final class MainActivity extends Activity {
                 value(featuresCsv)
             );
             licenseKey.setText(serial);
-            setOutput("Offline serial issued and stored in the local ledger. Copy this public key into V2RayEZ License settings:\n\n" + offlineManager.publicKeyPem() + "\n\nSerial:\n" + serial);
+            setOutput("Offline serial issued and stored in the local ledger. Copy this public key into Vor License settings:\n\n" + offlineManager.publicKeyPem() + "\n\nSerial:\n" + serial);
         });
     }
 
@@ -365,7 +365,7 @@ public final class MainActivity extends Activity {
             .put("deviceId", "license-admin-preview")
             .put("accountId", value(accountId))
             .put("platform", "android-admin")
-            .put("deviceLabel", "V2RayEZ License Admin");
+            .put("deviceLabel", "Vor License Admin");
         call("POST", "/api/licenses/validate", body, false, null);
     }
 
@@ -376,7 +376,7 @@ public final class MainActivity extends Activity {
             .put("deviceId", "license-admin-preview")
             .put("accountId", value(accountId))
             .put("platform", "android-admin")
-            .put("deviceLabel", "V2RayEZ License Admin");
+            .put("deviceLabel", "Vor License Admin");
         call("POST", "/api/licenses/validate", body, false, null);
     }
 
@@ -401,7 +401,7 @@ public final class MainActivity extends Activity {
                 conn.setReadTimeout(20_000);
                 conn.setRequestProperty("Accept", "application/json");
                 conn.setRequestProperty("Content-Type", "application/json; charset=utf-8");
-                conn.setRequestProperty("User-Agent", "V2RayEZ-License-Admin-Android/1.0.0");
+                conn.setRequestProperty("User-Agent", "Vor-License-Admin-Android/1.0.0");
                 String token = value(adminToken);
                 if (admin && token.isEmpty()) {
                     throw new IllegalStateException("Admin token is required for this endpoint");
@@ -460,7 +460,7 @@ public final class MainActivity extends Activity {
 
     private void copyResult() {
         ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-        clipboard.setPrimaryClip(ClipData.newPlainText("V2RayEZ license admin result", output.getText()));
+        clipboard.setPrimaryClip(ClipData.newPlainText("Vor license admin result", output.getText()));
         toast("Copied");
     }
 

@@ -27,23 +27,26 @@ data class CottenPathMetric(
     val downloadDeliveryPct: Double,
     val directionalRttMs: Int,
     val pathMtu: Int = 1232,
-    val confidenceScore: Int = 98, // 0 - 100
+    val confidenceScore: Int = 0, // 0 - 100
     val isPoisonAlertTriggered: Boolean = false,
-    val isCurrentlyActive: Boolean = true
+    val isCurrentlyActive: Boolean = false,
+    val measured: Boolean = false
 )
 
 data class CottenDnsState(
-    val isEngineRunning: Boolean = true,
-    val autoAdaptiveTransportEnabled: Boolean = true,
-    val fecMode: CottenFecMode = CottenFecMode.STANDARD_FEC,
-    val recordRotation: CottenRecordRotation = CottenRecordRotation.DYNAMIC_ROTATION,
-    val qnameReshapingEnabled: Boolean = true,
-    val randomizeTransactionIds: Boolean = true,
-    val earlyPoisonRacingEnabled: Boolean = true,
-    val equalPathStripingEnabled: Boolean = true,
-    val singleCongestionBudgetPct: Int = 25,
-    val inFlightFrameReplayCount: Long = 18,
-    val poisonAttemptsDefeated: Long = 7,
-    val fecFramesRecovered: Long = 142,
-    val paths: List<CottenPathMetric> = emptyList()
+    val isEngineRunning: Boolean = false,
+    val autoAdaptiveTransportEnabled: Boolean = false,
+    val fecMode: CottenFecMode = CottenFecMode.OFF,
+    val recordRotation: CottenRecordRotation = CottenRecordRotation.TXT_ONLY,
+    val qnameReshapingEnabled: Boolean = false,
+    val randomizeTransactionIds: Boolean = false,
+    val earlyPoisonRacingEnabled: Boolean = false,
+    val equalPathStripingEnabled: Boolean = false,
+    val singleCongestionBudgetPct: Int = 0,
+    val inFlightFrameReplayCount: Long = 0,
+    val poisonAttemptsDefeated: Long = 0,
+    val fecFramesRecovered: Long = 0,
+    val paths: List<CottenPathMetric> = emptyList(),
+    val backendUnavailable: Boolean = true,
+    val backendNote: String = "No real CottenDNS resolver/FEC backend is wired in; telemetry is unavailable."
 )

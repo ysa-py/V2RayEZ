@@ -1,3 +1,4 @@
+// SIMULATION ONLY — NOT REAL TELEMETRY. This module generates demo/synthetic values in-memory for the dashboard UI. It must never be presented as a live Vor core reading; real telemetry only comes from the native core backend.
 import { create } from 'zustand';
 import {
   CoreAdapter,

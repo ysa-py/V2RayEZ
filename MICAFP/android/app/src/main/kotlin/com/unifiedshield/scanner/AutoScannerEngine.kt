@@ -67,30 +67,31 @@ data class ScanTargetResult(
     val category: ScannerCategory,
     val target: String,
     val extraInfo: String,
-    val isClean: Boolean = true,
-    val latencyMs: Int = 20,
+    val isClean: Boolean = false,
+    val latencyMs: Int = 0,
     val packetLossPct: Int = 0,
-    val ednsSupport: Boolean = true,
+    val ednsSupport: Boolean = false,
     val nxDomainHijacked: Boolean = false,
-    val score: Int = 95, // 0 - 100
+    val score: Int = 0, // 0 - 100
     val isAutoApplied: Boolean = false,
     val recommendedTunnelType: TunnelType = TunnelType.DNSTT,
-    val operatorAffinity: String = "همه اپراتورها (Universal)",
-    val dpiBypassTechnique: String = "TLS 1.3 uTLS + Fragmented Chunking",
-    val jitterMs: Int = 3,
-    val bandwidthEstimate: String = "240 Mbps",
-    val mtuClampingValue: Int = 1360,
-    val qosPriority: String = "VIP Ultra",
-    val encryptionSuite: String = "ChaCha20-Poly1305 / TLS 1.3",
-    val tcpHandshakeMs: Int = 4,
-    val tlsNegotiateMs: Int = 8,
-    val tlsAlpn: List<String> = listOf("h2", "http/1.1", "h3"),
-    val uTlsFingerprint: String = "chrome_124",
-    val quicSupport: Boolean = true,
-    val muxEnabled: Boolean = true,
-    val muxConcurrency: Int = 8,
-    val sniHostname: String = "www.speedtest.net",
-    val stabilityScore: Double = 99.4
+    val operatorAffinity: String = "",
+    val dpiBypassTechnique: String = "not measured",
+    val jitterMs: Int = 0,
+    val bandwidthEstimate: String = "unmeasured",
+    val mtuClampingValue: Int = 0,
+    val qosPriority: String = "",
+    val encryptionSuite: String = "",
+    val tcpHandshakeMs: Int = 0,
+    val tlsNegotiateMs: Int = 0,
+    val tlsAlpn: List<String> = emptyList(),
+    val uTlsFingerprint: String = "",
+    val quicSupport: Boolean = false,
+    val muxEnabled: Boolean = false,
+    val muxConcurrency: Int = 0,
+    val sniHostname: String = "",
+    val stabilityScore: Double = 0.0,
+    val measured: Boolean = false
 )
 
 data class AutoScannerState(
@@ -100,33 +101,35 @@ data class AutoScannerState(
     val executionMode: ScanExecutionMode = ScanExecutionMode.TURBO_PARALLEL,
     val dynamicScale: DynamicDiscoveryScale = DynamicDiscoveryScale.DEEP_SWEEP,
     val threatLevel: IranInternetThreatLevel = IranInternetThreatLevel.LEVEL_1_STANDARD,
-    val detectedOperator: String = "تشخیص هوشمند اپراتور...",
+    val detectedOperator: String = "not detected",
     val scannedCount: Int = 0,
     val totalTargetCount: Int = 0,
     val cleanNodesCount: Int = 0,
     val autoAppliedNode: ScanTargetResult? = null,
     val results: List<ScanTargetResult> = emptyList(),
-    val isContinuousAutoHealingEnabled: Boolean = true,
-    val isAutonomousZeroTouchEnabled: Boolean = true,
-    val quantumEntropyScore: Double = 7.98,
-    val lastAiAutoPilotAction: String = "خلبان خودکار هوش‌مصنوعی: پایش دائمی شبکه و اتصال خودکار بدون دخالت کاربر فعال است",
-    val statusMessage: String = "آماده برای اسکن فوق‌پیشرفته، هوشمند و تخصصی تمامی رنج‌ها و اپراتورهای ایران",
-    val averagePingMs: Int = 14,
-    val minLatencyMs: Int = 8,
-    val maxBandwidthScore: String = "480 Mbps",
-    val dpiInterceptionBlockedCount: Int = 24,
-    val detectedMtuSafety: String = "1360B MSS Clamp (Safe)",
-    val isAiAntiDpiEngaged: Boolean = true,
-    val aiConfidenceRate: Double = 99.8,
+    val isContinuousAutoHealingEnabled: Boolean = false,
+    val isAutonomousZeroTouchEnabled: Boolean = false,
+    val quantumEntropyScore: Double = 0.0,
+    val lastAiAutoPilotAction: String = "AI autopilot configured but no real scan backend wired",
+    val statusMessage: String = "Scanner configured; no real scan backend is wired in",
+    val averagePingMs: Int = 0,
+    val minLatencyMs: Int = 0,
+    val maxBandwidthScore: String = "unmeasured",
+    val dpiInterceptionBlockedCount: Int = 0,
+    val detectedMtuSafety: String = "not measured",
+    val isAiAntiDpiEngaged: Boolean = false,
+    val aiConfidenceRate: Double = 0.0,
     val isInternationalBlackoutDetected: Boolean = false,
-    val activeIntranetRelayEgress: String = "رله معکوس آپارات / CDN شاتل",
-    val isDynamicSubnetActive: Boolean = true,
-    val dynamicSubnetsScanned: List<String> = listOf("162.159.192.0/24", "188.114.96.0/24", "104.16.0.0/16", "185.143.232.0/24", "172.67.0.0/16", "198.41.128.0/24"),
-    val activeScannedSubnet: String = "162.159.192.0/24 Anycast",
-    val liveNodesGeneratedCount: Int = 750,
+    val activeIntranetRelayEgress: String = "",
+    val isDynamicSubnetActive: Boolean = false,
+    val dynamicSubnetsScanned: List<String> = emptyList(),
+    val activeScannedSubnet: String = "",
+    val liveNodesGeneratedCount: Int = 0,
     val isBatterySaverModeActive: Boolean = false,
-    val realTimeValidationCount: Int = 42,
-    val lastPathValidationStatus: String = "اعتبارسنجی بلادرنگ مسیرها فعال و مقاوم در برابر فیلترینگ"
+    val realTimeValidationCount: Int = 0,
+    val lastPathValidationStatus: String = "No real path validation backend is wired in",
+    val backendUnavailable: Boolean = true,
+    val backendNote: String = "No real AutoScanner probe backend is wired in; scan results are unavailable."
 )
 
 data class ProbeSpec(
@@ -149,7 +152,7 @@ class AutoScannerEngine private constructor(private val context: Context) {
     private val _scannerState = MutableStateFlow(
         AutoScannerState(
             detectedOperator = detectCurrentOperator(),
-            results = getInitialVerifiedNodes()
+            results = emptyList()
         )
     )
     val scannerState: StateFlow<AutoScannerState> = _scannerState
@@ -191,180 +194,6 @@ class AutoScannerEngine private constructor(private val context: Context) {
         }
     }
 
-    private fun getInitialVerifiedNodes(): List<ScanTargetResult> {
-        return listOf(
-            ScanTargetResult(
-                id = "mci-pro-1",
-                category = ScannerCategory.IRAN_OPERATORS,
-                target = "همراه اول (MCI AS44244) • TLS Split + ECH",
-                extraInfo = "uTLS Chrome 124 JA4 • فیلتر TCP RST بای‌پس شد • بدون قطعی UDP • تانل موازی چندمسیره",
-                isClean = true,
-                latencyMs = 11,
-                score = 100,
-                isAutoApplied = true,
-                recommendedTunnelType = TunnelType.VLESS_REALITY,
-                operatorAffinity = "همراه اول (MCI)",
-                dpiBypassTechnique = "TLS 1.3 Split SNI + ClientHello ECH",
-                jitterMs = 2,
-                bandwidthEstimate = "380 Mbps",
-                mtuClampingValue = 1360
-            ),
-            ScanTargetResult(
-                id = "mtn-pro-1",
-                category = ScannerCategory.IRAN_OPERATORS,
-                target = "ایرانسل (Irancell AS35897) • Hysteria Brutal UDP",
-                extraInfo = "UDP 1280B MTU • ضد پکت لاس ۴۵٪ با الگوریتم Salamander • سرعت فوق‌سریع بدون تراتل",
-                isClean = true,
-                latencyMs = 12,
-                score = 99,
-                recommendedTunnelType = TunnelType.HYSTERIA_2,
-                operatorAffinity = "ایرانسل (MTN Irancell)",
-                dpiBypassTechnique = "QUIC Congestion BBR2 + Salamander",
-                jitterMs = 2,
-                bandwidthEstimate = "460 Mbps",
-                mtuClampingValue = 1280
-            ),
-            ScanTargetResult(
-                id = "tci-pro-1",
-                category = ScannerCategory.IRAN_OPERATORS,
-                target = "مخابرات و شاتل (TCI/Shatel) • Anti-DNS Poison",
-                extraInfo = "بای‌پَس کامل ۱۰.۱۰.۳۴.۳۴ • MasterDns ARQ Multipath • پینگ فوق‌العاده پایین و پایدار",
-                isClean = true,
-                latencyMs = 9,
-                score = 100,
-                recommendedTunnelType = TunnelType.MASTER_DNS,
-                operatorAffinity = "مخابرات، شاتل و اینترنت ثابت",
-                dpiBypassTechnique = "MasterDns ARQ-5B + DoH Anycast",
-                jitterMs = 1,
-                bandwidthEstimate = "320 Mbps",
-                mtuClampingValue = 1360
-            ),
-            ScanTargetResult(
-                id = "rightel-pro-1",
-                category = ScannerCategory.IRAN_OPERATORS,
-                target = "رایتل (Rightel AS57218) • Fastly Domain Front",
-                extraInfo = "استتار کامل هدر HTTP/2 • بدون پکت اینجکشن • مسیریابی تمیز BGP به درگاه بین‌الملل",
-                isClean = true,
-                latencyMs = 14,
-                score = 98,
-                recommendedTunnelType = TunnelType.SSH_STANDALONE,
-                operatorAffinity = "رایتل (Rightel)",
-                dpiBypassTechnique = "Fastly Fronting + TLS 1.3 uTLS",
-                jitterMs = 2,
-                bandwidthEstimate = "290 Mbps",
-                mtuClampingValue = 1360
-            ),
-            ScanTargetResult(
-                id = "cf-warp-1",
-                category = ScannerCategory.CLOUDFLARE_WARP,
-                target = "162.159.192.1:2408 (Cloudflare WARP Clean)",
-                extraInfo = "Anycast Endpoint تهران/فرانکفورت • WireGuard Noise Handshake • 0% Packet Loss",
-                isClean = true,
-                latencyMs = 15,
-                score = 99,
-                recommendedTunnelType = TunnelType.SLIPSTREAM,
-                operatorAffinity = "همه اپراتورها (Universal)",
-                dpiBypassTechnique = "WireGuard + Dynamic Reserved Padding",
-                jitterMs = 3,
-                bandwidthEstimate = "410 Mbps",
-                mtuClampingValue = 1280
-            ),
-            ScanTargetResult(
-                id = "cf-clean-ip-2",
-                category = ScannerCategory.IPV4_IPV6,
-                target = "198.41.214.162 (Cloudflare Anycast Clean IP)",
-                extraInfo = "ساب‌نت تمیز بدون مسدودی پورت • پینگ بسیار پایین در تمام استان‌ها",
-                isClean = true,
-                latencyMs = 13,
-                score = 98,
-                recommendedTunnelType = TunnelType.SLIPSTREAM,
-                operatorAffinity = "همه اپراتورها",
-                dpiBypassTechnique = "Direct Anycast BGP Routing",
-                jitterMs = 2,
-                bandwidthEstimate = "350 Mbps",
-                mtuClampingValue = 1360
-            ),
-            ScanTargetResult(
-                id = "master-dns-1",
-                category = ScannerCategory.MASTER_DNS,
-                target = "MasterDns ARQ Cluster (8 Resolver Racing)",
-                extraInfo = "ارسال موازی و تکراری درخواست به ۸ سرور با پروتکل ARQ-5B • محافظت کامل در برابر فیلترینگ DNS",
-                isClean = true,
-                latencyMs = 8,
-                score = 100,
-                recommendedTunnelType = TunnelType.MASTER_DNS,
-                operatorAffinity = "همه اپراتورها",
-                dpiBypassTechnique = "8-Way ARQ Multipath Racing",
-                jitterMs = 1,
-                bandwidthEstimate = "390 Mbps",
-                mtuClampingValue = 1360
-            ),
-            ScanTargetResult(
-                id = "naive-ja4-1",
-                category = ScannerCategory.NAIVE_PROXY,
-                target = "https://naive.unifiedshield.net:443 (Chromium JA4)",
-                extraInfo = "اثر انگشت JA4 مرورگر کروم نسخه ۱۲۴ واقعی • عبور ۱۰۰٪ از تجهیزات DPI پیشرفته",
-                isClean = true,
-                latencyMs = 16,
-                score = 99,
-                recommendedTunnelType = TunnelType.NAIVE_PROXY,
-                operatorAffinity = "همه اپراتورها",
-                dpiBypassTechnique = "Chromium JA4 Full TLS Stack",
-                jitterMs = 2,
-                bandwidthEstimate = "370 Mbps",
-                mtuClampingValue = 1360
-            ),
-            ScanTargetResult(
-                id = "doh-ali-1",
-                category = ScannerCategory.DOH,
-                target = "https://dns.alidns.com/dns-query (Alibaba DoH)",
-                extraInfo = "استاندارد RFC 8484 • مولتی‌پلکس HTTP/2 ایمن و مقاوم در برابر فیلترینگ",
-                isClean = true,
-                latencyMs = 19,
-                score = 98,
-                recommendedTunnelType = TunnelType.DOH,
-                operatorAffinity = "همه اپراتورها",
-                dpiBypassTechnique = "DoH HTTP/2 Multiplexing",
-                jitterMs = 2,
-                bandwidthEstimate = "280 Mbps",
-                mtuClampingValue = 1360
-            ),
-            ScanTargetResult(
-                id = "intranet-relay-1",
-                category = ScannerCategory.IRAN_INTRANET,
-                target = "relay-aparat.cdn.ir (Aparat Reverse CDN)",
-                extraInfo = "رله معکوس ترافیک داخلی به بین‌الملل • دور زدن کامل خاموشی سراسری اینترنت",
-                isClean = true,
-                latencyMs = 7,
-                score = 100,
-                recommendedTunnelType = TunnelType.SSH_STANDALONE,
-                operatorAffinity = "شبکه ملی اطلاعات (NIN)",
-                dpiBypassTechnique = "Reverse CDN Tunneling",
-                jitterMs = 1,
-                bandwidthEstimate = "450 Mbps",
-                mtuClampingValue = 1360
-            ),
-            ScanTargetResult(
-                id = "tor-snowflake-1",
-                category = ScannerCategory.TOR,
-                target = "Tor Snowflake (WebRTC Rendezvous Broker)",
-                extraInfo = "اتصال غیرقابل مسدودسازی به پروکسی‌های داوطلب جهانی از طریق WebRTC",
-                isClean = true,
-                latencyMs = 38,
-                score = 95,
-                recommendedTunnelType = TunnelType.TOR,
-                operatorAffinity = "شرایط خاموشی سراسری",
-                dpiBypassTechnique = "WebRTC Ephemeral Broker",
-                jitterMs = 6,
-                bandwidthEstimate = "120 Mbps",
-                mtuClampingValue = 1280
-            )
-        )
-    }
-
-    /**
-     * Massive Comprehensive Targets Matrix (100+ Specialized High-Performance Probes)
-     */
     private fun getAllComprehensiveProbeTargets(): List<ProbeSpec> {
         return listOf(
             // 1. Iran Telcos Matrix (MCI / MTN / TCI / Shatel / Rightel / Asiatech / HiWeb / MobinNet / Zitel)
@@ -532,6 +361,8 @@ class AutoScannerEngine private constructor(private val context: Context) {
             "connectivitycheck.gstatic.com", "web.whatsapp.com", "graph.instagram.com"
         )
 
+        // REAL DISCOVERY ONLY: randomized target enumeration, NOT telemetry.
+        // This block selects candidate IPs/ports/SNIs for a future real probe.
         for (i in 1..countToGenerate) {
             val randomSubnet = cfSubnets.random()
             val hostIp = if (randomSubnet.count { it == '.' } == 2) {
@@ -668,7 +499,6 @@ class AutoScannerEngine private constructor(private val context: Context) {
 
         val total = filteredTargets.size
 
-        // Evaluate initial network threat level
         val initialThreat = when {
             mode == ScanExecutionMode.AI_AUTONOMOUS_BLACKOUT || category == ScannerCategory.IRAN_INTRANET -> IranInternetThreatLevel.LEVEL_4_BLACKOUT
             mode == ScanExecutionMode.DEEP_DPI_AUDIT -> IranInternetThreatLevel.LEVEL_3_INJECTION
@@ -688,268 +518,40 @@ class AutoScannerEngine private constructor(private val context: Context) {
             totalTargetCount = total,
             liveNodesGeneratedCount = dynamicProbes.size,
             isDynamicSubnetActive = true,
-            statusMessage = "در حال پویش دینامیک و هوشمند $total نود (شامل ${dynamicProbes.size} نود تولیدی پویا) و سنجش اختلالات..."
+            results = emptyList(),
+            autoAppliedNode = null,
+            backendUnavailable = true,
+            backendNote = "No real AutoScanner probe backend is wired in; scan results are unavailable.",
+            statusMessage = "Target enumeration complete (${total} targets); no real probe backend wired, so results are NOT fabricated."
         )
 
         scope.launch {
-            // Trigger Gemini AI Scanner Assistant Analysis
-            try {
-                val geminiAi = GeminiScannerAi.getInstance(context)
-                val aiRecommendation = geminiAi.analyzeAndSynthesizeTargets(
-                    operatorName = detectedOp,
-                    isBlackoutActive = (mode == ScanExecutionMode.AI_AUTONOMOUS_BLACKOUT || category == ScannerCategory.IRAN_INTRANET),
-                    latencySamples = listOf(12L, 18L, 24L)
-                )
-                AiStealthEngine.getInstance().setTlsSplitLength(aiRecommendation.recommendedTlsSplit)
-                logger.dpi(TAG, "Gemini AI recommendation received: ${aiRecommendation.analysisDetails}")
-            } catch (e: Exception) {
-                logger.warn(TAG, "Gemini AI assistant note: ${e.message}")
-            }
-
-            val freshResults = mutableListOf<ScanTargetResult>()
-            val batchSize = if (mode == ScanExecutionMode.TURBO_PARALLEL) 32 else 16
-
-            filteredTargets.chunked(batchSize).forEachIndexed { batchIndex, batch ->
-                // Probe this batch concurrently in parallel
-                val batchJobs = batch.mapIndexed { itemIndex, spec ->
-                    async {
-                        val globalIndex = (batchIndex * batchSize) + itemIndex
-                        val cat = spec.category
-                        val host = spec.host
-                        val desc = spec.desc
-                        val operatorAffinity = spec.operatorAffinity
-                        val dpiBypass = spec.dpiBypass
-
-                        // Ultra-fast async coroutine probing
-                        delay((8..20).random().toLong())
-
-                        val isHijacked = host.contains("8.8.8.8")
-                        val isClean = !isHijacked
-
-                        val latency = when (cat) {
-                            ScannerCategory.IRAN_OPERATORS -> (8..13).random()
-                            ScannerCategory.MASTER_DNS -> (7..12).random()
-                            ScannerCategory.IRAN_INTRANET -> (6..10).random()
-                            ScannerCategory.CLOUDFLARE_WARP -> (12..17).random()
-                            ScannerCategory.REALITY_VLESS -> (11..16).random()
-                            ScannerCategory.HYSTERIA_TUIC -> (12..18).random()
-                            ScannerCategory.SHADOW_TLS -> (14..19).random()
-                            ScannerCategory.NAIVE_PROXY -> (13..18).random()
-                            ScannerCategory.TOR -> (35..55).random()
-                            else -> (10..22).random()
-                        }
-
-                        val jitter = when (cat) {
-                            ScannerCategory.MASTER_DNS, ScannerCategory.IRAN_INTRANET -> 1
-                            ScannerCategory.IRAN_OPERATORS, ScannerCategory.REALITY_VLESS -> (1..2).random()
-                            ScannerCategory.TOR -> (4..8).random()
-                            else -> (1..3).random()
-                        }
-
-                        val packetLoss = if (isClean) 0 else (30..80).random()
-
-                        // Composite AI Score formula
-                        val score = if (isClean) {
-                            val base = when (cat) {
-                                ScannerCategory.IRAN_OPERATORS, ScannerCategory.MASTER_DNS, ScannerCategory.IRAN_INTRANET -> (98..100).random()
-                                ScannerCategory.CLOUDFLARE_WARP, ScannerCategory.REALITY_VLESS, ScannerCategory.HYSTERIA_TUIC -> (97..100).random()
-                                ScannerCategory.NAIVE_PROXY, ScannerCategory.SHADOW_TLS -> (96..99).random()
-                                else -> (93..99).random()
-                            }
-                            base.coerceIn(85, 100)
-                        } else 25
-
-                        val recType = when (cat) {
-                            ScannerCategory.IRAN_OPERATORS -> {
-                                when {
-                                    host.contains("Irancell") || host.contains("MTN") || host.contains("h2-node") -> TunnelType.HYSTERIA_2
-                                    host.contains("Rightel") -> TunnelType.SSH_STANDALONE
-                                    host.contains("TCI") || host.contains("Shatel") -> TunnelType.MASTER_DNS
-                                    else -> TunnelType.VLESS_REALITY
-                                }
-                            }
-                            ScannerCategory.CLOUDFLARE_WARP -> TunnelType.SLIPSTREAM
-                            ScannerCategory.REALITY_VLESS -> TunnelType.VLESS_REALITY
-                            ScannerCategory.HYSTERIA_TUIC -> TunnelType.HYSTERIA_2
-                            ScannerCategory.SHADOW_TLS -> TunnelType.VLESS_REALITY
-                            ScannerCategory.IRAN_INTRANET -> TunnelType.SSH_STANDALONE
-                            ScannerCategory.DPI_DIAGNOSTIC -> TunnelType.NOIZ_DNS_SSH
-                            ScannerCategory.MASTER_DNS -> TunnelType.MASTER_DNS
-                            ScannerCategory.WHITE_DNS, ScannerCategory.STORM_DNS, ScannerCategory.COTTEN_DNS -> TunnelType.MASTER_DNS
-                            ScannerCategory.SNI -> TunnelType.SSH_STANDALONE
-                            ScannerCategory.IPV4_IPV6 -> TunnelType.SLIPSTREAM
-                            ScannerCategory.DNSTT -> TunnelType.DNSTT
-                            ScannerCategory.VAY_NOIZ -> if (host.contains("noiz")) TunnelType.NOIZ_DNS_SSH else TunnelType.VAY_DNS
-                            ScannerCategory.SSH -> TunnelType.SSH_STANDALONE
-                            ScannerCategory.NAIVE_PROXY -> TunnelType.NAIVE_PROXY
-                            ScannerCategory.DOH -> TunnelType.DOH
-                            ScannerCategory.TOR -> TunnelType.TOR
-                            else -> TunnelType.MASTER_DNS
-                        }
-
-                        val bandwidth = when (score) {
-                            in 99..100 -> "${(380..520).random()} Mbps"
-                            in 96..98 -> "${(260..390).random()} Mbps"
-                            in 90..95 -> "${(160..280).random()} Mbps"
-                            else -> "${(60..140).random()} Mbps"
-                        }
-
-                        val tcpHandshake = (latency * 0.35).toInt().coerceAtLeast(2)
-                        val tlsNegotiate = (latency * 0.65).toInt().coerceAtLeast(4)
-                        val uTlsFp = when (cat) {
-                            ScannerCategory.IRAN_OPERATORS, ScannerCategory.REALITY_VLESS -> "chrome_124"
-                            ScannerCategory.SHADOW_TLS, ScannerCategory.NAIVE_PROXY -> "safari_17_0"
-                            ScannerCategory.HYSTERIA_TUIC -> "ios_17_2"
-                            else -> "chrome_120"
-                        }
-                        val alpnList = when (cat) {
-                            ScannerCategory.HYSTERIA_TUIC -> listOf("h3", "h2")
-                            ScannerCategory.REALITY_VLESS, ScannerCategory.IRAN_OPERATORS -> listOf("h2", "http/1.1")
-                            else -> listOf("h2", "http/1.1", "h3")
-                        }
-                        val cleanSni = when {
-                            host.contains("speedtest") -> "www.speedtest.net"
-                            host.contains("aparat") -> "www.aparat.com"
-                            host.contains("telewebion") -> "telewebion.com"
-                            host.contains("digikala") -> "www.digikala.com"
-                            host.contains("arvan") -> "www.arvancloud.ir"
-                            host.contains("alibaba") -> "www.alibaba.ir"
-                            else -> "c.whatsapp.net"
-                        }
-
-                        ScanTargetResult(
-                            id = "dyn-res-${System.currentTimeMillis()}-${globalIndex}",
-                            category = cat,
-                            target = host,
-                            extraInfo = desc + if (isHijacked) " [تله فیلترینگ کشف شد!]" else " [مسیریابی ۱۰۰٪ پاکیزه و ایمن]",
-                            isClean = isClean,
-                            latencyMs = latency,
-                            packetLossPct = packetLoss,
-                            ednsSupport = true,
-                            nxDomainHijacked = isHijacked,
-                            score = score,
-                            recommendedTunnelType = recType,
-                            operatorAffinity = operatorAffinity,
-                            dpiBypassTechnique = dpiBypass,
-                            jitterMs = jitter,
-                            bandwidthEstimate = bandwidth,
-                            mtuClampingValue = spec.mtu,
-                            qosPriority = spec.qos,
-                            encryptionSuite = spec.enc,
-                            tcpHandshakeMs = tcpHandshake,
-                            tlsNegotiateMs = tlsNegotiate,
-                            tlsAlpn = alpnList,
-                            uTlsFingerprint = uTlsFp,
-                            quicSupport = cat == ScannerCategory.HYSTERIA_TUIC || cat == ScannerCategory.CLOUDFLARE_WARP,
-                            muxEnabled = true,
-                            muxConcurrency = 8,
-                            sniHostname = cleanSni,
-                            stabilityScore = if (isClean) (98.5 + (0..14).random() * 0.1) else 35.0
-                        )
-                    }
-                }
-
-                val completedInBatch = batchJobs.awaitAll()
-                freshResults.addAll(completedInBatch)
-
-                val progress = ((freshResults.size.toFloat()) / total).coerceIn(0f, 0.98f)
-                val avgPing = if (freshResults.isNotEmpty()) freshResults.map { it.latencyMs }.average().toInt() else 12
-                val minPing = if (freshResults.isNotEmpty()) freshResults.minOf { it.latencyMs } else 8
-                val currentSubnet = batch.firstOrNull()?.host?.split(":")?.firstOrNull() ?: "162.159.192.0/24"
-
-                _scannerState.value = _scannerState.value.copy(
-                    scanProgress = progress,
-                    scannedCount = freshResults.size,
-                    cleanNodesCount = freshResults.count { it.isClean },
-                    averagePingMs = avgPing,
-                    minLatencyMs = minPing,
-                    activeScannedSubnet = currentSubnet,
-                    dpiInterceptionBlockedCount = freshResults.count { it.score >= 98 },
-                    statusMessage = "در حال پویش پویا و هوشمند (${freshResults.size}/$total) - ساب‌نت فعال: $currentSubnet (پینگ: ${minPing}ms)..."
-                )
-            }
-
-            // AI Smart Auto-Tuner & Adaptive Orchestration
-            val isBlackoutScenario = mode == ScanExecutionMode.AI_AUTONOMOUS_BLACKOUT || category == ScannerCategory.IRAN_INTRANET
-            val bestNode = if (isBlackoutScenario) {
-                freshResults.filter { it.isClean && (it.category == ScannerCategory.IRAN_INTRANET || it.category == ScannerCategory.TOR || it.category == ScannerCategory.SSH) }
-                    .maxWithOrNull(
-                        compareBy<ScanTargetResult> { it.score }
-                            .thenByDescending { 1000 - it.latencyMs }
-                    ) ?: freshResults.first()
-            } else {
-                freshResults.filter { it.isClean }.maxWithOrNull(
-                    compareBy<ScanTargetResult> { it.score }
-                        .thenByDescending { 1000 - it.latencyMs }
-                        .thenByDescending { 100 - it.jitterMs }
-                ) ?: freshResults.first()
-            }
-
-            // Trigger AI Stealth Engine & Intranet AI Router synchronization
-            try {
-                val stealthEngine = AiStealthEngine.getInstance()
-                val intranetRouter = IntranetAiRouter.getInstance()
-                val warEngine = WarTimeResilienceEngine.getInstance()
-                val orchestrator = AiCoreOrchestrator.getInstance()
-
-                if (isBlackoutScenario) {
-                    intranetRouter.setIntranetMode(true)
-                    warEngine.activateEmergencySuite("AI Scanner detected international blackout or intranet matrix scan")
-                    orchestrator.autoShiftToBestCore("International Blackout Mitigation via Scanner")
-                } else {
-                    intranetRouter.setIntranetMode(false)
-                }
-
-                ProfileManager.getInstance(context).autoApplyFromScanner(bestNode)
-
-                // Record local outcome for on-device reinforcement learning
-                val currentOp = detectCurrentOperator()
-                GeminiScannerAi.getInstance(context).recordLocalOutcome(
-                    target = bestNode.target,
-                    transport = bestNode.recommendedTunnelType.title,
-                    success = bestNode.isClean,
-                    latencyMs = bestNode.latencyMs,
-                    isp = currentOp
-                )
-
-                logger.dpi(TAG, "Autonomous AI Scanner tuned: Node=[${bestNode.target}], BlackoutHandled=$isBlackoutScenario, StealthScore=${stealthEngine.stealthState.value.stealthScore}")
-            } catch (e: Exception) {
-                logger.warn(TAG, "AI synchronization exception: ${e.message}")
-            }
-
-            val finalResults = freshResults.map {
-                if (it.id == bestNode.id) it.copy(isAutoApplied = true) else it
-            }
-
-            val finalThreat = if (isBlackoutScenario) IranInternetThreatLevel.LEVEL_4_BLACKOUT else initialThreat
-
+            delay(120)
             _scannerState.value = _scannerState.value.copy(
                 isScanning = false,
-                scanProgress = 1.0f,
-                scannedCount = freshResults.size,
-                totalTargetCount = freshResults.size,
-                cleanNodesCount = freshResults.count { it.isClean },
-                autoAppliedNode = bestNode,
-                results = finalResults,
-                threatLevel = finalThreat,
-                isInternationalBlackoutDetected = isBlackoutScenario,
-                statusMessage = if (isBlackoutScenario)
-                    "🛡️ هوش‌مصنوعی شرایط خاموشی بین‌الملل را مهار کرد! نود رله امن (${bestNode.target}) با امتیاز ${bestNode.score}/100 و بدون قطعی فعال شد."
-                else
-                    "اسکن پویا و هوشمند تکمیل شد! از میان ${freshResults.size} نود اسکن‌شده، برترین نود (${bestNode.target}) با امتیاز ${bestNode.score}/100 و پینگ ${bestNode.latencyMs}ms انتخاب و فعال گردید."
+                scanProgress = 0f,
+                scannedCount = 0,
+                totalTargetCount = total,
+                cleanNodesCount = 0,
+                results = emptyList(),
+                autoAppliedNode = null,
+                activeScannedSubnet = "",
+                liveNodesGeneratedCount = dynamicProbes.size,
+                backendUnavailable = true,
+                backendNote = "No real AutoScanner probe backend is wired in; scan results are unavailable.",
+                statusMessage = "Scan request completed without a real probe backend; no results fabricated."
             )
-
-            logger.info(TAG, "AI Dynamic Auto-Tuner applied best node: [${bestNode.target}] Protocol: ${bestNode.recommendedTunnelType.title}")
-            onComplete?.invoke(bestNode)
+            logger.scanner(TAG, "AutoScanner request completed fail-closed; no fabricated results.")
         }
     }
-
-    /**
-     * 1-Click Manual/Instant Apply a specific scanned result node
      */
     fun applyScannedNode(nodeId: String) {
         val current = _scannerState.value
         val targetNode = current.results.find { it.id == nodeId } ?: return
+        if (!targetNode.measured) {
+            logger.warn(TAG, "applyScannedNode refused: node [${targetNode.target}] is not a real measured result.")
+            return
+        }
 
         val updated = current.results.map {
             it.copy(isAutoApplied = (it.id == nodeId))
@@ -1095,7 +697,15 @@ class AutoScannerEngine private constructor(private val context: Context) {
 
                 if (_scannerState.value.isContinuousAutoHealingEnabled && !_scannerState.value.isScanning) {
                     val currentBest = _scannerState.value.autoAppliedNode
-                    if (currentBest == null || currentBest.latencyMs > 120 || currentBest.packetLossPct > 5) {
+                    // Fail-closed: nothing to heal until a real measured node has been applied.
+                    if (currentBest == null) {
+                        continue
+                    }
+                    if (currentBest.latencyMs > 120 || currentBest.packetLossPct > 5) {
+                        if (_scannerState.value.backendUnavailable) {
+                            logger.scanner(TAG, "Auto-Healing Watchdog skipped: no real probe backend wired; no fabricated heal action.")
+                            continue
+                        }
                         logger.scanner(TAG, "Auto-Healing / Zero-Touch Watchdog triggered! Re-evaluating optimal probe...")
                         val healthyNodes = _scannerState.value.results.filter { it.isClean && it.latencyMs < 35 }
                         if (healthyNodes.isNotEmpty()) {
@@ -1110,7 +720,8 @@ class AutoScannerEngine private constructor(private val context: Context) {
                                 lastAiAutoPilotAction = "ترمیم خودکار: نود برگزیده '${newBest.target}' با پینگ ${newBest.latencyMs}ms به صورت خودکار جایگزین شد."
                             )
                         } else if (_scannerState.value.isAutonomousZeroTouchEnabled) {
-                            // Automatically start a fresh dynamic scan if all nodes are degraded
+                            // Automatically start a fresh dynamic scan if all nodes are degraded.
+                            // Only meaningful with a real backend; fail-closed otherwise.
                             startFullAutoScan(
                                 category = _scannerState.value.activeCategory,
                                 mode = _scannerState.value.executionMode,

@@ -102,7 +102,7 @@ struct StatusView: View {
                 }
                 .padding()
             }
-            .navigationTitle("V2RayEZ")
+            .navigationTitle("Vor")
         }
     }
 

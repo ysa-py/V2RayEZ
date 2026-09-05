@@ -20,7 +20,7 @@ dependencyResolutionManagement {
 }
 
 // Unified product naming: the Gradle project name matches the canonical
-// display name "V2RayEZ" (app_name string, APK artifact names, brand assets).
-rootProject.name = "V2RayEZ"
+// display name "Vor" (app_name string, APK artifact names, brand assets).
+rootProject.name = "Vor"
 include(":app")
 include(":license-admin")

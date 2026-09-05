@@ -1,10 +1,10 @@
--- LuCI CBI Model for V2RayEZ router configuration
+-- LuCI CBI Model for Vor router configuration
 -- Form definition at: /admin/services/unifiedshield/config
 
 local m, s, o
 
-m = Map("unifiedshield", translate("V2RayEZ Universal"),
-    translate("V2RayEZ router-grade anti-censorship VPN. " ..
+m = Map("unifiedshield", translate("Vor Universal"),
+    translate("Vor router-grade anti-censorship VPN. " ..
               "Supports Xray, NaïveProxy, Hysteria2, and TUIC cores. " ..
               "DNS uses Alibaba/Tencent CDN (Cloudflare is blocked in Iran)."))
 
@@ -15,7 +15,7 @@ s.addremove = false
 
 -- Enable/Disable
 o = s:option(Flag, "enabled", translate("Enable"),
-    translate("Enable V2RayEZ router VPN service"))
+    translate("Enable Vor router VPN service"))
 o.default = "0"
 o.rmempty = false
 

@@ -6,63 +6,60 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlin.random.Random
 
 /**
  * PROJECT MICAFP — eBPF Kernel Socket Interception & Zero-Copy Redirection Module.
- * Intercepts outbound packets at socket level (BPF_PROG_TYPE_SK_SKB / cgroup_skb),
- * performing zero-copy packet redirection directly to custom tunnel virtual interfaces
- * while bypassing standard Linux networking stack latency and OS-level DPI hooks.
+ *
+ * ANTI-FABRICATION (2026-09-04): This class previously reported hardcoded
+ * `isEbpfAttached=true`, a made-up ring-buffer fd, and `Math.random`-style
+ * synthetic packet/latency counters, and `attachSocketFilter()` returned `true`
+ * without ever attaching a real BPF program. That is exactly the
+ * fabricated-telemetry failure mode this project rejects.
+ *
+ * Correct behavior now:
+ *   - The engine is honest about whether a real eBPF backend is attached: the
+ *     default state is `backendUnavailable=true` and every counter is `0`.
+ *   - `attachSocketFilter(socketFd)` never fabricates success. Without a real
+ *     native kernel attach path it returns `false`, logs an explicit "not
+ *     attached" event, and leaves all counters untouched.
+ *   - No background thread simulates kernel counters.
+ *
+ * Integrators must replace `attachSocketFilter` with the real syscall/BPF attach
+ * and feed counters from the native ring buffer. Until that backend exists, the
+ * UI shows "unavailable" rather than trusting this class's numbers.
  */
 class EbpfSocketFilterEngine private constructor() {
 
     private val TAG = "EbpfSocketFilter"
     private val logger = DebugLogger.getInstance()
-    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     private val _ebpfStatus = MutableStateFlow(
         EbpfKernelModuleStatus(
-            isEbpfAttached = true,
-            attachedCgroup = "/sys/fs/cgroup/unifiedshield_vpn",
-            zeroCopyRingBufferFd = 42,
-            redirectedPacketsTotal = 894000L,
-            kernelStackBypassLatencyNs = 1200L, // 1.2 microseconds
-            activeSockMapEntries = 128
+            isEbpfAttached = false,
+            attachedCgroup = "",
+            zeroCopyRingBufferFd = -1,
+            redirectedPacketsTotal = 0L,
+            kernelStackBypassLatencyNs = 0L,
+            activeSockMapEntries = 0,
+            backendUnavailable = true,
+            backendNote = "No real eBPF kernel backend is attached; counters are unavailable."
         )
     )
     val ebpfStatus: StateFlow<EbpfKernelModuleStatus> = _ebpfStatus.asStateFlow()
 
-    init {
-        startEbpfKernelMonitoring()
-    }
-
-    private fun startEbpfKernelMonitoring() {
-        scope.launch {
-            while (isActive) {
-                delay(2000L)
-                tickKernelStats()
-            }
-        }
-    }
-
-    private fun tickKernelStats() {
-        val redirected = 1200L + Random.nextLong(100, 500)
-        _ebpfStatus.value = _ebpfStatus.value.copy(
-            redirectedPacketsTotal = _ebpfStatus.value.redirectedPacketsTotal + redirected,
-            kernelStackBypassLatencyNs = 1100L + Random.nextLong(0, 300),
-            activeSockMapEntries = 120 + Random.nextInt(0, 20)
-        )
-    }
-
     /**
-     * Attaches eBPF program to target socket FD via BPF_MAP_TYPE_SOCKMAP.
+     * Attaches an eBPF program to the target socket FD. Fail-closed: without a
+     * real native attach result this returns false and never updates counters.
      */
     fun attachSocketFilter(socketFd: Int): Boolean {
-        logger.info(TAG, "Attached eBPF SK_SKB zero-copy redirection to Socket FD: $socketFd")
-        _ebpfStatus.value = _ebpfStatus.value.copy(
-            activeSockMapEntries = _ebpfStatus.value.activeSockMapEntries + 1
+        logger.warn(TAG, "attachSocketFilter requested for fd=$socketFd but no real BPF attach backend is wired; refusing to report success.")
+        val current = _ebpfStatus.value
+        _ebpfStatus.value = current.copy(
+            isEbpfAttached = false,
+            backendUnavailable = true,
+            backendNote = "Real eBPF kernel attachment is not available on this build; attachSocketFilter did not succeed."
         )
-        return true
+        return false
     }
 
     companion object {
@@ -83,5 +80,7 @@ data class EbpfKernelModuleStatus(
     val zeroCopyRingBufferFd: Int,
     val redirectedPacketsTotal: Long,
     val kernelStackBypassLatencyNs: Long,
-    val activeSockMapEntries: Int
+    val activeSockMapEntries: Int,
+    val backendUnavailable: Boolean = true,
+    val backendNote: String = ""
 )

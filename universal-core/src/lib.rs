@@ -34,7 +34,9 @@ mod connectivity_packet_loss_jitter;
 pub use ai_provider::{AIProviderConfig, AIProviderProbeResult, AIResponseShape};
 pub use config::{ProxyProfile, ProxyProtocol};
 pub use core_manager::{AddonManifest, AddonPackage, CoreSession, PlatformId};
-pub use license::{LicenseDecision, LicenseVerifier, VerifiedLicense};
+pub use license::{
+    LicenseDecision, LicenseVerifier, SignedRevocationList, VerifiedLicense,
+};
 pub use route_matrix::{
     build_route_matrix, final_abba_candidates, route_matrix_score, select_winner, RouteDnsPreset,
     RouteEdge, RouteFragmentPreset, RouteMatrixCandidate, RouteMatrixPhase, RouteMatrixResult,

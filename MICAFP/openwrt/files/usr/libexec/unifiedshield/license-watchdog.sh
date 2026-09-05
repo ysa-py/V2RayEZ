@@ -1,5 +1,5 @@
 #!/bin/sh
-# V2RayEZ Universal / UnifiedShield OpenWrt runtime license watchdog.
+# Vor Universal / UnifiedShield OpenWrt runtime license watchdog.
 # Runs beside the procd daemon instance and hard-stops the service as soon as the
 # native or online license gate denies the signed serial, revocation check, or
 # offline grace window.

@@ -33,12 +33,13 @@ data class StormDnsResolverNode(
     val id: String,
     val address: String,
     val port: Int = 53,
-    val latencyMs: Int,
-    val packetLossPct: Double,
+    val latencyMs: Int = 0,
+    val packetLossPct: Double = 0.0,
     val discoveredMtu: Int = 1232,
-    val isActive: Boolean = true,
-    val requestsSent: Long = 1420,
-    val responsesReceived: Long = 1390
+    val isActive: Boolean = false,
+    val requestsSent: Long = 0,
+    val responsesReceived: Long = 0,
+    val measured: Boolean = false
 )
 
 data class StormDnsDuplicationControls(
@@ -53,20 +54,22 @@ data class StormDnsState(
     val localSocks5Port: Int = 10853,
     val localListenAddress: String = "127.0.0.1",
     val tunnelDomain: String = "st.unifiedshield.net",
-    val encryptionKey: String = "k8f9a2b7c4d1e6f03948572019a8b7c6",
+    val encryptionKey: String = "",
     val balancing: StormDnsBalancing = StormDnsBalancing.LEAST_LOSS,
     val compression: StormDnsCompression = StormDnsCompression.ZSTD,
     val cipher: StormDnsCipher = StormDnsCipher.AES_128_GCM,
     val encoding: StormDnsEncoding = StormDnsEncoding.BASE32,
     val activeMtu: Int = 1232,
-    val isAutoMtuDiscoveryEnabled: Boolean = true,
+    val isAutoMtuDiscoveryEnabled: Boolean = false,
     val duplicationControls: StormDnsDuplicationControls = StormDnsDuplicationControls(),
-    val logBasedStartupEnabled: Boolean = true,
-    val localDnsCacheEnabled: Boolean = true,
-    val bytesTransmitted: Long = 842000,
-    val bytesReceived: Long = 4920000,
-    val arqRetransmissions: Long = 48,
-    val dynamicRtoMs: Int = 32,
-    val activeStreamsCount: Int = 6,
-    val resolvers: List<StormDnsResolverNode> = emptyList()
+    val logBasedStartupEnabled: Boolean = false,
+    val localDnsCacheEnabled: Boolean = false,
+    val bytesTransmitted: Long = 0,
+    val bytesReceived: Long = 0,
+    val arqRetransmissions: Long = 0,
+    val dynamicRtoMs: Int = 0,
+    val activeStreamsCount: Int = 0,
+    val resolvers: List<StormDnsResolverNode> = emptyList(),
+    val backendUnavailable: Boolean = true,
+    val backendNote: String = "No real StormDNS tunnel/resolver backend is wired in; telemetry is unavailable."
 )

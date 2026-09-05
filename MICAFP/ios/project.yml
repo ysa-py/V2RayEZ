@@ -1,7 +1,7 @@
-name: V2RayEZ
+name: Vor
 
 options:
-  bundleIdPrefix: app.v2rayez
+  bundleIdPrefix: app.vor
   deploymentTarget:
     iOS: "15.0"
   createIntermediateGroups: true
@@ -35,8 +35,8 @@ targets:
         embed: true
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: app.v2rayez.ios
-        PRODUCT_NAME: V2RayEZ
+        PRODUCT_BUNDLE_IDENTIFIER: app.vor.ios
+        PRODUCT_NAME: Vor
         INFOPLIST_FILE: Info.plist
         CODE_SIGN_ENTITLEMENTS: V2RayEZ.entitlements
     preBuildScripts:
@@ -54,8 +54,8 @@ targets:
       - path: UnifiedShield/NetworkExtension
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: app.v2rayez.ios.PacketTunnel
-        PRODUCT_NAME: V2RayEZPacketTunnel
+        PRODUCT_BUNDLE_IDENTIFIER: app.vor.ios.PacketTunnel
+        PRODUCT_NAME: VorPacketTunnel
         INFOPLIST_FILE: V2RayEZPacketTunnel/Info.plist
         CODE_SIGN_ENTITLEMENTS: V2RayEZPacketTunnel.entitlements
         LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks"

@@ -1,5 +1,5 @@
 #!/bin/sh
-# V2RayEZ Universal / UnifiedShield OpenWrt license gate.
+# Vor Universal / UnifiedShield OpenWrt license gate.
 # This script is intentionally fail-closed. A universal-core-backed native verifier
 # (`/usr/bin/v2rayez-license-gate`) is preferred for local Ed25519 and signed grace
 # verification. The shell fallback only performs online validation and refuses

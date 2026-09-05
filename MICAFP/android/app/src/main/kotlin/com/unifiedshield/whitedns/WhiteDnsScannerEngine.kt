@@ -2,7 +2,6 @@ package com.unifiedshield.whitedns
 
 import android.content.Context
 import android.os.Environment
-import android.util.Log
 import com.unifiedshield.logging.DebugLogger
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -56,87 +55,18 @@ class WhiteDnsScannerEngine private constructor(private val context: Context) {
         )
     )
 
-    private val _state = MutableStateFlow(
-        WhiteDnsScannerState(
-            results = getInitialDiscoveredCleanNodes()
-        )
-    )
+    private val _state = MutableStateFlow(WhiteDnsScannerState())
     val state: StateFlow<WhiteDnsScannerState> = _state
 
-    private fun getInitialDiscoveredCleanNodes(): List<WhiteDnsScanResult> {
-        return listOf(
-            WhiteDnsScanResult(
-                id = "wdns-1",
-                target = "104.21.68.12",
-                scanType = WhiteDnsScanType.DNS_RESOLVER,
-                asn = "AS13335",
-                org = "Cloudflare Inc.",
-                pingLatencyMs = 12,
-                isClean = true,
-                aRecordIntegrity = true,
-                recursionAvailable = true,
-                ednsBufferSize = 1232,
-                txtTunnelPassthrough = true,
-                nxDomainHijacked = false,
-                tlsUtlsHandshakeOk = true,
-                httpSocksWorking = true,
-                downloadSpeedMbps = 84.5,
-                ratingScore = 100
-            ),
-            WhiteDnsScanResult(
-                id = "wdns-2",
-                target = "172.67.180.44",
-                scanType = WhiteDnsScanType.DNS_RESOLVER,
-                asn = "AS13335",
-                org = "Cloudflare Inc.",
-                pingLatencyMs = 14,
-                isClean = true,
-                aRecordIntegrity = true,
-                recursionAvailable = true,
-                ednsBufferSize = 4096,
-                txtTunnelPassthrough = true,
-                nxDomainHijacked = false,
-                tlsUtlsHandshakeOk = true,
-                httpSocksWorking = true,
-                downloadSpeedMbps = 78.2,
-                ratingScore = 98
-            ),
-            WhiteDnsScanResult(
-                id = "wdns-3",
-                target = "151.101.65.140",
-                scanType = WhiteDnsScanType.SNI_SCANNER,
-                asn = "AS54113",
-                org = "Fastly CDN",
-                pingLatencyMs = 16,
-                isClean = true,
-                aRecordIntegrity = true,
-                recursionAvailable = true,
-                ednsBufferSize = 1232,
-                txtTunnelPassthrough = true,
-                nxDomainHijacked = false,
-                tlsUtlsHandshakeOk = true,
-                httpSocksWorking = true,
-                downloadSpeedMbps = 91.0,
-                ratingScore = 99
-            ),
-            WhiteDnsScanResult(
-                id = "wdns-4",
-                target = "223.5.5.5",
-                scanType = WhiteDnsScanType.DNS_RESOLVER,
-                asn = "AS45102",
-                org = "Alibaba Public DNS",
-                pingLatencyMs = 18,
-                isClean = true,
-                aRecordIntegrity = true,
-                recursionAvailable = true,
-                ednsBufferSize = 1400,
-                txtTunnelPassthrough = true,
-                nxDomainHijacked = false,
-                tlsUtlsHandshakeOk = true,
-                httpSocksWorking = true,
-                downloadSpeedMbps = 65.4,
-                ratingScore = 96
-            )
+    fun recordRealScanResult(result: WhiteDnsScanResult) {
+        val list = _state.value.results.toMutableList()
+        list.add(0, result)
+        _state.value = _state.value.copy(
+            results = list,
+            cleanTargetsFound = list.count { it.isClean },
+            scannedTargets = _state.value.scannedTargets + 1,
+            backendUnavailable = false,
+            backendNote = "Real WhiteDNS probe result recorded."
         )
     }
 
@@ -160,12 +90,17 @@ class WhiteDnsScannerEngine private constructor(private val context: Context) {
         _state.value = _state.value.copy(activeProtocol = protocol)
     }
 
+    /**
+     * Fail-closed scan start. With no real WhiteDNS probe backend wired, this
+     * computes the target list then completes with `results=[]` and an honest
+     * unavailable message rather than fabricating clean-node results.
+     */
     fun startScan() {
         if (_state.value.isScanning && !_state.value.isPaused) return
 
         if (_state.value.isPaused) {
             _state.value = _state.value.copy(isPaused = false)
-            logger.addLog("WhiteDNS Scanner", "Resumed scanning operations.")
+            logger.addLog("WhiteDNS Scanner", "Resumed scanning operations (still no real probe backend).")
             return
         }
 
@@ -176,8 +111,11 @@ class WhiteDnsScannerEngine private constructor(private val context: Context) {
             scannedTargets = 0,
             cleanTargetsFound = 0,
             progressPercentage = 0f,
+            totalTargets = 0,
             results = emptyList(),
-            exportStatusMessage = null
+            exportStatusMessage = null,
+            backendUnavailable = true,
+            backendNote = "No real WhiteDNS probe backend is wired in; scan results are unavailable."
         )
 
         logger.addLog("WhiteDNS Scanner", "Starting ${_state.value.selectedScanType.label} with ${_state.value.concurrencyWorkers} workers on ${_state.value.inputCidrOrDomain}...")
@@ -185,72 +123,20 @@ class WhiteDnsScannerEngine private constructor(private val context: Context) {
         scanJob = scope.launch {
             val sampleTargets = generateScanTargets(_state.value.inputCidrOrDomain, _state.value.selectedScanType)
             val total = sampleTargets.size
-            _state.value = _state.value.copy(totalTargets = total)
-
-            var scanned = 0
-            var cleanFound = 0
-            val foundList = mutableListOf<WhiteDnsScanResult>()
-
-            for (target in sampleTargets) {
-                if (!isActive) break
-
-                while (_state.value.isPaused) {
-                    delay(300)
-                }
-
-                _state.value = _state.value.copy(
-                    currentScanningTarget = target,
-                    currentSpeedPps = (120..280).random()
-                )
-
-                // Simulated async socket & uTLS probe
-                delay((30..80).random().toLong())
-
-                val isClean = (1..100).random() <= 88
-                val lat = (10..38).random()
-                val score = if (isClean) 100 - (lat / 2) else (20..50).random()
-
-                if (isClean) {
-                    val res = WhiteDnsScanResult(
-                        id = UUID.randomUUID().toString().take(8),
-                        target = target,
-                        scanType = _state.value.selectedScanType,
-                        asn = "AS13335",
-                        org = "Cloudflare Anycast Clean Edge",
-                        pingLatencyMs = lat,
-                        isClean = true,
-                        aRecordIntegrity = true,
-                        recursionAvailable = true,
-                        ednsBufferSize = if (_state.value.scanDepth == WhiteDnsScanDepth.FULL) 4096 else 1232,
-                        txtTunnelPassthrough = true,
-                        nxDomainHijacked = false,
-                        tlsUtlsHandshakeOk = true,
-                        httpSocksWorking = true,
-                        downloadSpeedMbps = (450..950).random() / 10.0,
-                        ratingScore = score
-                    )
-                    foundList.add(0, res)
-                    cleanFound++
-                }
-
-                scanned++
-                _state.value = _state.value.copy(
-                    scannedTargets = scanned,
-                    cleanTargetsFound = cleanFound,
-                    progressPercentage = scanned.toFloat() / total.toFloat(),
-                    results = foundList.toList()
-                )
-            }
-
+            delay(80)
             _state.value = _state.value.copy(
                 isScanning = false,
                 isPaused = false,
-                currentScanningTarget = "پایان اسکن - تعداد $cleanFound نود سالم کشف شد.",
+                totalTargets = total,
+                scannedTargets = 0,
+                cleanTargetsFound = 0,
+                currentScanningTarget = "No real probe backend wired; scan did not fabricate results.",
                 currentSpeedPps = 0,
-                progressPercentage = 1f
+                progressPercentage = 0f,
+                results = emptyList(),
+                backendUnavailable = true
             )
-
-            logger.addLog("WhiteDNS Scanner", "Scan completed. Found $cleanFound verified clean IP / DNS nodes.")
+            logger.addLog("WhiteDNS Scanner", "Scan request completed without a real probe backend; no results fabricated.")
         }
     }
 
@@ -266,12 +152,13 @@ class WhiteDnsScannerEngine private constructor(private val context: Context) {
         _state.value = _state.value.copy(
             isScanning = false,
             isPaused = false,
-            currentScanningTarget = "اسکن توسط کاربر متوقف شد."
+            currentScanningTarget = "اسکن توسط کاربر متوقف شد.",
+            results = emptyList()
         )
         logger.addLog("WhiteDNS Scanner", "Scanner halted.")
     }
 
-    private fun generateScanTargets(input: String, type: WhiteDnsScanType): List<String> {
+    fun generateScanTargets(input: String, type: WhiteDnsScanType): List<String> {
         val list = mutableListOf<String>()
         when (type) {
             WhiteDnsScanType.IP_CIDR, WhiteDnsScanType.DNS_RESOLVER -> {
@@ -311,15 +198,13 @@ class WhiteDnsScannerEngine private constructor(private val context: Context) {
             WhiteDnsExportFormat.JSON -> buildJsonExport(_state.value.results)
             WhiteDnsExportFormat.CSV -> buildCsvExport(_state.value.results)
             WhiteDnsExportFormat.TXT -> buildTxtExport(_state.value.results)
-            WhiteDnsExportFormat.XLSX -> buildCsvExport(_state.value.results) // Compatible spreadsheet format
+            WhiteDnsExportFormat.XLSX -> buildCsvExport(_state.value.results)
         }
 
         try {
-            // Save to app internal cache
             val localFile = File(context.cacheDir, fileName)
             localFile.writeText(content)
 
-            // Try saving to public Documents / WhiteDNS Scanner folder
             val docsDir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), "WhiteDNS Scanner")
             if (!docsDir.exists()) {
                 docsDir.mkdirs()
@@ -327,7 +212,7 @@ class WhiteDnsScannerEngine private constructor(private val context: Context) {
             val pubFile = File(docsDir, fileName)
             pubFile.writeText(content)
 
-            val msg = "فایل $fileName در پوشه Documents/WhiteDNS Scanner با موفقیت ذخیره شد (${_state.value.results.size} ردیف)."
+            val msg = "فایل $fileName در پوشه Documents/WhiteDNS Scanner ذخیره شد (${_state.value.results.size} ردیف)."
             _state.value = _state.value.copy(exportStatusMessage = msg)
             logger.addLog("WhiteDNS Exporter", msg)
             return msg

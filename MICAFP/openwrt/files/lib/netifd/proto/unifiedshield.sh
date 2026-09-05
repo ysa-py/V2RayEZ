@@ -1,5 +1,5 @@
 #!/bin/sh
-# netifd protocol integration for V2RayEZ Universal / UnifiedShield.
+# netifd protocol integration for Vor Universal / UnifiedShield.
 # This script lets OpenWrt manage the VPN as a first-class network interface:
 #   config interface 'vpn'
 #       option proto 'unifiedshield'

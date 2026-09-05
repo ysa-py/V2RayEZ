@@ -231,8 +231,8 @@ fun TunnelsScreen() {
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("پینگ: ${activeProf.pingMs}ms", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                        Text("سرعت: ${activeProf.throughputRating}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF10B981))
+                        Text(if (activeProf.measured) "پینگ: ${activeProf.pingMs}ms" else "پینگ: unmeasured", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = if (activeProf.measured) Color.White else Color(0xFFB45309))
+                        Text("سرعت: ${activeProf.throughputRating}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (activeProf.throughputRating == "unmeasured") Color(0xFFB45309) else Color(0xFF10B981))
                         Text(if (activeProf.tunnelType.isDpiResistant) "ضد فیلتر DPI" else "استاندارد", fontSize = 11.sp, color = Color(0xFF6366F1))
                     }
 
@@ -335,8 +335,8 @@ fun TunnelsScreen() {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Text("RTT: ${item.pingMs}ms", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                            Text("پهنای‌باند: ${item.throughputRating}", fontSize = 11.sp, color = Color(0xFF10B981), fontWeight = FontWeight.SemiBold)
+                            Text(if (item.measured) "RTT: ${item.pingMs}ms" else "RTT: unmeasured", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = if (item.measured) MaterialTheme.colorScheme.onSurface else Color(0xFFB45309))
+                            Text("پهنای‌باند: ${item.throughputRating}", fontSize = 11.sp, color = if (item.throughputRating == "unmeasured") Color(0xFFB45309) else Color(0xFF10B981), fontWeight = FontWeight.SemiBold)
                         }
 
                         IconButton(

@@ -66,12 +66,12 @@ fun AiEngineScreen() {
 
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Autonomous AI Anti-DPI Engine",
+                            text = "Adaptive Anti-DPI Heuristic (Advisory)",
                             fontSize = 17.sp,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "موتور یادگیری تقویتی خودکار برای دور زدن فیلترینگ هوشمند و تفکیک بایت‌های TLS",
+                            text = "فقط مشاوره اکتشافی — هیچ مدل یادگیری تقویتی یا موتور کوانتومی در این بیلد متصل نیست",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -98,13 +98,13 @@ fun AiEngineScreen() {
                             Text("Stealth Index", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = "${(stealthState.stealthScore * 100).toInt()}%",
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF10B981)
-                        )
-                        Text("ضریب پنهان‌سازی کوانتومی", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        text = if (stealthState.backendUnavailable) "UNAVAILABLE" else "${(stealthState.stealthScore * 100).toInt()}%",
+                        fontSize = if (stealthState.backendUnavailable) 15.sp else 22.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (stealthState.backendUnavailable) MaterialTheme.colorScheme.error else Color(0xFF10B981)
+                    )
+                    Text("شاخص پنهان‌سازی — بدون بک‌اند واقعی در دسترس نیست", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
 
@@ -120,13 +120,13 @@ fun AiEngineScreen() {
                             Text("RST Blocked", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = "${stealthState.tcpRstNeutralizedCount}",
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF6366F1)
-                        )
-                        Text("بسته‌های تزریقی خنثی شده", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        text = if (stealthState.tcpRstNeutralizedCount > 0) "${stealthState.tcpRstNeutralizedCount}" else "unavailable",
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (stealthState.tcpRstNeutralizedCount > 0) Color(0xFF6366F1) else MaterialTheme.colorScheme.error
+                    )
+                    Text("بسته‌های تزریقی خنثی شده (بدون بک‌اند = ۰)", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -143,16 +143,16 @@ fun AiEngineScreen() {
                     Spacer(modifier = Modifier.height(10.dp))
 
                     // TLS Record Slicing
-                    Text(
-                        text = "TLS Record Slicing (تقسیم قطعات TLS): ${stealthState.tlsRecordSplitLength} Bytes",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = "بسته‌های ClientHello به قطعات ۲ الی ۳ بایتی خرد شده و بدون ترتیب ارسال می‌شوند تا فیلترهای SNI قادر به بازرسی نباشند.",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                        Text(
+                            text = "Advisory TLS Record Split (تقسیم قطعات پیشنهادی): ${stealthState.tlsRecordSplitLength} Bytes",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = "این مقدار فقط یک پیشنهاد اکتشافی است؛ هیچ تغییر عملی در بسته‌های TLS اعمال نمی‌شود.",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     Slider(
                         value = stealthState.tlsRecordSplitLength.toFloat(),
                         onValueChange = { aiEngine.setTlsSplitLength(it.toInt()) },
@@ -174,21 +174,21 @@ fun AiEngineScreen() {
                     ) {
                         Icon(Icons.Default.Bolt, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("تزریق پالس نویز خصمانه (Blind DPI Models)", fontWeight = FontWeight.Bold)
+                        Text("ثبت درخواست پالس نویز خصمانه (بدون اجرا)", fontWeight = FontWeight.Bold)
                     }
                 }
             }
         }
 
         item {
-            // Live AI Decision Stream Title
+            // Advisory Decision Stream Title
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(horizontal = 4.dp)
             ) {
                 Icon(Icons.Default.History, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Live AI Evasion Decisions (رویدادهای بلادرنگ هوش مصنوعی)", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text("Advisory Decisions (رویدادهای مشاوره‌ای)", fontSize = 14.sp, fontWeight = FontWeight.Bold)
             }
         }
 

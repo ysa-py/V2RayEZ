@@ -667,7 +667,13 @@ fun ResolverNodeCard(resolver: MasterDnsResolverNode) {
                     modifier = Modifier
                         .size(10.dp)
                         .clip(CircleShape)
-                        .background(if (resolver.isAlive) Color(0xFF10B981) else Color.Red)
+                        .background(
+                            when {
+                                !resolver.measured -> Color(0xFFB45309)
+                                resolver.isAlive -> Color(0xFF10B981)
+                                else -> Color.Red
+                            }
+                        )
                 )
                 Column {
                     Text(resolver.name, fontWeight = FontWeight.Bold, fontSize = 13.sp)
@@ -682,15 +688,15 @@ fun ResolverNodeCard(resolver: MasterDnsResolverNode) {
 
             Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    "${resolver.pingMs} ms",
+                    if (resolver.measured) "${resolver.pingMs} ms" else "unmeasured",
                     fontWeight = FontWeight.Bold,
                     fontSize = 13.sp,
-                    color = if (resolver.pingMs < 20) Color(0xFF10B981) else Color(0xFFF59E0B)
+                    color = if (!resolver.measured) Color(0xFFB45309) else if (resolver.pingMs < 20) Color(0xFF10B981) else Color(0xFFF59E0B)
                 )
                 Text(
-                    "افت: ${resolver.packetLossPct}%",
+                    if (resolver.measured) "افت: ${resolver.packetLossPct}%" else "packet loss: unmeasured",
                     fontSize = 10.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = if (resolver.measured) MaterialTheme.colorScheme.onSurfaceVariant else Color(0xFFB45309)
                 )
             }
         }
