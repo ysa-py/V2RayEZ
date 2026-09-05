@@ -96,8 +96,7 @@ struct SettingsView: View {
                         .keyboardType(.URL)
                         .textInputAutocapitalization(.never)
                     TextField("Device label", text: $licenseDeviceLabel)
-                    TextField("Ed25519 public key PEM", text: $licensePublicKeyPem, axis: .vertical)
-                        .lineLimit(2...5)
+                    multilineField("Ed25519 public key PEM", text: $licensePublicKeyPem, lines: 5)
                         .textInputAutocapitalization(.never)
                     Toggle("Allow signed offline grace", isOn: $licenseAllowOfflineGrace)
                     SecureField("Serial number", text: $licenseSerialInput)
@@ -145,11 +144,9 @@ struct SettingsView: View {
                     TextField("API key alias", text: $aiProvider.apiKeyAlias)
                         .textInputAutocapitalization(.never)
                     SecureField("API key / secret", text: $aiSecretInput)
-                    TextField("Headers JSON", text: $aiProvider.headersJson, axis: .vertical)
-                        .lineLimit(2...4)
+                    multilineField("Headers JSON", text: $aiProvider.headersJson, lines: 4)
                         .textInputAutocapitalization(.never)
-                    TextField("Request template", text: $aiProvider.requestTemplate, axis: .vertical)
-                        .lineLimit(2...5)
+                    multilineField("Request template", text: $aiProvider.requestTemplate, lines: 5)
                         .textInputAutocapitalization(.never)
                     TextField("Response path", text: $aiProvider.responsePath)
                         .textInputAutocapitalization(.never)
@@ -242,6 +239,23 @@ struct SettingsView: View {
             }
         }
     }
+
+
+    /// Multi-line text input that stays compatible with the iOS 15 deployment
+    /// target: `TextField(_:text:axis:)` and the range-based `lineLimit` are
+    /// iOS 16+, so iOS 15 falls back to a plain (still multi-line capable)
+    /// TextField with an absolute line limit.
+    @ViewBuilder
+    private func multilineField(_ title: String, text: Binding<String>, lines: Int) -> some View {
+        if #available(iOS 16.0, *) {
+            TextField(title, text: text, axis: .vertical)
+                .lineLimit(2...lines)
+        } else {
+            TextField(title, text: text)
+                .lineLimit(lines)
+        }
+    }
+
 }
 
 #Preview {

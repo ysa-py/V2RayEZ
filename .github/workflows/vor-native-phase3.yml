@@ -40,6 +40,14 @@ on:
         required: true
         type: boolean
         default: false
+      on_missing_signing:
+        description: 'What to do when required signing material is absent: report (emit the real unsigned artifact + an explicit report) or fail (hard release gate)'
+        required: false
+        type: choice
+        default: report
+        options:
+          - report
+          - fail
 
 permissions:
   contents: read
@@ -99,6 +107,114 @@ jobs:
           echo "signed=${SIGNED}" >> "$GITHUB_OUTPUT"
           echo "build=${BUILD}" >> "$GITHUB_OUTPUT"
           echo "Version=${VERSION} ShortSHA=${SHORT_SHA} Build=${BUILD} Signed=${SIGNED}"
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Signing capability plan — auto-detected, never fabricated.
+  #
+  # Tag runs used to turn red with "secret missing" as the only error: the
+  # pipeline could not distinguish "the build is broken" from "this fork has no
+  # Apple/Google signing credentials". This job resolves that up front and
+  # publishes a machine-readable plan so every downstream job can take the
+  # strongest honest path available:
+  #   * material present -> real signed artifact;
+  #   * material absent  -> real UNSIGNED artifact (clearly labelled) plus an
+  #                         explicit report, never a fabricated signature and
+  #                         never a placeholder binary.
+  # A run therefore only goes red for a genuine build/verification error.
+  # ─────────────────────────────────────────────────────────────────────────────
+  signing-plan:
+    needs: [meta]
+    runs-on: ubuntu-latest
+    outputs:
+      android: ${{ steps.plan.outputs.android }}
+      ios: ${{ steps.plan.outputs.ios }}
+      android_missing: ${{ steps.plan.outputs.android_missing }}
+      ios_missing: ${{ steps.plan.outputs.ios_missing }}
+      on_missing_signing: ${{ steps.plan.outputs.on_missing_signing }}
+    steps:
+      - name: Resolve signing capability
+        id: plan
+        shell: bash
+        env:
+          KS_B64: ${{ secrets.VOR_ANDROID_KEYSTORE_B64 }}
+          KS_PASSWORD: ${{ secrets.VOR_ANDROID_KEYSTORE_PASSWORD }}
+          KS_ALIAS: ${{ secrets.VOR_ANDROID_KEY_ALIAS }}
+          KS_KEY_PASSWORD: ${{ secrets.VOR_ANDROID_KEY_PASSWORD }}
+          APPLE_TEAM: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_PROFILE: ${{ secrets.APPLE_PROVISIONING_PROFILE }}
+          APPLE_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          ON_MISSING_INPUT: ${{ inputs.on_missing_signing }}
+        run: |
+          set -euo pipefail
+          android_missing=()
+          [[ -n "${KS_B64:-}" ]] || android_missing+=(VOR_ANDROID_KEYSTORE_B64)
+          [[ -n "${KS_PASSWORD:-}" ]] || android_missing+=(VOR_ANDROID_KEYSTORE_PASSWORD)
+          [[ -n "${KS_ALIAS:-}" ]] || android_missing+=(VOR_ANDROID_KEY_ALIAS)
+          [[ -n "${KS_KEY_PASSWORD:-}" ]] || android_missing+=(VOR_ANDROID_KEY_PASSWORD)
+          if ((${#android_missing[@]} == 0)); then android=ready; else android=blocked; fi
+
+          ios_missing=()
+          [[ -n "${APPLE_TEAM:-}" ]] || ios_missing+=(APPLE_TEAM_ID)
+          if [[ -z "${APPLE_PROFILE:-}" && -z "${APPLE_IDENTITY:-}" ]]; then
+            ios_missing+=(APPLE_PROVISIONING_PROFILE-or-APPLE_SIGNING_IDENTITY)
+          fi
+          if ((${#ios_missing[@]} == 0)); then ios=ready; else ios=blocked; fi
+
+          on_missing="${ON_MISSING_INPUT:-report}"
+          [[ "$on_missing" == "report" || "$on_missing" == "fail" ]] || on_missing=report
+
+          {
+            echo "version=${{ needs.meta.outputs.version }}"
+            echo "signed=${{ needs.meta.outputs.signed }}"
+            echo "on_missing_signing=$on_missing"
+          } > /tmp/plan-header.txt
+
+          echo "android=$android" >> "$GITHUB_OUTPUT"
+          echo "ios=$ios" >> "$GITHUB_OUTPUT"
+          echo "android_missing=${android_missing[*]:-}" >> "$GITHUB_OUTPUT"
+          echo "ios_missing=${ios_missing[*]:-}" >> "$GITHUB_OUTPUT"
+          echo "on_missing_signing=$on_missing" >> "$GITHUB_OUTPUT"
+
+          android_missing_csv=""
+          if ((${#android_missing[@]} > 0)); then
+            android_missing_csv="$(printf '"%s",' "${android_missing[@]}")"
+            android_missing_csv="${android_missing_csv%,}"
+          fi
+          ios_missing_csv=""
+          if ((${#ios_missing[@]} > 0)); then
+            ios_missing_csv="$(printf '"%s",' "${ios_missing[@]}")"
+            ios_missing_csv="${ios_missing_csv%,}"
+          fi
+
+          report="signing-plan.json"
+          cat > "$report" <<JSON
+          {
+            "version": "${{ needs.meta.outputs.version }}",
+            "signed_required": "${{ needs.meta.outputs.signed }}",
+            "on_missing_signing": "$on_missing",
+            "android": {"status": "$android", "missing": [$android_missing_csv]},
+            "ios": {"status": "$ios", "missing": [$ios_missing_csv]}
+          }
+          JSON
+
+          echo "### Signing capability plan" >> "$GITHUB_STEP_SUMMARY"
+          echo '```json' >> "$GITHUB_STEP_SUMMARY"
+          cat "$report" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ "$android" == "blocked" ]]; then
+            echo "::warning::PHASE3-SIGNING-PLAN-ANDROID=blocked missing=${android_missing[*]}"
+          fi
+          if [[ "$ios" == "blocked" ]]; then
+            echo "::warning::PHASE3-SIGNING-PLAN-IOS=blocked missing=${ios_missing[*]}"
+          fi
+
+      - name: Upload signing plan
+        uses: actions/upload-artifact@v7
+        with:
+          name: vor-signing-plan
+          path: signing-plan.json
+          if-no-files-found: error
 
   # ─────────────────────────────────────────────────────────────────────────────
   # Native test gate. Runs before any artifact build so a regression in the Phase 2
@@ -227,6 +343,27 @@ jobs:
             exit 1
           fi
 
+      - name: Repository auto-fix audit (fail-closed)
+        run: |
+          set -euo pipefail
+          node scripts/auto-fix.mjs --check
+
+      - name: Full tools/*.mjs quality gate suite
+        run: |
+          set -uo pipefail
+          failed=()
+          for gate in tools/*.mjs; do
+            [[ -f "$gate" ]] || continue
+            if ! node "$gate"; then
+              failed+=("$gate")
+            fi
+          done
+          if [[ "${#failed[@]}" -gt 0 ]]; then
+            echo "::error::Gates failed: ${failed[*]}" >&2
+            exit 1
+          fi
+          echo "All Vor gates passed in the native test stage."
+
       - name: Upload native test logs
         if: always()
         uses: actions/upload-artifact@v7
@@ -239,9 +376,14 @@ jobs:
 
   # ─────────────────────────────────────────────────────────────────────────────
   # Android: JNI staticlibs -> universal .apk + .aab, signed when required.
+  #
+  # The signing step is plan-driven: it signs for real only when the keystore
+  # material exists. When it does not, the job still ships the real (unsigned)
+  # build with an explicit `-UNSIGNED` name plus a `SIGNING-STATUS.txt` report —
+  # it never renames a debug build into a "signed" one.
   # ─────────────────────────────────────────────────────────────────────────────
   build-android:
-    needs: [meta, native-tests]
+    needs: [meta, native-tests, signing-plan]
     if: needs.meta.outputs.build == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -389,6 +531,9 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.VOR_ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.VOR_ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.VOR_ANDROID_KEY_PASSWORD }}
+          SIGNING_PLAN: ${{ needs.signing-plan.outputs.android }}
+          SIGNING_MISSING: ${{ needs.signing-plan.outputs.android_missing }}
+          ON_MISSING_SIGNING: ${{ needs.signing-plan.outputs.on_missing_signing }}
         run: |
           set -euo pipefail
           VERSION="${{ needs.meta.outputs.version }}"
@@ -410,7 +555,58 @@ jobs:
 
           file "$OUT/vor-android-v${VERSION}.apk" "$OUT/vor-android-v${VERSION}.aab"
 
-          if [[ "$SIGN_REQUIRED" == "true" ]]; then
+          # Structural verification: an APK/AAB must be a real zip carrying the
+          # Android manifest, classes.dex and a resource table. Guards against
+          # shipping an empty or truncated build as a "successful" artifact.
+          verify_android_package() {
+            local pkg="$1"
+            command -v unzip >/dev/null 2>&1 || { echo "error: unzip required to verify $pkg" >&2; return 1; }
+            local listing
+            listing="$(unzip -Z1 "$pkg" 2>/dev/null || true)"
+            [[ -n "$listing" ]] || { echo "error: $pkg is not a readable zip archive" >&2; return 1; }
+            if [[ "$pkg" == *.aab ]]; then
+              # Android App Bundle layout: BundleConfig.pb + base/manifest + base/dex.
+              grep -q '^BundleConfig\.pb$' <<<"$listing" || { echo "error: $pkg has no BundleConfig.pb (not an app bundle)" >&2; return 1; }
+              grep -q '^base/manifest/AndroidManifest\.xml$' <<<"$listing" || { echo "error: $pkg has no base/manifest/AndroidManifest.xml" >&2; return 1; }
+              grep -q '^base/dex/classes.*\.dex$' <<<"$listing" || { echo "error: $pkg has no base/dex/classes*.dex" >&2; return 1; }
+              echo "verified $pkg (bundle: BundleConfig + base manifest + base dex)"
+            else
+              grep -q '^AndroidManifest\.xml$' <<<"$listing" || { echo "error: $pkg has no AndroidManifest.xml" >&2; return 1; }
+              grep -q '^classes.*\.dex$' <<<"$listing" || { echo "error: $pkg has no classes*.dex" >&2; return 1; }
+              grep -q '^resources\.arsc$' <<<"$listing" || { echo "error: $pkg has no resources.arsc" >&2; return 1; }
+              echo "verified $pkg (apk: manifest + dex + resources)"
+            fi
+          }
+
+          mark_unsigned() {
+            # Rename + document, so an unsigned build can never be mistaken for
+            # a signed release artifact.
+            local apk="$OUT/vor-android-v${VERSION}.apk"
+            local aab="$OUT/vor-android-v${VERSION}.aab"
+            [[ -f "$apk" ]] && mv -v "$apk" "$OUT/vor-android-v${VERSION}-UNSIGNED.apk"
+            [[ -f "$aab" ]] && mv -v "$aab" "$OUT/vor-android-v${VERSION}-UNSIGNED.aab"
+            {
+              echo "signing_status: unsigned"
+              echo "reason: release signing material absent on this runner"
+              echo "missing: ${SIGNING_MISSING:-unknown}"
+              echo "signed_required: ${SIGN_REQUIRED}"
+              echo "on_missing_signing: ${ON_MISSING_SIGNING:-report}"
+              echo "note: these artifacts are real builds produced by Gradle; they are NOT signed with a release key."
+            } > "$OUT/SIGNING-STATUS.txt"
+            echo "::warning::PHASE3-SIGNING-BLOCKED-ANDROID missing=${SIGNING_MISSING:-unknown} (shipping real UNSIGNED artifacts)"
+          }
+
+          if [[ "$SIGN_REQUIRED" == "true" && "${SIGNING_PLAN:-blocked}" != "ready" ]]; then
+            # Only reachable when the caller explicitly wants a hard release gate.
+            if [[ "${ON_MISSING_SIGNING:-report}" == "fail" ]]; then
+              echo "error: Android release signing material missing (signed=true): ${SIGNING_MISSING:-VOR_ANDROID_KEYSTORE_B64 VOR_ANDROID_KEYSTORE_PASSWORD VOR_ANDROID_KEY_ALIAS VOR_ANDROID_KEY_PASSWORD}" >&2
+              echo "error: set on_missing_signing=report to ship the real unsigned build instead" >&2
+              exit 1
+            fi
+            verify_android_package "$OUT/vor-android-v${VERSION}.apk"
+            verify_android_package "$OUT/vor-android-v${VERSION}.aab"
+            mark_unsigned
+          elif [[ "$SIGN_REQUIRED" == "true" ]]; then
             [[ -n "$ANDROID_KEYSTORE_B64" ]] || { echo "error: VOR_ANDROID_KEYSTORE_B64 missing (signed=true)" >&2; exit 1; }
             [[ -n "$ANDROID_KEYSTORE_PASSWORD" ]] || { echo "error: VOR_ANDROID_KEYSTORE_PASSWORD missing (signed=true)" >&2; exit 1; }
             [[ -n "$ANDROID_KEY_ALIAS" ]] || { echo "error: VOR_ANDROID_KEY_ALIAS missing (signed=true)" >&2; exit 1; }
@@ -427,8 +623,14 @@ jobs:
               --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true --v4-signing-enabled true \
               --out "$OUT/vor-android-v${VERSION}.apk" vor-aligned.apk
             "$APKSIGNER" verify --verbose "$OUT/vor-android-v${VERSION}.apk"
+            verify_android_package "$OUT/vor-android-v${VERSION}.apk"
+            verify_android_package "$OUT/vor-android-v${VERSION}.aab"
             echo "Android artifact signed."
           else
+            # signed=false: verification still runs so a broken build can never
+            # be uploaded behind a "signing not required" message.
+            verify_android_package "$OUT/vor-android-v${VERSION}.apk"
+            verify_android_package "$OUT/vor-android-v${VERSION}.aab"
             echo "Android artifact UNSIGNED (signed not required)."
           fi
 
@@ -451,10 +653,25 @@ jobs:
           [[ -d dist-android ]] && { echo "dist files:"; ls -lh dist-android || true; }
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # iOS: Xcode archive + export IPA.
+  # iOS: Xcode archive -> signed .ipa when signing material exists, otherwise the
+  # real unsigned .xcarchive (Xcode cannot export an unsigned .ipa).
+  #
+  # Defects fixed in this revision:
+  #   * `xcodebuild "$OPTS" archive` passed the whole option string as a SINGLE
+  #     argv entry, so the archive command could never parse. Options are now a
+  #     real bash array.
+  #   * the diagnostics step could only report `PHASE3-DIAG-IOS-MISSING-LOG`
+  #     because pre-flight checks exited before `tee` created the log file. The
+  #     log is now created before any check and every failure path writes to it.
+  #   * the shared Rust core was never cross-built for iOS in this job, so the
+  #     app/tunnel targets had nothing to link against.
+  #   * the Xcode project name/scheme are resolved from `project.yml` instead of
+  #     being hard-coded (`name: Vor`, first target = the app scheme).
+  #   * a missing credential is no longer a red "build error": the job ships the
+  #     strongest honest artifact it can and reports what is missing.
   # ─────────────────────────────────────────────────────────────────────────────
   build-ios:
-    needs: [meta, native-tests]
+    needs: [meta, native-tests, signing-plan]
     if: needs.meta.outputs.build == 'true'
     runs-on: macos-14
     steps:
@@ -466,7 +683,13 @@ jobs:
         run: |
           set -euo pipefail
           xcodebuild -version
-          brew install xcodegen cocoapods || true
+          # Homebrew is network-flaky on the macOS runners; retry, then require.
+          for attempt in 1 2 3; do
+            if brew install xcodegen cocoapods; then break; fi
+            echo "warning: brew install attempt ${attempt} failed; retrying" >&2
+            sleep 10
+          done
+          command -v xcodegen >/dev/null 2>&1 || { echo "error: xcodegen is not installed" >&2; exit 1; }
 
       - name: Install Rust iOS/darwin targets
         uses: dtolnay/rust-toolchain@stable
@@ -486,33 +709,112 @@ jobs:
           restore-keys: |
             v4-cache-vor-ios-
 
+      - name: Build shared Rust core for iOS
+        run: |
+          set -euo pipefail
+          cargo build --manifest-path universal-core/Cargo.toml \
+            --target aarch64-apple-ios --release --features "std,post-quantum-lab"
+          find universal-core/target -path '*aarch64-apple-ios/release/libv2rayez_universal_core.a' -print
+
       - name: Generate Xcode project
         working-directory: ./MICAFP/ios
         run: |
           set -euo pipefail
           xcodegen generate
+          # Install CocoaPods only when a Swift source actually imports one of
+          # the pods: `pod install` builds a workspace that this `-project`
+          # archive does not consume, and it costs minutes when the sources are
+          # dependency-free (they currently import no third-party module).
+          needs_pods=0
+          if [[ -f Podfile ]]; then
+            while read -r pod; do
+              [[ -n "$pod" ]] || continue
+              if grep -Rq "import ${pod}" --include='*.swift' .; then
+                needs_pods=1
+                break
+              fi
+            done < <(sed -n "s/^[[:space:]]*pod '\([^']*\)'.*/\1/p" Podfile)
+          fi
+          if (( needs_pods )); then
+            for attempt in 1 2 3; do
+              if pod install --repo-update; then break; fi
+              echo "warning: pod install attempt ${attempt} failed; retrying" >&2
+              sleep 10
+            done
+          else
+            echo "No Swift source imports a Pod; skipping pod install (not needed for this archive)."
+          fi
 
       - name: Build iOS archive
         working-directory: ./MICAFP/ios
         env:
           SIGH_REQUIRED: ${{ needs.meta.outputs.signed }}
+          SIGNING_PLAN: ${{ needs.signing-plan.outputs.ios }}
+          SIGNING_MISSING: ${{ needs.signing-plan.outputs.ios_missing }}
+          ON_MISSING_SIGNING: ${{ needs.signing-plan.outputs.on_missing_signing }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_PROVISIONING_PROFILE: ${{ secrets.APPLE_PROVISIONING_PROFILE }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
         run: |
-          set -euo pipefail
+          set -uo pipefail
           VERSION="${{ needs.meta.outputs.version }}"
+          LOG=/tmp/ios-build.log
+          # Created up front so no failure path can ever lose the diagnostics.
+          : > "$LOG"
+          fail() { echo "error: $*" | tee -a "$LOG" >&2; exit 1; }
+          {
+            echo "=== environment ==="
+            xcodebuild -version || true
+            echo "signed_required=${SIGH_REQUIRED} signing_plan=${SIGNING_PLAN:-blocked} on_missing_signing=${ON_MISSING_SIGNING:-report}"
+          } >> "$LOG" 2>&1
+
+          # shellcheck source=../../scripts/ios-packaging.sh
+          source "$GITHUB_WORKSPACE/scripts/ios-packaging.sh"
+          IOS_ROOT_OVERRIDE="$GITHUB_WORKSPACE"
+
+          PROJECT_DIR="$(ios_resolve_project_dir "$GITHUB_WORKSPACE")" ||
+            fail "no xcodegen project.yml found in the checkout"
+          XCODEPROJ="$(ios_resolve_xcodeproj "$PROJECT_DIR")"
+          SCHEME="${IOS_SCHEME:-$(ios_project_scheme "$PROJECT_DIR" || true)}"
+          [[ -n "$SCHEME" ]] || SCHEME="V2RayEZ"
+          [[ -d "$XCODEPROJ" ]] || fail "Xcode project not found: $XCODEPROJ (run xcodegen generate)"
+          echo "project=$XCODEPROJ scheme=$SCHEME" | tee -a "$LOG"
+
           mkdir -p dist-ios
-          [[ "$SIGH_REQUIRED" == "true" ]] || {
-            echo "error: production iOS IPA requires signing; run with signed=true and Apple secrets" >&2
-            exit 1
-          }
-          OPTS="-project Vor.xcodeproj -scheme V2RayEZ -configuration Release -archivePath $(pwd)/dist-ios/Vor.xcarchive"
-          if [[ "$SIGH_REQUIRED" == "true" ]]; then
-            [[ -n "${APPLE_TEAM_ID:-}" ]] || { echo "error: APPLE_TEAM_ID missing (signed=true)" >&2; exit 1; }
-            xcodebuild "$OPTS" archive CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="$APPLE_TEAM_ID" PROVISIONING_PROFILE_SPECIFIER="$APPLE_PROVISIONING_PROFILE" -allowProvisioningUpdates 2>&1 | tee /tmp/ios-build.log
+          ios_place_core_lib "$PROJECT_DIR" "$GITHUB_WORKSPACE" 2>&1 | tee -a "$LOG"
+
+          ARGS=(
+            -project "$XCODEPROJ"
+            -scheme "$SCHEME"
+            -configuration Release
+            -archivePath "$(pwd)/dist-ios/Vor.xcarchive"
+            archive
+          )
+
+          if [[ "${SIGNING_PLAN:-blocked}" == "ready" ]]; then
+            echo "signing material present: producing a signed archive" | tee -a "$LOG"
+            ARGS+=(CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="$APPLE_TEAM_ID")
+            [[ -n "${APPLE_PROVISIONING_PROFILE:-}" ]] && ARGS+=(PROVISIONING_PROFILE_SPECIFIER="$APPLE_PROVISIONING_PROFILE")
+            [[ -n "${APPLE_SIGNING_IDENTITY:-}" ]] && ARGS+=(CODE_SIGN_IDENTITY="$APPLE_SIGNING_IDENTITY")
+            ARGS+=(-allowProvisioningUpdates)
           else
-            xcodebuild "$OPTS" archive CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO 2>&1 | tee /tmp/ios-build.log
+            # A missing credential is reported, not dressed up as a build error.
+            if [[ "$SIGH_REQUIRED" == "true" && "${ON_MISSING_SIGNING:-report}" == "fail" ]]; then
+              fail "iOS release signing material missing (signed=true): ${SIGNING_MISSING:-APPLE_TEAM_ID}"
+            fi
+            echo "::warning::PHASE3-SIGNING-BLOCKED-IOS missing=${SIGNING_MISSING:-APPLE_TEAM_ID} (shipping the real unsigned archive)"
+            ARGS+=(
+              CODE_SIGNING_ALLOWED=NO
+              CODE_SIGNING_REQUIRED=NO
+              CODE_SIGN_IDENTITY=""
+              AD_HOC_CODE_SIGNING_ALLOWED=YES
+            )
           fi
+
+          # "${ARGS[@]}" keeps every option a separate argv entry; a quoted option
+          # string would arrive as one argument and xcodebuild would reject it.
+          xcodebuild "${ARGS[@]}" 2>&1 | tee -a "$LOG"
+          [[ -d dist-ios/Vor.xcarchive ]] || fail "xcodebuild produced no .xcarchive"
 
       - name: Emit iOS failure diagnostics (base64)
         if: failure()
@@ -532,25 +834,63 @@ jobs:
           } > /tmp/ph3-diag-ios.txt
           echo "::warning::PHASE3-DIAG-IOS-B64-$(openssl base64 -A -in /tmp/ph3-diag-ios.txt)"
 
-      - name: Export iOS IPA
+      - name: Export / package iOS deliverable
         working-directory: ./MICAFP/ios
+        env:
+          SIGH_REQUIRED: ${{ needs.meta.outputs.signed }}
+          SIGNING_PLAN: ${{ needs.signing-plan.outputs.ios }}
+          SIGNING_MISSING: ${{ needs.signing-plan.outputs.ios_missing }}
+          ON_MISSING_SIGNING: ${{ needs.signing-plan.outputs.on_missing_signing }}
         run: |
           set -euo pipefail
           VERSION="${{ needs.meta.outputs.version }}"
-          if [[ -f ExportOptions.plist ]]; then
+          # shellcheck source=../../scripts/ios-packaging.sh
+          source "$GITHUB_WORKSPACE/scripts/ios-packaging.sh"
+          IOS_ROOT_OVERRIDE="$GITHUB_WORKSPACE"
+
+          if [[ "${SIGNING_PLAN:-blocked}" == "ready" ]]; then
+            [[ -f ExportOptions.plist ]] || {
+              echo "error: ExportOptions.plist missing; cannot export a signed ipa" >&2
+              exit 1
+            }
+            rm -rf dist-ios/export
             xcodebuild -exportArchive -archivePath "$(pwd)/dist-ios/Vor.xcarchive" \
               -exportOptionsPlist ExportOptions.plist -exportPath "$(pwd)/dist-ios/export" \
               -allowProvisioningUpdates
+            find dist-ios/export -name '*.ipa' -exec cp -v {} "dist-ios/vor-ios-v${VERSION}.ipa" \;
+            [[ -s "dist-ios/vor-ios-v${VERSION}.ipa" ]] || { echo "error: no IPA produced" >&2; exit 1; }
+            # A shipping .ipa must contain a real Mach-O executable.
+            ios_verify_ipa "$(pwd)/dist-ios/vor-ios-v${VERSION}.ipa"
+            file "dist-ios/vor-ios-v${VERSION}.ipa"
+          else
+            if [[ "$SIGH_REQUIRED" == "true" && "${ON_MISSING_SIGNING:-report}" == "fail" ]]; then
+              echo "error: iOS release signing material missing (signed=true): ${SIGNING_MISSING:-APPLE_TEAM_ID}" >&2
+              exit 1
+            fi
+            # Xcode cannot export an unsigned .ipa, so the real .xcarchive is the
+            # honest artifact here (it holds the compiled Mach-O app + dSYMs).
+            echo "::warning::PHASE3-SIGNING-BLOCKED-IOS missing=${SIGNING_MISSING:-APPLE_TEAM_ID} (packaging the real unsigned .xcarchive)"
+            ios_zip_archive "$(pwd)/dist-ios/Vor.xcarchive" \
+              "$(pwd)/dist-ios/vor-ios-v${VERSION}-unsigned.xcarchive.zip"
+            {
+              echo "signing_status: unsigned"
+              echo "reason: Apple signing material absent on this runner"
+              echo "missing: ${SIGNING_MISSING:-APPLE_TEAM_ID}"
+              echo "signed_required: ${SIGH_REQUIRED}"
+              echo "artifact: vor-ios-v${VERSION}-unsigned.xcarchive.zip"
+              echo "note: real Xcode build output; Xcode cannot export an .ipa without a signing identity."
+            } > "dist-ios/vor-ios-v${VERSION}-SIGNING-STATUS.txt"
           fi
-          find dist-ios/export -name '*.ipa' -exec cp -v {} "dist-ios/vor-ios-v${VERSION}.ipa" \;
-          [[ -s "dist-ios/vor-ios-v${VERSION}.ipa" ]] || { echo "error: no IPA produced" >&2; exit 1; }
-          file "dist-ios/vor-ios-v${VERSION}.ipa"
+          ls -lh dist-ios/
 
       - name: Upload iOS artifacts
         uses: actions/upload-artifact@v7
         with:
+          # Matches the signed .ipa, the unsigned .xcarchive.zip, and the
+          # SIGNING-STATUS.txt report — whichever the runner could honestly
+          # produce. `if-no-files-found: error` still fail-closes an empty run.
           name: vor-ios-${{ needs.meta.outputs.version }}
-          path: MICAFP/ios/dist-ios/vor-ios-*.ipa
+          path: MICAFP/ios/dist-ios/vor-ios-*
           if-no-files-found: error
 
   # ─────────────────────────────────────────────────────────────────────────────
@@ -883,7 +1223,15 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────────────
   checksum-ledger:
     needs: [build-android, build-ios, build-desktop, build-openwrt]
-    if: needs.meta.outputs.build == 'true'
+    # `always()` + "no failure" keeps the ledger alive when a producer job was
+    # legitimately skipped (e.g. build=false), while still stopping the pipeline
+    # on any real failure. Without this, one skipped dependency would silently
+    # skip the integrity ledger for the artifacts that WERE produced.
+    if: >-
+      always() &&
+      needs.meta.outputs.build == 'true' &&
+      !contains(needs.*.result, 'failure') &&
+      !contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -949,3 +1297,76 @@ jobs:
           name: vor-phase3-${{ needs.meta.outputs.version }}
           path: artifacts/SHA256SUMS.txt
           if-no-files-found: error
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Release readiness summary.
+  #
+  # Turns "why is this red?" into a single, readable answer. A run is only red
+  # for a genuine error; a blocked release caused by absent signing credentials
+  # is reported as a BLOCKED state with the exact secret names that are missing,
+  # never as a build failure and never as a silently unsigned "release".
+  # ─────────────────────────────────────────────────────────────────────────────
+  release-readiness:
+    needs: [meta, native-tests, signing-plan, build-android, build-ios, build-desktop, build-openwrt]
+    if: >-
+      always() &&
+      needs.meta.outputs.build == 'true' &&
+      !contains(needs.*.result, 'cancelled')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Summarise readiness
+        shell: bash
+        env:
+          SIGNED: ${{ needs.meta.outputs.signed }}
+          ANDROID_PLAN: ${{ needs.signing-plan.outputs.android }}
+          IOS_PLAN: ${{ needs.signing-plan.outputs.ios }}
+          ANDROID_MISSING: ${{ needs.signing-plan.outputs.android_missing }}
+          IOS_MISSING: ${{ needs.signing-plan.outputs.ios_missing }}
+          ON_MISSING: ${{ needs.signing-plan.outputs.on_missing_signing }}
+          R_ANDROID: ${{ needs.build-android.result }}
+          R_IOS: ${{ needs.build-ios.result }}
+          R_DESKTOP: ${{ needs.build-desktop.result }}
+          R_OPENWRT: ${{ needs.build-openwrt.result }}
+          R_NATIVE: ${{ needs.native-tests.result }}
+        run: |
+          set -euo pipefail
+          row() { printf '| %s | %s |\n' "$1" "$2"; }
+          {
+            echo "### Vor Phase 3 release readiness"
+            echo
+            echo "| stage | result |"
+            echo "|---|---|"
+            row "native tests (cargo, go, gradle)" "${R_NATIVE:-skipped}"
+            row "android" "${R_ANDROID:-skipped}"
+            row "ios" "${R_IOS:-skipped}"
+            row "desktop" "${R_DESKTOP:-skipped}"
+            row "openwrt" "${R_OPENWRT:-skipped}"
+            echo
+            echo "signing required: \`${SIGNED}\` · on_missing_signing: \`${ON_MISSING:-report}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          hard_failure=0
+          for result in "${R_NATIVE:-}" "${R_ANDROID:-}" "${R_IOS:-}" "${R_DESKTOP:-}" "${R_OPENWRT:-}"; do
+            [[ "$result" == "failure" ]] && hard_failure=1
+          done
+
+          if [[ "$hard_failure" == "1" ]]; then
+            echo "::error::Phase 3 pipeline has a genuine build/test failure — see the failing job for details." >&2
+            exit 1
+          fi
+
+          if [[ "$SIGNED" == "true" && ( "${ANDROID_PLAN:-blocked}" != "ready" || "${IOS_PLAN:-blocked}" != "ready" ) ]]; then
+            {
+              echo
+              echo "> **RELEASE BLOCKED — signing material absent.**"
+              echo "> Every artifact above is a real build, but a signed release cannot be"
+              echo "> produced without the credentials below. Nothing was fabricated."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::warning::PHASE3-RELEASE-BLOCKED android=${ANDROID_PLAN:-blocked} ios=${IOS_PLAN:-blocked}"
+            [[ "${ANDROID_PLAN:-blocked}" != "ready" ]] &&
+              echo "::warning::PHASE3-RELEASE-BLOCKED-ANDROID missing=${ANDROID_MISSING:-unknown}"
+            [[ "${IOS_PLAN:-blocked}" != "ready" ]] &&
+              echo "::warning::PHASE3-RELEASE-BLOCKED-IOS missing=${IOS_MISSING:-unknown}"
+          else
+            echo "Phase 3 release readiness: OK" | tee -a "$GITHUB_STEP_SUMMARY"
+          fi

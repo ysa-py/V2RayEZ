@@ -138,15 +138,62 @@ build_ios() {
     require_tool xcodegen ios
     require_tool xcodebuild ios
     mkdir -p "$ARTIFACT_DIR/ios"
+
+    # Shared, fail-closed iOS packaging helpers (project/scheme resolution,
+    # unsigned archive support, Mach-O verification).
+    # shellcheck source=./ios-packaging.sh
+    IOS_ROOT_OVERRIDE="$REPO_ROOT" source "$SCRIPT_DIR/ios-packaging.sh"
+
+    local project_dir scheme xcodeproj archive export_dir
+    project_dir="$(ios_resolve_project_dir "$REPO_ROOT")" || {
+        echo "error: no xcodegen project.yml found under $REPO_ROOT" >&2
+        exit 1
+    }
+    (cd "$project_dir" && xcodegen generate)
+    scheme="${IOS_SCHEME:-$(ios_project_scheme "$project_dir" || true)}"
+    [[ -n "$scheme" ]] || scheme="V2RayEZ"
+    xcodeproj="$(ios_resolve_xcodeproj "$project_dir")"
+    [[ -d "$xcodeproj" ]] || {
+        echo "error: Xcode project not found: $xcodeproj (run xcodegen generate)" >&2
+        exit 1
+    }
+    ios_place_core_lib "$project_dir" "$REPO_ROOT"
+
+    archive="$ARTIFACT_DIR/ios/Vor.xcarchive"
+    rm -rf "$archive"
     (
-        cd "$IOS_DIR"
-        xcodegen generate
-        xcodebuild -project V2RayEZ.xcodeproj -scheme V2RayEZ -configuration Release \
-            -archivePath "$ARTIFACT_DIR/ios/V2RayEZ.xcarchive" archive
-        xcodebuild -exportArchive -archivePath "$ARTIFACT_DIR/ios/V2RayEZ.xcarchive" \
-            -exportOptionsPlist ExportOptions.plist -exportPath "$ARTIFACT_DIR/ios"
+        cd "$project_dir"
+        # Options are passed as a real argv array; a quoted option string is a
+        # single argument to xcodebuild and can never be parsed.
+        if ios_signing_available; then
+            xcodebuild -project "$xcodeproj" -scheme "$scheme" -configuration Release \
+                -archivePath "$archive" archive -allowProvisioningUpdates
+        else
+            xcodebuild -project "$xcodeproj" -scheme "$scheme" -configuration Release \
+                -archivePath "$archive" archive \
+                CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+                CODE_SIGN_IDENTITY="" AD_HOC_CODE_SIGNING_ALLOWED=YES
+        fi
     )
-    copy_matches "$ARTIFACT_DIR/ios" "$ARTIFACT_DIR/ios/*.ipa"
+    [[ -d "$archive" ]] || {
+        echo "error: xcodebuild did not produce $archive" >&2
+        exit 1
+    }
+
+    if ios_signing_available; then
+        export_dir="$ARTIFACT_DIR/ios/export"
+        rm -rf "$export_dir"
+        (
+            cd "$project_dir"
+            xcodebuild -exportArchive -archivePath "$archive" \
+                -exportOptionsPlist ExportOptions.plist -exportPath "$export_dir" \
+                -allowProvisioningUpdates
+        )
+        copy_matches "$ARTIFACT_DIR/ios" "$export_dir/*.ipa"
+    else
+        # Xcode cannot export an unsigned .ipa, so ship the real .xcarchive.
+        ios_zip_archive "$archive" "$ARTIFACT_DIR/ios/Vor-v${VERSION}-ios-unsigned.xcarchive.zip"
+    fi
 }
 
 build_windows() {

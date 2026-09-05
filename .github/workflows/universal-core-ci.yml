@@ -122,6 +122,20 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+
+      - name: Repository auto-fix audit (fail-closed)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Fails the run when any known CI-breaking defect reappears in the tree
+          # (quoted xcodebuild argv, synthesized .ipa executables, a hard-coded
+          # Xcode project name, a losable diagnostics log, a non-RGBA Tauri icon,
+          # a truncated Go pseudo-version, YAML whitespace, shell syntax errors).
+          node scripts/auto-fix.mjs --check
+
       - name: Bash syntax check for all build scripts
         shell: bash
         run: |

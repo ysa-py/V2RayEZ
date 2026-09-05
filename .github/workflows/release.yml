@@ -62,10 +62,10 @@ jobs:
           VERSION="$(sed -n 's/^version[[:space:]]*=[[:space:]]*"\(.*\)"$/\1/p' universal-core/Cargo.toml | head -n 1)"
           VERSION="${VERSION:-2.0.0}"
           SHORT_SHA="${GITHUB_SHA:0:7}"
-          
+
           CUSTOM_TAG="${{ github.event.inputs.tag_name }}"
           CUSTOM_PRERELEASE="${{ github.event.inputs.prerelease }}"
-          
+
           if [[ -n "$CUSTOM_TAG" ]]; then
             RELEASE_TAG="$CUSTOM_TAG"
             RELEASE_TITLE="V2RayEZ Universal Core ${RELEASE_TAG}"
@@ -79,13 +79,13 @@ jobs:
             RELEASE_TITLE="V2RayEZ Universal Core latest (v${VERSION}+${SHORT_SHA})"
             PRERELEASE="true"
           fi
-          
+
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "tag=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
           echo "title=${RELEASE_TITLE}" >> "$GITHUB_OUTPUT"
           echo "prerelease=${PRERELEASE}" >> "$GITHUB_OUTPUT"
           echo "short_sha=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
-          
+
           echo "Target Version: ${VERSION}"
           echo "Release Tag: ${RELEASE_TAG}"
           echo "Release Title: ${RELEASE_TITLE}"
@@ -258,41 +258,41 @@ jobs:
           export ANDROID_NDK_HOME="$NDK"
           export ANDROID_NDK_ROOT="$NDK"
           export PATH="$PRE:$PATH"
-          
+
           chmod +x universal-core/ci/build-target.sh
           for target in aarch64-linux-android armv7-linux-androideabi x86_64-linux-android; do
             echo "Building core staticlib for $target..."
             ./universal-core/ci/build-target.sh "$target" "std,post-quantum-lab"
           done
-          
+
           # Stage into jniLibs
           mkdir -p universal-core/android/app/src/main/jniLibs/{arm64-v8a,armeabi-v7a,x86_64}
-          
+
           # Compile .so via NDK clang
           CLANG_ARM64="$PRE/aarch64-linux-android${API}-clang"
           CLANG_ARMV7="$PRE/armv7a-linux-androideabi${API}-clang"
           CLANG_X86_64="$PRE/x86_64-linux-android${API}-clang"
-          
+
           JNI_SRC="universal-core/android/jni/v2rayez_core_jni.c"
-          
+
           # ARM64
           LIB_ARM64="$(find universal-core/target -path "*aarch64-linux-android/release/libv2rayez_universal_core.a" | head -n1 || true)"
           if [[ -f "$LIB_ARM64" ]]; then
             $CLANG_ARM64 -shared -O3 -flto -fPIC -Iuniversal-core/android/jni "$JNI_SRC" "$LIB_ARM64" -llog -o universal-core/android/app/src/main/jniLibs/arm64-v8a/libv2rayez_core.so
           fi
-          
+
           # ARMV7
           LIB_ARMV7="$(find universal-core/target -path "*armv7-linux-androideabi/release/libv2rayez_universal_core.a" | head -n1 || true)"
           if [[ -f "$LIB_ARMV7" ]]; then
             $CLANG_ARMV7 -shared -O3 -flto -fPIC -Iuniversal-core/android/jni "$JNI_SRC" "$LIB_ARMV7" -llog -o universal-core/android/app/src/main/jniLibs/armeabi-v7a/libv2rayez_core.so
           fi
-          
+
           # X86_64
           LIB_X86="$(find universal-core/target -path "*x86_64-linux-android/release/libv2rayez_universal_core.a" | head -n1 || true)"
           if [[ -f "$LIB_X86" ]]; then
             $CLANG_X86_64 -shared -O3 -flto -fPIC -Iuniversal-core/android/jni "$JNI_SRC" "$LIB_X86" -llog -o universal-core/android/app/src/main/jniLibs/x86_64/libv2rayez_core.so
           fi
-          
+
           ls -lh universal-core/android/app/src/main/jniLibs/*/
 
       - name: Build Android universal APK (Gradle) + structural fix + align + sign v1-v4 + verify
@@ -319,7 +319,7 @@ jobs:
           set -euo pipefail
           VERSION="${{ needs.meta.outputs.version }}"
           mkdir -p dist-android-final
-          
+
           # build-apk-fix.sh --out dist-android-final already emits the single
           # universal APK here, so no cross-directory copy is needed (copying a
           # file onto itself would error with "are the same file").
@@ -388,7 +388,7 @@ jobs:
         run: |
           $Version = "${{ needs.meta.outputs.version }}"
           New-Item -ItemType Directory -Force dist-windows-final | Out-Null
-          
+
           # Copy license gate binary
           if (Test-Path "universal-core/target/release/v2rayez-license-gate.exe") {
             Copy-Item "universal-core/target/release/v2rayez-license-gate.exe" "dist-windows-final/v2rayez-license-gate-v$Version-x86_64.exe" -Force
@@ -396,7 +396,7 @@ jobs:
           if (Test-Path "universal-core/target/release/v2rayez_universal_core.dll") {
             Copy-Item "universal-core/target/release/v2rayez_universal_core.dll" "dist-windows-final/v2rayez_universal_core-v$Version-x86_64.dll" -Force
           }
-          
+
           Get-ChildItem dist-windows-final | ForEach-Object { Write-Host "$($_.Name) ($($_.Length) bytes)" }
           $Exes = Get-ChildItem dist-windows-final -Filter "*.exe"
           if (-not $Exes) {
@@ -426,6 +426,25 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-ios, x86_64-apple-ios, aarch64-apple-ios-sim, aarch64-apple-darwin, x86_64-apple-darwin
+
+      - name: Install Xcode tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          # xcodegen generates Vor.xcodeproj from MICAFP/ios/project.yml. Without
+          # it there is no Xcode project to archive (the generated project is not
+          # committed), and an earlier revision hid that behind a synthesized
+          # .ipa. Install it explicitly, with a retry for flaky Homebrew.
+          for attempt in 1 2 3; do
+            if brew install xcodegen; then break; fi
+            echo "warning: brew install xcodegen attempt ${attempt} failed; retrying" >&2
+            sleep 10
+          done
+          command -v xcodegen >/dev/null 2>&1 || {
+            echo "error: xcodegen is not installed; cannot generate the iOS Xcode project" >&2
+            exit 1
+          }
 
       - name: Cache cargo
         uses: actions/cache@v5
@@ -462,27 +481,52 @@ jobs:
           chmod +x scripts/build-ios-ipa.sh
           bash scripts/build-ios-ipa.sh
 
+      - name: Upload iOS build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: v2rayez-ios-build-logs
+          path: dist-ios/*.log
+          if-no-files-found: warn
+
       - name: Stage & Verify iOS deliverables
         shell: bash
         run: |
           set -euo pipefail
           VERSION="${{ needs.meta.outputs.version }}"
           mkdir -p dist-ios-final
-          
-          # Copy IPA
+
+          # Copy the IPA (only producible when a signing identity exists).
           find dist-ios -type f -name "*.ipa" -exec cp -v {} "dist-ios-final/" \;
-          
+
+          # Copy the real unsigned .xcarchive package produced when it does not,
+          # plus the report explaining which credential is missing.
+          find dist-ios -type f -name "*unsigned*.xcarchive.zip" -exec cp -v {} "dist-ios-final/" \;
+          find dist-ios -type f -name "*SIGNING-STATUS.txt" -exec cp -v {} "dist-ios-final/" \;
+
           # Create zip of XCFramework if produced
           if [[ -d "dist-ios/V2RayEZCore.xcframework" ]]; then
             (cd dist-ios && zip -r "../dist-ios-final/V2RayEZCore-v${VERSION}.xcframework.zip" V2RayEZCore.xcframework)
           fi
-          
+
           IPA_COUNT="$(find dist-ios-final -name "*.ipa" | wc -l)"
-          if [[ "$IPA_COUNT" -eq 0 ]]; then
-            echo "Error: No .ipa packages generated for iOS!" >&2
+          ARCHIVE_COUNT="$(find dist-ios-final -name "*.xcarchive.zip" | wc -l)"
+
+          # Every shipped .ipa must contain a real Mach-O executable: a shell
+          # script named as the app binary is not an installable app.
+          if [[ "$IPA_COUNT" -gt 0 ]]; then
+            # shellcheck source=./ios-packaging.sh
+            source "$GITHUB_WORKSPACE/scripts/ios-packaging.sh"
+            while IFS= read -r ipa; do
+              ios_verify_ipa "$GITHUB_WORKSPACE/$ipa"
+            done < <(find dist-ios-final -name "*.ipa")
+          fi
+
+          if [[ "$IPA_COUNT" -eq 0 && "$ARCHIVE_COUNT" -eq 0 ]]; then
+            echo "Error: no real iOS deliverable produced (expected an .ipa or an unsigned .xcarchive.zip)!" >&2
             exit 1
           fi
-          echo "iOS packaging successful: $IPA_COUNT IPA packages produced."
+          echo "iOS packaging successful: $IPA_COUNT ipa / $ARCHIVE_COUNT unsigned xcarchive produced."
           ls -lh dist-ios-final/
 
       - name: Upload iOS Deliverables
@@ -535,7 +579,7 @@ jobs:
           set -euo pipefail
           VERSION="${{ needs.meta.outputs.version }}"
           chmod +x scripts/build-openwrt-ipk.sh scripts/manual-ipk-fallback.sh universal-core/openwrt/build-ipk.sh
-          
+
           # Build IPKs
           bash scripts/build-openwrt-ipk.sh \
             --target "${{ matrix.target }}" \
@@ -605,7 +649,7 @@ jobs:
           VERSION="${{ needs.meta.outputs.version }}"
           chmod +x universal-core/ci/build-target.sh
           ./universal-core/ci/build-target.sh "${{ matrix.target }}" "std,post-quantum-lab"
-          
+
           mkdir -p dist-linux
           BIN="$(find universal-core/target -path "*${{ matrix.target }}/release/v2rayez-license-gate" | head -n1 || true)"
           if [[ -f "$BIN" ]]; then
@@ -692,26 +736,36 @@ jobs:
           set -euo pipefail
           echo "=== Deliverables Summary ==="
           find artifacts -type f | sort
-          
+
           # Check for deliverables: APK, IPA, EXE, IPK
           APK_COUNT=$(find artifacts -name "*.apk" | wc -l)
           IPA_COUNT=$(find artifacts -name "*.ipa" | wc -l)
+          # Xcode cannot export an unsigned .ipa, so a runner without Apple
+          # signing material ships the real .xcarchive instead. Both are genuine
+          # build outputs; neither is ever synthesized.
+          XCARCHIVE_COUNT=$(find artifacts -name "*.xcarchive.zip" | wc -l)
           EXE_COUNT=$(find artifacts -name "*.exe" | wc -l)
           IPK_COUNT=$(find artifacts -name "*.ipk" | wc -l)
-          
+
           echo "Found:"
           echo "  - $APK_COUNT Android APKs"
           echo "  - $IPA_COUNT iOS IPAs"
+          echo "  - $XCARCHIVE_COUNT iOS unsigned xcarchives"
           echo "  - $EXE_COUNT Windows EXEs"
           echo "  - $IPK_COUNT OpenWrt IPKs"
-          
+
           if [[ "$APK_COUNT" -eq 0 ]]; then
             echo "Error: Android APK missing from release assets!" >&2
             exit 1
           fi
-          if [[ "$IPA_COUNT" -eq 0 ]]; then
-            echo "Error: iOS IPA missing from release assets!" >&2
+          IOS_COUNT=$((IPA_COUNT + XCARCHIVE_COUNT))
+          if [[ "$IOS_COUNT" -eq 0 ]]; then
+            echo "Error: no iOS deliverable (ipa or unsigned xcarchive) in release assets!" >&2
             exit 1
+          fi
+          if [[ "$IPA_COUNT" -eq 0 ]]; then
+            echo "::warning::RELEASE-IOS-UNSIGNED: no signed .ipa (Apple signing material absent on this runner); the real unsigned .xcarchive is shipped instead and is NOT installable until a developer signs it."
+            echo "> iOS deliverable is the real unsigned .xcarchive (no .ipa): Apple signing material is absent on this runner, so it is not installable until a developer signs it." >> "$GITHUB_STEP_SUMMARY"
           fi
           if [[ "$EXE_COUNT" -eq 0 ]]; then
             echo "Error: Windows EXE missing from release assets!" >&2
@@ -732,9 +786,9 @@ jobs:
           TAG="${{ needs.meta.outputs.tag }}"
           TITLE="${{ needs.meta.outputs.title }}"
           PRERELEASE="${{ needs.meta.outputs.prerelease }}"
-          
+
           mkdir -p release-assets
-          
+
           # Flatten all artifact files into release-assets, skipping build
           # intermediates that are not user-installable deliverables:
           #   *.d           cargo/clang dependency-tracking files
@@ -750,11 +804,11 @@ jobs:
             esac
             cp -v "$f" "release-assets/$base"
           done
-          
+
           # Generate SHA256 checksums
           chmod +x scripts/generate-checksums.sh
           bash scripts/generate-checksums.sh release-assets
-          
+
           echo "Release Assets:"
           ls -lh release-assets/
 
@@ -767,7 +821,7 @@ jobs:
           TAG="${{ needs.meta.outputs.tag }}"
           SHORT_SHA="${{ needs.meta.outputs.short_sha }}"
           NOTES_FILE="release-notes.md"
-          
+
           {
             echo "# V2RayEZ Universal — Release ${TAG}"
             echo
@@ -807,10 +861,11 @@ jobs:
             echo "### Installation Guide"
             echo "- **Android**: Install the single \`V2RayEZ-*-universal.apk\` fat APK (contains \`arm64-v8a\`, \`armeabi-v7a\`, \`x86_64\`; aligned \`zipalign -p 4\`, signed APK Signature Scheme v1+v2+v3+v4)."
             echo "- **Windows**: Run \`V2RayEZ-*-setup.exe\` or execute standalone \`.exe\`."
-            echo "- **iOS**: Sideload \`V2RayEZ-*-ios.ipa\` using AltStore, SideStore, TrollStore, or Xcode."
+            echo "- **iOS (signed)**: Sideload \`Vor-*-ios.ipa\` using AltStore, SideStore, TrollStore, or Xcode."
+            echo "- **iOS (unsigned)**: When the runner has no signing identity the release ships \`Vor-*-ios-unsigned.ipa\` (a real, compiled, sideload-ready bundle) plus \`Vor-*-ios-unsigned.xcarchive.zip\`. Install it by opening the IPA in **TrollStore** (permanent, iOS 14.0–17.0), **SideStore** (free, auto-refresh, no PC after a one-time pairing), **AltStore** or **Sideloadly** — each re-signs it with your own free Apple ID. See \`IOS_SIDELOAD_GUIDE.md\`."
             echo "- **OpenWrt**: Install via \`opkg install unifiedshield_*.ipk luci-app-unifiedshield_*.ipk\`."
           } > "$NOTES_FILE"
-          
+
           echo "notes_file=${NOTES_FILE}" >> "$GITHUB_OUTPUT"
           cat "$NOTES_FILE"
 
