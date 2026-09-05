@@ -702,11 +702,30 @@ What those runs proved on real runners:
   and `PHASE3-DIAG-OPENWRT-B64-*` annotations for decode once the repo is
   reachable again.
 
-**Current auth blocker:** while inspecting the last matrix run the sandbox's
-GitHub credential failed (`gh auth status` → "token no longer valid";
-`git ls-remote` → "could not read Username"; `gh api` → HTTP 401). Further
-push/read of runs is blocked until the GitHub connection is reconnected in
-Arena. No new commits beyond this report have been pushed after `5ebb454`.
+**Later matrix runs and fixes (2026-09-05, after the auth token was restored):**
+
+- Run `33941961404` (commit `1b43e8a`): `fetch-sidecars` provisioned real
+  Aether/sing-box sidecars and desktop reached Rust compile. OpenWrt
+  `Cross-compile` switched to **PASS** (the prior SIGPIPE on `find|head` was
+  fixed); the failure moved to `Build OpenWrt IPK`.
+- Run `33942738202` (commit `39f929e`): captured the Linux/macOS desktop error
+  exactly — **`icon .../32x32.png is not RGBA`** (Tauri `generate_context!`
+  panics on non-RGBA PNG). Also fixed windows-sys 0.59 DPAPI (`DATA_BLOB` →
+  `CRYPT_INTEGER_BLOB`, manual kernel32 `LocalFree`), and added OpenWrt-IPK +
+  desktop ANSI-visible diagnostics.
+- Run `33943171341` (commit `b686d5d`/`ec3ff21`): **all icons converted to PNG
+  color type 6 (RGBA)**; `build-openwrt-ipk.sh` package moved to
+  `package/unifiedshield` so the SDK target `make package/unifiedshield/compile`
+  resolves instead of `package/network/services/...` reporting "No rule to make
+  target"; failure diagnostics now strip ANSI before grep. The latest tag run
+  was **cancelled by the user** before all jobs completed, so the Windows
+  DPAPI fix and OpenWrt-IPK path fix are committed but not yet re-validated
+  end-to-end. No further tag runs were forced after that cancellation.
+
+**Auth status:** the GitHub token was refreshed and is working again (the
+earlier "token no longer valid" note is obsolete). Commits `1b43e8a`,
+`39f929e`, `b686d5d`, `ec3ff21` are pushed to `arena/01a06de6-v2rayez`; the
+`vor-v1.0.0` tag currently points at `ec3ff21`.
 
 ### Local evidence now
 
