@@ -25,10 +25,14 @@
 # decision an INFORMED one.
 #
 # Public API (source this file; safe under `set -euo pipefail` callers):
-#   vor_normalize_b64 <raw>                          # stdout: normalised b64; VOR_B64_NOTES
+#   vor_normalize_b64 <raw>                          # → VOR_B64_NORMALIZED, VOR_B64_NOTES
 #   vor_decode_keystore_material <raw> <outfile>     # rc0 + VOR_DECODE_VERDICT | rc1 + VOR_DECODE_REASON
-#   vor_verify_keystore_file <file> [pass] [alias]   # rc0 ok / rc3 alias-missing / rc1 + VOR_KS_REASON, VOR_KS_TYPE
-#   vor_materialize_keystore <raw> <out> [pass] [alias]  # rc0 ok | rc3 | rc1 + VOR_MATERIALIZATION_VERDICT
+#   vor_verify_keystore_file <file> [pass] [alias] [keypass]
+#                                                    # rc0 ok / rc3 alias-unresolvable /
+#                                                    # rc1 + VOR_KS_REASON, VOR_KS_TYPE,
+#                                                    # VOR_ALIAS_EFFECTIVE, VOR_KEY_PASSWORD_EFFECTIVE
+#   vor_materialize_keystore <raw> <out> [pass] [alias] [keypass]
+#                                                    # rc0 ok | rc3 | rc1 + VOR_MATERIALIZATION_VERDICT
 #
 # Execute directly for the offline proof-suite:
 #   bash scripts/materialize-keystore.sh --self-test
@@ -37,12 +41,15 @@
 # magic bytes and symbol classes.
 
 # Guard against double-sourcing side effects; nothing here runs on source.
-VOR_KS_HELPER_VERSION="1.0.0"
+VOR_KS_HELPER_VERSION="1.1.0"
 VOR_B64_NOTES=""
 VOR_DECODE_VERDICT=""
 VOR_DECODE_REASON=""
 VOR_KS_REASON=""
 VOR_KS_TYPE=""
+# Effective signing material (empty = use the configured secret as-is):
+VOR_ALIAS_EFFECTIVE=""
+VOR_KEY_PASSWORD_EFFECTIVE=""
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Normalise an operator-supplied base64 secret to canonical standard base64.
@@ -255,14 +262,36 @@ vor_decode_keystore_material() {
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Prove a decoded file really is a usable keystore.
-#   rc 0 = magic ok (+ keytool password/alias proof when keytool is available)
-#   rc 3 = valid container but the requested alias is absent
-#   rc 1 = not a keystore / wrong password / unreadable — VOR_KS_REASON says why
+#   rc 0 = proven (+ keytool password/alias/KEY proofs when keytool+creds exist)
+#   rc 3 = container valid but the alias cannot be resolved safely
+#   rc 1 = not a keystore / wrong password / key won't open — VOR_KS_REASON why
+#
+# Milestone-70 ladder (each rung ADDS proof, nothing is removed):
+#   1. magic bytes (JKS/PKCS12/BKS);
+#   2. keytool -list with the store password          → store proof;
+#   3. alias resolution:
+#        configured alias found        → use it;
+#        not found + EXACTLY ONE alias → auto-resolve (that key IS the
+#                                        user's release key — same identity,
+#                                        never a different one) + note;
+#        not found + multiple aliases  → rc3, list every available alias;
+#   4. entry-type check: the resolved alias must be a PrivateKeyEntry — a
+#      trustedCertEntry (JDK prints it lower-case; older JDKs
+#      TrustedCertificateEntry) means the user exported a CERT, not a key;
+#   5. KEY proof via a real keytool -importkeystore round-trip (exactly the
+#      decryption Gradle performs):
+#        configured key password opens the key → use as-is;
+#        the STORE password opens the key      → auto-correct
+#                                 (VOR_KEY_PASSWORD_EFFECTIVE) + note;
+#        neither opens it                      → rc1, precise.
+# Results: VOR_KS_TYPE, VOR_KS_REASON, VOR_ALIAS_EFFECTIVE, VOR_KEY_PASSWORD_EFFECTIVE.
 # ─────────────────────────────────────────────────────────────────────────────
 vor_verify_keystore_file() {
-  local file="$1" storepass="${2:-}" alias="${3:-}"
+  local file="$1" storepass="${2:-}" alias="${3:-}" keypass="${4:-}"
   VOR_KS_REASON=""
   VOR_KS_TYPE=""
+  VOR_ALIAS_EFFECTIVE=""
+  VOR_KEY_PASSWORD_EFFECTIVE=""
 
   [[ -s "$file" ]] || { VOR_KS_REASON="decoded file is empty"; return 1; }
 
@@ -282,7 +311,7 @@ vor_verify_keystore_file() {
     out="$(keytool -list -keystore "$file" -storepass "$storepass" 2>&1)" || rc=$?
     if (( rc != 0 )); then
       if grep -qi "password" <<<"$out"; then
-        VOR_KS_REASON="keystore decoded ($VOR_KS_TYPE, ${size} bytes) but the store password was REJECTED by keytool"
+        VOR_KS_REASON="keystore decoded ($VOR_KS_TYPE, ${size} bytes) but the STORE password was REJECTED by keytool — the password secret does not open this keystore"
       else
         local line
         line="$(grep -m1 -iE 'exception|error' <<<"$out" | head -c 200)"
@@ -290,14 +319,70 @@ vor_verify_keystore_file() {
       fi
       return 1
     fi
+
+    # ── alias resolution ────────────────────────────────────────────────────
+    local aliases_flat entry_count=0 line_a
+    aliases_flat="$(
+      LC_ALL=C grep -E '^[^ ].+, [A-Z][a-z][a-z] [0-9]{1,2}, [0-9]{4}, ' <<<"$out" \
+        | sed -E 's/^([^,]+), .*/\1/'
+    )"
+    entry_count="$(LC_ALL=C grep -cE '^[^ ].+, [A-Z][a-z][a-z] [0-9]{1,2}, [0-9]{4}, ' <<<"$out" || true)"
+
     if [[ -n "$alias" ]]; then
       local alias_re
       alias_re="$(printf '%s' "$alias" | sed 's/[][\.*^$()+?{|]/\\&/g')"
-      if ! grep -qE "(^|[[:space:],])${alias_re}," <<<"$out"; then
-        local available
-        available="$(grep -oE '^[A-Za-z0-9_. -]+,( ' <<<"$out" | sed 's/,$//' | tr '\n' ' ' | head -c 200)"
-        VOR_KS_REASON="keystore is valid ($VOR_KS_TYPE) but alias '${alias}' is not in it${available:+; available: ${available}}"
+      if LC_ALL=C grep -qE "(^|[[:space:],])${alias_re}, " <<<"$out"; then
+        VOR_ALIAS_EFFECTIVE="$alias"
+      elif [[ "$entry_count" == "1" ]]; then
+        # Same-key auto-resolve: the keystore carries exactly one entry and the
+        # configured alias does not exist in it. The single key IS the release
+        # key the operator uploaded — switching the LABEL is not an identity
+        # change. The caller emits a loud warning.
+        VOR_ALIAS_EFFECTIVE="$(printf '%s' "$aliases_flat" | head -n1 | tr -d '[:space:]')"
+        VOR_KS_TYPE="${VOR_KS_TYPE}+alias-auto-resolved(${VOR_ALIAS_EFFECTIVE})"
+      else
+        VOR_KS_REASON="keystore is valid ($VOR_KS_TYPE) but alias '${alias}' is not in it${aliases_flat:+; available aliases: $(printf '%s' "$aliases_flat" | tr '\n' ' ')}"
         return 3
+      fi
+    fi
+
+    # ── entry-type check: a certificate is not a signing key ───────────────
+    if [[ -n "${VOR_ALIAS_EFFECTIVE:-}" ]]; then
+      local eff_re entry_line
+      eff_re="$(printf '%s' "$VOR_ALIAS_EFFECTIVE" | sed 's/[][\.*^$()+?{|]/\\&/g')"
+      entry_line="$(LC_ALL=C grep -E '^[^ ].+, [A-Z][a-z][a-z] [0-9]{1,2}, [0-9]{4}, ' <<<"$out" \
+        | grep -E "(^|[[:space:],])${eff_re}, " | head -n1)"
+      if grep -qiE 'trustedcertentry' <<<"$entry_line"; then
+        VOR_KS_REASON="alias '${VOR_ALIAS_EFFECTIVE}' resolves to a trustedCertEntry — this file holds a CERTIFICATE, not a signing key. Upload the keystore itself (the .jks/.p12 that was generated with the keypair), not an exported certificate"
+        return 1
+      fi
+    fi
+
+    # ── KEY proof: a real importkeystore round-trip (what Gradle decrypts) ──
+    if [[ -n "${VOR_ALIAS_EFFECTIVE:-}" && -n "$keypass" ]]; then
+      local scratch proof_rc rand
+      _keyprobe() { # srckeypass → rc0 when the key decrypts
+        scratch="$(mktemp -d)"
+        rand="$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+        keytool -importkeystore -noprompt \
+          -srckeystore "$file" -srcstorepass "$storepass" -srckeypass "$1" \
+          -srcalias "$VOR_ALIAS_EFFECTIVE" \
+          -destkeystore "$scratch/probe.p12" -deststoretype PKCS12 \
+          -deststorepass "$rand" -destkeypass "$rand" >/dev/null 2>&1
+        local _rc=$?
+        rm -rf "$scratch"
+        return $_rc
+      }
+      if _keyprobe "$keypass"; then
+        VOR_KS_TYPE="${VOR_KS_TYPE}+key-verified"
+      elif _keyprobe "$storepass"; then
+        # The overwhelmingly common real-world configuration: one password for
+        # everything. Same key, same identity — only the secret was mistyped.
+        VOR_KEY_PASSWORD_EFFECTIVE="$storepass"
+        VOR_KS_TYPE="${VOR_KS_TYPE}+key-password-auto-corrected"
+      else
+        VOR_KS_REASON="store password opens the keystore ($VOR_KS_TYPE) and alias '${VOR_ALIAS_EFFECTIVE}' exists, but the KEY entry cannot be decrypted: neither the key-password secret nor the store password unlocks key '${VOR_ALIAS_EFFECTIVE}' (BadPadding) — fix the key-password secret or re-export the keystore with matching passwords"
+        return 1
       fi
     fi
     VOR_KS_TYPE="${VOR_KS_TYPE}+keytool-verified"
@@ -307,15 +392,20 @@ vor_verify_keystore_file() {
 
 # ─────────────────────────────────────────────────────────────────────────────
 # One-call materialization: decode + validate.
-#   rc 0 → VOR_MATERIALIZATION_VERDICT="ok; …" and <out> is a proven keystore
-#   rc 3 → container valid, alias absent (VOR_MATERIALIZATION_VERDICT precise)
+#   vor_materialize_keystore <raw> <out> [storepass] [alias] [keypass]
+#   rc 0 → VOR_MATERIALIZATION_VERDICT="ok; …" and <out> is a proven keystore;
+#          VOR_ALIAS_EFFECTIVE / VOR_KEY_PASSWORD_EFFECTIVE are set when the
+#          pipeline should sign with a corrected (auto-resolved) label/password
+#   rc 3 → container valid, alias unresolvable (verdict precise)
 #   rc 1 → unusable material (VOR_MATERIALIZATION_VERDICT precise)
 # ─────────────────────────────────────────────────────────────────────────────
 vor_materialize_keystore() {
-  local raw="$1" out="$2" storepass="${3:-}" alias="${4:-}"
+  local raw="$1" out="$2" storepass="${3:-}" alias="${4:-}" keypass="${5:-}"
+  VOR_ALIAS_EFFECTIVE=""
+  VOR_KEY_PASSWORD_EFFECTIVE=""
   if vor_decode_keystore_material "$raw" "$out"; then
     local rc=0
-    vor_verify_keystore_file "$out" "$storepass" "$alias" || rc=$?
+    vor_verify_keystore_file "$out" "$storepass" "$alias" "$keypass" || rc=$?
     if (( rc == 0 )); then
       VOR_MATERIALIZATION_VERDICT="ok; ${VOR_DECODE_VERDICT}; type=${VOR_KS_TYPE}"
       return 0
@@ -412,7 +502,7 @@ vor_keystore_selftest() {
   vor_materialize_keystore "$b64" "$gout" "" "" || rc4=$?
   _check "materialize:valid-jks-magic" 0 "$rc4"
 
-  # keytool present? Then prove password/alias diagnostics too (CI build jobs).
+  # keytool present? Then prove password/alias/KEY diagnostics too (CI build jobs).
   if command -v keytool >/dev/null 2>&1; then
     local kt ks ktout rc5
     ks="$tmp/real.p12"
@@ -425,22 +515,121 @@ vor_keystore_selftest() {
       kb64="$(base64 -w0 "$ks")"
       # wrong password → rc 1, precise reason
       ktout="$tmp/wrongpass.out"; rc5=0
-      vor_materialize_keystore "$kb64" "$ktout" "wrongpass" "voralias" || rc5=$?
+      vor_materialize_keystore "$kb64" "$ktout" "wrongpass" "voralias" "storepass123" || rc5=$?
       _check "keytool:wrong-password-rejected" 1 "$rc5"
       [[ "$VOR_MATERIALIZATION_VERDICT" == *"password"* ]] \
         || { echo "FAIL  wrong-password reason not precise: $VOR_MATERIALIZATION_VERDICT"; failures=$((failures + 1)); }
-      # right password, wrong alias → rc 3, names available aliases
+      # right password, wrong alias, SINGLE-entry keystore → rc0 + alias auto-resolve
       ktout="$tmp/wrongalias.out"; rc5=0
-      vor_materialize_keystore "$kb64" "$ktout" "storepass123" "nope" || rc5=$?
-      _check "keytool:wrong-alias-rejected" 3 "$rc5"
-      [[ "$VOR_MATERIALIZATION_VERDICT" == *"alias"* ]] \
-        || { echo "FAIL  wrong-alias reason not precise: $VOR_MATERIALIZATION_VERDICT"; failures=$((failures + 1)); }
-      # everything correct → rc 0
+      vor_materialize_keystore "$kb64" "$ktout" "storepass123" "nope" "storepass123" || rc5=$?
+      _check "keytool:wrong-alias-single-auto-resolved" 0 "$rc5"
+      [[ "$VOR_ALIAS_EFFECTIVE" == "voralias" ]] \
+        || { echo "FAIL  single-alias auto-resolve: expected 'voralias', got '$VOR_ALIAS_EFFECTIVE'"; failures=$((failures + 1)); }
+      # PKCS12 + wrong key-password secret: modern JDKs IGNORE -srckeypass for
+      # PKCS12 stores ("Different store and key passwords not supported…"),
+      # normalising to the store password — exactly what Gradle will do — so
+      # rc stays 0 and NO override is needed.
+      ktout="$tmp/p12-keypass-normalized.out"; rc5=0
+      vor_materialize_keystore "$kb64" "$ktout" "storepass123" "voralias" "WRONGKEYPASS" || rc5=$?
+      _check "keytool:pkcs12-keypass-normalized-by-jdk" 0 "$rc5"
+      [[ -z "$VOR_KEY_PASSWORD_EFFECTIVE" ]] \
+        || { echo "FAIL  pkcs12 normalized keypass must not set an override, got '$VOR_KEY_PASSWORD_EFFECTIVE'"; failures=$((failures + 1)); }
+      # everything correct → rc 0, alias resolved, no key override
       ktout="$tmp/correct.out"; rc5=0
-      vor_materialize_keystore "$kb64" "$ktout" "storepass123" "voralias" || rc5=$?
+      vor_materialize_keystore "$kb64" "$ktout" "storepass123" "voralias" "storepass123" || rc5=$?
       _check "keytool:correct-material-ok" 0 "$rc5"
+      [[ "$VOR_ALIAS_EFFECTIVE" == "voralias" && -z "$VOR_KEY_PASSWORD_EFFECTIVE" ]] \
+        || { echo "FAIL  correct material overrides wrong (alias='$VOR_ALIAS_EFFECTIVE' key='$VOR_KEY_PASSWORD_EFFECTIVE')"; failures=$((failures + 1)); }
     else
       echo "note: keytool present but could not generate a test keystore (rc=$kt); skipping keytool proofs"
+    fi
+
+    # JKS scenarios: JKS is STRICT about key passwords (no JDK normalisation
+    # like PKCS12) — this is where the real Gradle BadPadding lives.
+    local jks jksb64
+    jks="$tmp/distinct.jks"
+    kt=0
+    keytool -genkeypair -keystore "$jks" -storetype JKS -storepass sp123456 \
+      -keypass kp456789 -alias distkey -keyalg RSA -keysize 2048 -validity 30 \
+      -dname "CN=Vor Distinct,O=Vor,C=US" >/dev/null 2>&1 || kt=$?
+    if (( kt == 0 )); then
+      jksb64="$(base64 -w0 "$jks")"
+      # correct distinct keypass → rc 0, no override
+      ktout="$tmp/jks-ok.out"; rc5=0
+      vor_materialize_keystore "$jksb64" "$ktout" "sp123456" "distkey" "kp456789" || rc5=$?
+      _check "keytool:jks-distinct-keypass-ok" 0 "$rc5"
+      # wrong keypass AND storepass doesn't unlock the key → rc 1, precise
+      ktout="$tmp/jks-bad.out"; rc5=0
+      vor_materialize_keystore "$jksb64" "$ktout" "sp123456" "distkey" "totally-wrong" || rc5=$?
+      _check "keytool:jks-undecryptable-key-rejected" 1 "$rc5"
+      [[ "$VOR_MATERIALIZATION_VERDICT" == *"cannot be decrypted"* ]] \
+        || { echo "FAIL  undecryptable-key reason not precise: $VOR_MATERIALIZATION_VERDICT"; failures=$((failures + 1)); }
+      # wrong alias + correct keypass → single-entry auto-resolve + key verified
+      ktout="$tmp/jks-alias.out"; rc5=0
+      vor_materialize_keystore "$jksb64" "$ktout" "sp123456" "vor" "kp456789" || rc5=$?
+      _check "keytool:jks-wrong-alias-auto-resolved" 0 "$rc5"
+      [[ "$VOR_ALIAS_EFFECTIVE" == "distkey" ]] \
+        || { echo "FAIL  jks alias auto-resolve: expected 'distkey', got '$VOR_ALIAS_EFFECTIVE'"; failures=$((failures + 1)); }
+    else
+      echo "note: JKS distinct-keypass keystore could not be generated (rc=$kt); skipping"
+    fi
+
+    # JKS with keypass == storepass but a WRONG key-password secret → the
+    # store-password fallback auto-corrects (same key, same identity).
+    jks="$tmp/samepass.jks"
+    kt=0
+    keytool -genkeypair -keystore "$jks" -storetype JKS -storepass sp123456 \
+      -keypass sp123456 -alias samekey -keyalg RSA -keysize 2048 -validity 30 \
+      -dname "CN=Vor Same,O=Vor,C=US" >/dev/null 2>&1 || kt=$?
+    if (( kt == 0 )); then
+      jksb64="$(base64 -w0 "$jks")"
+      ktout="$tmp/jks-autocorrect.out"; rc5=0
+      vor_materialize_keystore "$jksb64" "$ktout" "sp123456" "samekey" "wrongpass1" || rc5=$?
+      _check "keytool:jks-key-password-auto-corrected" 0 "$rc5"
+      [[ "$VOR_KEY_PASSWORD_EFFECTIVE" == "sp123456" ]] \
+        || { echo "FAIL  jks key-password auto-correct: expected sp123456, got '$VOR_KEY_PASSWORD_EFFECTIVE'"; failures=$((failures + 1)); }
+    else
+      echo "note: JKS same-pass keystore could not be generated (rc=$kt); skipping"
+    fi
+
+    # Certificate-only keystore: alias resolves but is NOT a signing key.
+    local ks3 cer b3
+    cer="$tmp/c.cer"; ks3="$tmp/certonly.p12"
+    kt=0
+    keytool -exportcert -keystore "$ks" -storepass storepass123 -alias voralias \
+      -file "$cer" >/dev/null 2>&1 \
+      && keytool -importcert -keystore "$ks3" -storetype PKCS12 -storepass certpass \
+           -alias certalias -file "$cer" -noprompt >/dev/null 2>&1 || kt=$?
+    if (( kt == 0 )); then
+      b3="$(base64 -w0 "$ks3")"
+      ktout="$tmp/certonly.out"; rc5=0
+      vor_materialize_keystore "$b3" "$ktout" "certpass" "certalias" "certpass" || rc5=$?
+      _check "keytool:certificate-only-rejected" 1 "$rc5"
+      [[ "${VOR_MATERIALIZATION_VERDICT,,}" == *"trustedcertentry"* ]] \
+        || { echo "FAIL  certificate-only reason not precise: $VOR_MATERIALIZATION_VERDICT"; failures=$((failures + 1)); }
+    else
+      echo "note: certificate-only keystore could not be generated (rc=$kt); skipping"
+    fi
+
+    # Multi-alias keystore + wrong alias → rc 3 listing EVERY alias (never guess).
+    local ks4 b4
+    ks4="$tmp/multi.p12"
+    kt=0
+    keytool -importkeystore -noprompt -srckeystore "$ks" -srcstorepass storepass123 \
+      -destkeystore "$ks4" -deststoretype PKCS12 -deststorepass multipass \
+      -destkeypass multipass >/dev/null 2>&1 \
+      && keytool -genkeypair -keystore "$ks4" -storetype PKCS12 -storepass multipass \
+           -alias secondkey -keyalg RSA -keysize 2048 -validity 30 \
+           -dname "CN=Vor Second,O=Vor,C=US" >/dev/null 2>&1 || kt=$?
+    if (( kt == 0 )); then
+      b4="$(base64 -w0 "$ks4")"
+      ktout="$tmp/multi.out"; rc5=0
+      vor_materialize_keystore "$b4" "$ktout" "multipass" "doesnotexist" "multipass" || rc5=$?
+      _check "keytool:multi-alias-unresolvable" 3 "$rc5"
+      grep -q "voralias" <<<"$VOR_MATERIALIZATION_VERDICT" && grep -q "secondkey" <<<"$VOR_MATERIALIZATION_VERDICT" \
+        || { echo "FAIL  multi-alias reason must list both aliases: $VOR_MATERIALIZATION_VERDICT"; failures=$((failures + 1)); }
+    else
+      echo "note: multi-alias keystore could not be generated (rc=$kt); skipping"
     fi
   else
     echo "note: keytool absent — magic-byte proofs only (CI build jobs get the keytool proofs)"

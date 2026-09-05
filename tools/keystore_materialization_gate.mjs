@@ -57,7 +57,7 @@ for (const marker of [
 // 3 ── magic-driven selection (a hex keystore is also valid base64 of its own
 //      text — ordering luck must never decide), plus precise reasons.
 assert.ok(helper.includes('_magic_ok'), 'decode selection must be magic-driven');
-for (const marker of ['feedfeed', 'NOT a keystore', 'store password was REJECTED', "alias"]) {
+for (const marker of ['feedfeed', 'NOT a keystore', 'STORE password was REJECTED', "alias"]) {
   assert.ok(helper.includes(marker), `validation must report precisely: ${marker}`);
 }
 
@@ -106,5 +106,54 @@ assert.ok(wf.includes('PHASE3-SIGNING-MATERIAL-UNUSABLE'),
   'sign step must ship real UNSIGNED artifacts when material is unusable in report mode');
 assert.ok(wf.includes('red BY YOUR EXPLICIT CHOICE'),
   'release-readiness must distinguish the explicit strict gate from a genuine build failure');
+
+// 7 ── milestone 70: the FULL Gradle-level identity proofs are pinned.
+// Runs 33974072492/33974841906-class failures happened INSIDE Gradle
+// ("No key with alias 'vor' found", "keystore password was incorrect" /
+//  BadPadding on the key entry) — the ladder must prove everything Gradle
+// will do, and auto-correct what is safe to correct (same key identity).
+for (const marker of [
+  'importkeystore',                    // real key-decryption probe (what Gradle does)
+  '_keyprobe',                         // the probe helper
+  'VOR_ALIAS_EFFECTIVE',               // corrected-alias channel
+  'VOR_KEY_PASSWORD_EFFECTIVE',        // corrected-key-password channel
+  'trustedcertentry',                  // cert-vs-key check (JDK prints lower-case)
+  'available aliases',                 // multi-alias reports every option
+]) {
+  assert.ok(helper.includes(marker), `helper must implement the milestone-70 proof: ${marker}`);
+}
+const planJobIdx = wf.indexOf('  signing-plan:');
+assert.ok(planJobIdx > 0, 'signing-plan job must exist');
+const planJobBlock = wf.slice(planJobIdx, wf.indexOf('  native-tests:', planJobIdx));
+assert.ok(planJobBlock.includes('actions/setup-java@v6'),
+  'signing-plan must install a JDK so material validation uses REAL keytool proofs');
+assert.ok(planJobBlock.includes('KS_KEY_PASSWORD'),
+  'signing-plan must validate the KEY password, not just presence');
+const matIdx2 = wf.indexOf('name: Materialize release keystore');
+const materializeBlock2 = wf.slice(matIdx2, wf.indexOf('- name:', matIdx2 + 10));
+assert.ok(materializeBlock2.includes('ANDROID_KEY_PASSWORD'),
+  'materialize step must receive the key-password secret');
+assert.ok(materializeBlock2.includes('PHASE3-ALIAS-AUTO-RESOLVED'),
+  'materialize step must warn loudly when it auto-resolves the alias');
+assert.ok(materializeBlock2.includes('PHASE3-KEY-PASSWORD-AUTO-CORRECTED'),
+  'materialize step must warn loudly when it auto-corrects the key password');
+assert.ok(materializeBlock2.includes('VOR_KSEOF'),
+  'override exports must use the heredoc GITHUB_ENV form (password-safe)');
+const buildEnvIdx = wf.indexOf('name: Build Android app');
+const buildEnvBlock = wf.slice(buildEnvIdx, wf.indexOf('- name:', buildEnvIdx + 10));
+assert.ok(buildEnvBlock.includes('${{ env.VOR_ALIAS_EFFECTIVE || secrets.VOR_ANDROID_KEY_ALIAS }}'),
+  'Gradle step must consume the corrected alias when present');
+assert.ok(buildEnvBlock.includes('${{ env.VOR_KEY_PASSWORD_EFFECTIVE || secrets.VOR_ANDROID_KEY_PASSWORD }}'),
+  'Gradle step must consume the corrected key password when present');
+const signStepIdx = wf.indexOf('name: Sign / verify Android artifacts');
+const signStepBlock2 = wf.slice(signStepIdx, wf.indexOf('- name:', signStepIdx + 10));
+assert.ok(signStepBlock2.includes('${{ env.VOR_ALIAS_EFFECTIVE || secrets.VOR_ANDROID_KEY_ALIAS }}'),
+  'apksigner step must consume the corrected alias when present');
+assert.ok(signStepBlock2.includes('${{ env.VOR_KEY_PASSWORD_EFFECTIVE || secrets.VOR_ANDROID_KEY_PASSWORD }}'),
+  'apksigner step must consume the corrected key password when present');
+assert.ok(signStepBlock2.includes('"$ANDROID_KEY_PASSWORD"'),
+  'sign step must pass the key password to the helper for the key probe');
+assert.ok(wf.includes('PHASE3-DIAG-ANDROID-SIGN-KEY_PASSWORD_PRESENT'),
+  'diagnostics must report key-password presence');
 
 console.log('keystore_materialization_gate: PASS — self-healing materialization pinned, strict gate preserved');

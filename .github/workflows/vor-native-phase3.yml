@@ -136,6 +136,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # keytool is required for REAL keystore material validation below
+      # (store-password proof, alias resolution, key-entry decryption probe).
+      - name: Set up JDK 17 (keytool for signing-material validation)
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+
       - name: Resolve signing capability
         id: plan
         shell: bash
@@ -143,6 +151,7 @@ jobs:
           KS_B64: ${{ secrets.VOR_ANDROID_KEYSTORE_B64 }}
           KS_PASSWORD: ${{ secrets.VOR_ANDROID_KEYSTORE_PASSWORD }}
           KS_ALIAS: ${{ secrets.VOR_ANDROID_KEY_ALIAS }}
+          KS_KEY_PASSWORD: ${{ secrets.VOR_ANDROID_KEY_PASSWORD }}
           KS_KEY_PASSWORD: ${{ secrets.VOR_ANDROID_KEY_PASSWORD }}
           APPLE_TEAM: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_PROFILE: ${{ secrets.APPLE_PROVISIONING_PROFILE }}
@@ -166,7 +175,7 @@ jobs:
             source "$GITHUB_WORKSPACE/scripts/materialize-keystore.sh"
             am_rc=0
             vor_materialize_keystore "$KS_B64" /tmp/plan-keystore.bin \
-              "$KS_PASSWORD" "$KS_ALIAS" || am_rc=$?
+              "$KS_PASSWORD" "$KS_ALIAS" "$KS_KEY_PASSWORD" || am_rc=$?
             rm -f /tmp/plan-keystore.bin
             if [[ "$am_rc" == "0" ]]; then
               android_material="ok: ${VOR_MATERIALIZATION_VERDICT#ok; }"
@@ -558,6 +567,7 @@ jobs:
           ANDROID_KEYSTORE_B64: ${{ secrets.VOR_ANDROID_KEYSTORE_B64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.VOR_ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.VOR_ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.VOR_ANDROID_KEY_PASSWORD }}
           SIGNED: ${{ needs.meta.outputs.signed }}
           SIGNING_PLAN: ${{ needs.signing-plan.outputs.android }}
           ON_MISSING_SIGNING: ${{ needs.signing-plan.outputs.on_missing_signing }}
@@ -571,18 +581,36 @@ jobs:
           # Hardened, self-healing materialization (run 33971338723 defect):
           # the old inline `echo | base64 -d` died with a bare exit 1 whenever
           # the operator secret carried CR/wraps/PEM armour/URL-safe chars.
-          # The helper normalises, decodes, magic-validates and reports a
-          # PRECISE reason instead — then this step decides report vs fail.
+          # Milestone 70 adds the Gradle-level proofs: store password, alias
+          # resolution (auto-resolves a single-entry keystore), entry-type
+          # (certificate ≠ key) and a REAL key-decryption probe (what Gradle
+          # performs) — run 33974072492 died in Gradle exactly there.
           source "$GITHUB_WORKSPACE/scripts/materialize-keystore.sh"
           out="$GITHUB_WORKSPACE/vor-release.keystore"
           rm -f "$out"
           rc=0
           vor_materialize_keystore "$ANDROID_KEYSTORE_B64" "$out" \
-            "${ANDROID_KEYSTORE_PASSWORD:-}" "${ANDROID_KEY_ALIAS:-}" || rc=$?
+            "${ANDROID_KEYSTORE_PASSWORD:-}" "${ANDROID_KEY_ALIAS:-}" "${ANDROID_KEY_PASSWORD:-}" || rc=$?
 
           if [[ "$rc" == "0" ]]; then
             echo "Release keystore materialized: ${VOR_MATERIALIZATION_VERDICT}"
             echo "ANDROID_KEYSTORE_PATH=$out" >> "$GITHUB_ENV"
+            if [[ -n "${VOR_ALIAS_EFFECTIVE:-}" && "$VOR_ALIAS_EFFECTIVE" != "${ANDROID_KEY_ALIAS:-}" ]]; then
+              {
+                echo "VOR_ALIAS_EFFECTIVE<<VOR_KSEOF"
+                printf '%s\n' "$VOR_ALIAS_EFFECTIVE"
+                echo "VOR_KSEOF"
+              } >> "$GITHUB_ENV"
+              echo "::warning::PHASE3-ALIAS-AUTO-RESOLVED the VOR_ANDROID_KEY_ALIAS secret ('${ANDROID_KEY_ALIAS:-}') does not exist in this keystore; signing uses its single key under alias '${VOR_ALIAS_EFFECTIVE}' (same key identity, only the label was corrected)"
+            fi
+            if [[ -n "${VOR_KEY_PASSWORD_EFFECTIVE:-}" ]]; then
+              {
+                echo "VOR_KEY_PASSWORD_EFFECTIVE<<VOR_KSEOF"
+                printf '%s\n' "$VOR_KEY_PASSWORD_EFFECTIVE"
+                echo "VOR_KSEOF"
+              } >> "$GITHUB_ENV"
+              echo "::warning::PHASE3-KEY-PASSWORD-AUTO-CORRECTED the key does not decrypt with the key-password secret; signing uses the STORE password, which verifiably opens the same key (identity unchanged). Fix the VOR_ANDROID_KEY_PASSWORD secret to silence this."
+            fi
             exit 0
           fi
 
@@ -590,7 +618,7 @@ jobs:
           if [[ "$SIGNED" == "true" && "${ON_MISSING_SIGNING:-report}" == "fail" ]]; then
             # Explicit strict release gate — preserved, but now with the exact defect named.
             echo "error: signed=true with on_missing_signing=fail: ${VOR_MATERIALIZATION_VERDICT}" >&2
-            echo "error: fix the VOR_ANDROID_KEYSTORE_B64 secret (re-encode with: base64 -w0 vor-release.keystore), or set on_missing_signing=report" >&2
+            echo "error: fix the affected VOR_ANDROID_* secrets, or set on_missing_signing=report to ship the honest unsigned build automatically" >&2
             exit 1
           fi
           echo "::warning::PHASE3-KEYSTORE-MATERIALIZATION-FALLBACK ${VOR_MATERIALIZATION_VERDICT}"
@@ -603,8 +631,8 @@ jobs:
         env:
           ANDROID_KEYSTORE_PATH: ${{ env.ANDROID_KEYSTORE_PATH }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.VOR_ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.VOR_ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.VOR_ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ env.VOR_ALIAS_EFFECTIVE || secrets.VOR_ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ env.VOR_KEY_PASSWORD_EFFECTIVE || secrets.VOR_ANDROID_KEY_PASSWORD }}
         run: |
           set -uo pipefail
           chmod +x ./gradlew
@@ -638,8 +666,8 @@ jobs:
         env:
           ANDROID_KEYSTORE_B64: ${{ secrets.VOR_ANDROID_KEYSTORE_B64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.VOR_ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.VOR_ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.VOR_ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ env.VOR_ALIAS_EFFECTIVE || secrets.VOR_ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ env.VOR_KEY_PASSWORD_EFFECTIVE || secrets.VOR_ANDROID_KEY_PASSWORD }}
           SIGNING_PLAN: ${{ needs.signing-plan.outputs.android }}
           SIGNING_MISSING: ${{ needs.signing-plan.outputs.android_missing }}
           ON_MISSING_SIGNING: ${{ needs.signing-plan.outputs.on_missing_signing }}
@@ -726,7 +754,7 @@ jobs:
             source "$GITHUB_WORKSPACE/scripts/materialize-keystore.sh"
             ks_rc=0
             vor_materialize_keystore "$ANDROID_KEYSTORE_B64" "vor-release.keystore" \
-              "$ANDROID_KEYSTORE_PASSWORD" "$ANDROID_KEY_ALIAS" || ks_rc=$?
+              "$ANDROID_KEYSTORE_PASSWORD" "$ANDROID_KEY_ALIAS" "$ANDROID_KEY_PASSWORD" || ks_rc=$?
             if [[ "$ks_rc" != "0" ]]; then
               if [[ "${ON_MISSING_SIGNING:-report}" == "fail" ]]; then
                 echo "error: signed=true with on_missing_signing=fail: ${VOR_MATERIALIZATION_VERDICT}" >&2
@@ -777,6 +805,9 @@ jobs:
           echo "::warning::PHASE3-DIAG-ANDROID-SIGN-KEYSTORE_B64_PRESENT=${{ secrets.VOR_ANDROID_KEYSTORE_B64 != '' }}"
           echo "::warning::PHASE3-DIAG-ANDROID-SIGN-PASSWORD_PRESENT=${{ secrets.VOR_ANDROID_KEYSTORE_PASSWORD != '' }}"
           echo "::warning::PHASE3-DIAG-ANDROID-SIGN-ALIAS_PRESENT=${{ secrets.VOR_ANDROID_KEY_ALIAS != '' }}"
+          echo "::warning::PHASE3-DIAG-ANDROID-SIGN-KEY_PASSWORD_PRESENT=${{ secrets.VOR_ANDROID_KEY_PASSWORD != '' }}"
+          echo "::warning::PHASE3-DIAG-ANDROID-SIGN-ALIAS_EFFECTIVE_SET=${{ env.VOR_ALIAS_EFFECTIVE != '' }}"
+          echo "::warning::PHASE3-DIAG-ANDROID-SIGN-KEY_PASSWORD_EFFECTIVE_SET=${{ env.VOR_KEY_PASSWORD_EFFECTIVE != '' }}"
           [[ -d dist-android ]] && { echo "dist files:"; ls -lh dist-android || true; }
 
   # ─────────────────────────────────────────────────────────────────────────────
