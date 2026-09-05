@@ -59,6 +59,37 @@ for (const name of readdirSync(iconsDir)) {
   }
 }
 
+// Tauri's bundler also decodes `icon.ico`. A plain PNG renamed to `.ico` fails
+// with "Format error decoding Ico: The PNG is not in RGBA format!"; a real
+// multi-frame ICO whose embedded PNG frames are RGBA (color type 6) is required.
+function validateIco(path) {
+  const b = readFileSync(path);
+  if (b.length < 22 || b[0] !== 0x00 || b[1] !== 0x00 || b[2] !== 0x01 || b[3] !== 0x00) {
+    throw new Error(`${path} is not a valid ICO (header must be 00 00 01 00)`);
+  }
+  const count = b.readUInt16LE(4);
+  if (!count) throw new Error(`${path} has no icon directory entries`);
+  for (let i = 0; i < count; i++) {
+    const off = 6 + i * 16;
+    if (off + 16 > b.length) throw new Error(`${path} truncated ICO directory`);
+    const size = b.readUInt32LE(off + 8);
+    const imgOff = b.readUInt32LE(off + 12);
+    if (imgOff + size > b.length) throw new Error(`${path} truncated image payload`);
+    const img = b.subarray(imgOff, imgOff + size);
+    if (img[0] === 0x89 && img[1] === 0x50 && img[2] === 0x4e && img[3] === 0x47) {
+      if (img.length < 26) throw new Error(`${path} contains a malformed PNG frame`);
+      const colorType = img[25];
+      if (colorType !== 6) {
+        throw new Error(
+          `${path} contains a PNG frame with color type ${colorType}; ` +
+            'Tauri requires RGBA (color type 6) or bundling fails with "The PNG is not in RGBA format!"',
+        );
+      }
+    }
+  }
+}
+validateIco(new URL('../V2RayEZ-GUI/src-tauri/icons/icon.ico', import.meta.url).pathname);
+
 // Only inspect meaningful YAML body; the header intentionally documents why this
 // workflow does NOT call `gh release create/upload`.
 const wfBody = wf
