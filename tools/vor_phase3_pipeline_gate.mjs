@@ -97,6 +97,10 @@ const required = [
   // `find ... | head -n 40` must not turn SIGPIPE into a step failure under
   // `set -o pipefail`.
   'find target -path "*${{ matrix.rust_target }}/release/*" -type f -print | head -n 40 || true',
+  // Once the staticlib exists the IPK build is the next real failure point;
+  // its raw output must be captured to a tee'd log and emitted as diagnostics.
+  'tee /tmp/openwrt-ipk.log',
+  'PHASE3-DIAG-OPENWRT-IPK-',
   'scripts/build-openwrt-ipk.sh',
   'openwrt-sdk',
   // Fail-closed artifact verification.
