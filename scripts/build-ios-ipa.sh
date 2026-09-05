@@ -116,9 +116,22 @@ if ios_signing_available; then
   ios_log "signed ipa ready: $FINAL/Vor.ipa"
 else
   # Xcode cannot export an unsigned .ipa, so ship the real archive instead.
-  ios_log "no signing identity: packaging the real unsigned .xcarchive instead of an .ipa"
+  ios_log "no signing identity: packaging the real unsigned artifacts"
+  # Xcode cannot export an .ipa without a signing identity, but sideloading
+  # tools (AltStore / SideStore / Sideloadly) sign the IPA with the user's own
+  # Apple ID, so they need an unsigned IPA built from the real compiled .app.
+  ios_package_unsigned_ipa "$ARCHIVE" "$FINAL/Vor-v${VERSION}-ios-unsigned.ipa"
   ios_zip_archive "$ARCHIVE" "$FINAL/Vor-v${VERSION}-ios-unsigned.xcarchive.zip"
-  ios_log "unsigned archive ready: $FINAL/Vor-v${VERSION}-ios-unsigned.xcarchive.zip"
+  {
+    echo "signing_status: unsigned (sideload-ready)"
+    echo "reason: no signing identity on this runner"
+    echo "artifact_unsigned_ipa: Vor-v${VERSION}-ios-unsigned.ipa"
+    echo "artifact_unsigned_archive: Vor-v${VERSION}-ios-unsigned.xcarchive.zip"
+    echo "note: install with AltStore / SideStore / Sideloadly, which re-sign the"
+    echo "      IPA with your own free Apple ID. Not installable as-is: iOS"
+    echo "      requires a signature before it will launch an app."
+  } > "$FINAL/Vor-v${VERSION}-ios-SIGNING-STATUS.txt"
+  ios_log "unsigned artifacts ready: unsigned ipa + xcarchive + status report"
 fi
 
 ls -lh "$FINAL/"

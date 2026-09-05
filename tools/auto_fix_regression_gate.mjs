@@ -53,7 +53,13 @@ assert.ok(
 
 // iOS packaging must stay honest: no synthesized executable, real verification.
 const helper = read('scripts/ios-packaging.sh');
-for (const needle of ['ios_verify_ipa', 'ios_verify_app_bundle', 'ios_is_macho', 'ios_resolve_xcodeproj']) {
+for (const needle of [
+  'ios_verify_ipa',
+  'ios_verify_app_bundle',
+  'ios_is_macho',
+  'ios_resolve_xcodeproj',
+  'ios_package_unsigned_ipa',
+]) {
   assert.ok(helper.includes(needle), `scripts/ios-packaging.sh must provide ${needle}()`);
 }
 assert.ok(
@@ -68,6 +74,25 @@ for (const entry of ['scripts/build-ios-ipa.sh', 'universal-core/apple/build-ipa
   );
   assert.ok(body.includes('ios-packaging.sh'), `${entry} must use the shared fail-closed iOS packaging helper`);
 }
+
+// Without a signing identity Xcode cannot `-exportArchive`, but sideload tools
+// (AltStore / SideStore / TrollStore) re-sign with the user's own free Apple ID,
+// so the pipeline must still ship a REAL unsigned .ipa built from the compiled
+// .app — never only an .xcarchive, and never a synthesized bundle.
+const iosBuilder = read('scripts/build-ios-ipa.sh');
+assert.ok(
+  iosBuilder.includes('ios_package_unsigned_ipa "$ARCHIVE"'),
+  'scripts/build-ios-ipa.sh must package a real unsigned .ipa from the .xcarchive when no signing identity exists',
+);
+const releaseWf = read('.github/workflows/release.yml');
+assert.ok(
+  /find dist-ios -type f -name "\*\.ipa"/.test(releaseWf),
+  'release.yml must stage every dist-ios/*.ipa into the published artifacts',
+);
+assert.ok(
+  /ios_verify_ipa/.test(releaseWf),
+  'release.yml must verify each staged .ipa with ios_verify_ipa before publishing',
+);
 
 // The pipeline must stay signing-plan driven.
 for (const needle of [

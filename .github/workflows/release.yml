@@ -861,7 +861,8 @@ jobs:
             echo "### Installation Guide"
             echo "- **Android**: Install the single \`V2RayEZ-*-universal.apk\` fat APK (contains \`arm64-v8a\`, \`armeabi-v7a\`, \`x86_64\`; aligned \`zipalign -p 4\`, signed APK Signature Scheme v1+v2+v3+v4)."
             echo "- **Windows**: Run \`V2RayEZ-*-setup.exe\` or execute standalone \`.exe\`."
-            echo "- **iOS**: Sideload \`V2RayEZ-*-ios.ipa\` using AltStore, SideStore, TrollStore, or Xcode."
+            echo "- **iOS (signed)**: Sideload \`Vor-*-ios.ipa\` using AltStore, SideStore, TrollStore, or Xcode."
+            echo "- **iOS (unsigned)**: When the runner has no signing identity the release ships \`Vor-*-ios-unsigned.ipa\` (a real, compiled, sideload-ready bundle) plus \`Vor-*-ios-unsigned.xcarchive.zip\`. Install it by opening the IPA in **TrollStore** (permanent, iOS 14.0–17.0), **SideStore** (free, auto-refresh, no PC after a one-time pairing), **AltStore** or **Sideloadly** — each re-signs it with your own free Apple ID. See \`IOS_SIDELOAD_GUIDE.md\`."
             echo "- **OpenWrt**: Install via \`opkg install unifiedshield_*.ipk luci-app-unifiedshield_*.ipk\`."
           } > "$NOTES_FILE"
 

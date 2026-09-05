@@ -349,6 +349,49 @@ ios_verify_ipa() {
   ios_log "verified ipa: $ipa"
 }
 
+# Package a real, UNSIGNED .ipa from the verified .app inside an .xcarchive.
+#
+# Why this exists: sideloading tools (AltStore, SideStore, Sideloadly) re-sign
+# an IPA with the user's OWN free Apple ID, so the artifact they consume is by
+# definition unsigned. Building one from the genuinely compiled .app is the
+# honest version of this file: the executable is a real Mach-O binary produced
+# by xcodebuild and verified twice (before and after zipping).
+#
+# This is deliberately NOT a "fallback app": no executable is synthesized, no
+# placeholder bundle is created, and every artifact goes through the same
+# Mach-O verification as a signed export.
+ios_package_unsigned_ipa() {
+  local archive="$1"
+  local out="$2"
+  [[ -d "$archive" ]] || ios_die "xcarchive missing: $archive"
+  local app
+  app="$(find "$archive/Products/Applications" -maxdepth 1 -name '*.app' -print -quit 2>/dev/null || true)"
+  [[ -n "$app" ]] || ios_die "xcarchive contains no Products/Applications/*.app: $archive"
+  ios_verify_app_bundle "$app"
+
+  command -v zip >/dev/null 2>&1 || ios_die "zip is required to package $out"
+
+  local tmp
+  tmp="$(mktemp -d)"
+  mkdir -p "$tmp/Payload"
+  cp -R "$app" "$tmp/Payload/"
+  ios_verify_app_bundle "$tmp/Payload/$(basename "$app")"
+
+  mkdir -p "$(dirname "$out")"
+  local abs_out
+  abs_out="$(cd "$(dirname "$out")" && pwd)/$(basename "$out")"
+  rm -f "$abs_out"
+  (cd "$tmp" && zip -q -r "$abs_out" Payload) || {
+    rm -rf "$tmp"
+    ios_die "cannot package $app into $abs_out"
+  }
+  rm -rf "$tmp"
+
+  # Verify the shipped artifact, not just the source bundle.
+  ios_verify_ipa "$abs_out"
+  ios_log "packaged unsigned (sideload-ready) ipa: $abs_out"
+}
+
 # Package a real, unsigned .xcarchive as a zip. This is a genuine Xcode build
 # output (compiled app + dSYMs) — used when no signing identity exists, because
 # Xcode cannot export an .ipa without one.
