@@ -755,3 +755,27 @@ bash -n scripts/build-release-artifacts.sh scripts/build-android-apk.sh \
   MICAFP/openwrt/files/usr/libexec/unifiedshield/license-watchdog.sh
 python3 -m py_compile tools/*.py
 ```
+
+### Milestone 69 — self-healing keystore materialization (2026-09-05, branch `arena/01a071f4-v2rayez`)
+
+Run `33971338723` (workflow_dispatch, signed=true, on_missing_signing=fail)
+went red in `build-android` at `Materialize release keystore` **with the
+secret present** (`…KEYSTORE_B64_PRESENT=true`): the inline
+`echo "$B64" | base64 -d` exits 1 for secrets carrying CR / spaces / PEM
+armour / literal `\n` escapes. `build-ios` was red by the caller's explicit
+strict choice, not by a defect; every other job (openwrt ×2, desktop ×3,
+native tests) was already green.
+
+Fix (additive, strict gate preserved): shared `scripts/materialize-keystore.sh`
+— normalisation (data-URI, PEM armour, looped escape-sequence strip that cannot
+eat a payload `n`, whitespace/CR, quotes, URL-safe, base64-alphabet filter,
+padding), magic-driven candidate selection (strict b64 / hex / ignore-garbage
+must each prove the JKS/PKCS12/BKS magic), `keytool` password+alias proof with
+precise reasons, `report`-mode honest debug-keystore fallback and `fail`-mode
+exact-defect failure. `signing-plan` now validates material (keystore decode +
+magic, profile decode + plist, Team-ID shape) and publishes
+`android_material`/`ios_material`; `release-readiness` separates "genuine build
+failure" from "red by explicit strict choice". New gate
+`tools/keystore_materialization_gate.mjs` executes the helper's self-test
+(30/30 consecutive PASS) and pins the wiring + capability preservation.
+All 30 gates PASS; `auto-fix --check` PASS.
