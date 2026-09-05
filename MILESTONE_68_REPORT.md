@@ -126,6 +126,33 @@ the pipeline stays signing-plan driven with the argv defect fixed.
 
 ---
 
+## 4b. What the honest pipeline exposed next (real Swift compile errors)
+
+Removing the fake `.ipa` fallback was like turning the lights on: the iOS
+target had **never compiled**. Iterating on real runner output (each failure
+published as a `::error::` annotation) surfaced and fixed four genuine defects:
+
+| # | File | Error | Fix |
+|---|---|---|---|
+| 1 | `…/NetworkExtension/PacketTunnelProvider.swift` | `value of optional type '((Data?) -> Void)?' must be unwrapped` (5 call sites in `handleAppMessage`) | optional chaining: `completionHandler?(…)` |
+| 2 | `…/NetworkExtension/TunnelManager.swift:119` | `argument passed to call that takes no arguments` — `NETunnelProviderProtocol(providerBundleIdentifier:…)` does not exist | parameterless `init()` + property assignment |
+| 3 | `…/NetworkExtension/TunnelManager.swift:154,191` | `cannot find 'LicenseManager' in scope` — it belongs to the **app** target and imports **UIKit**, which an app extension cannot use | `ExtensionLicenseGate.shared.enforce()` (already used everywhere else in the extension) |
+| 4 | `…/NetworkExtension/TunnelManager.swift:180` | `cannot find 'AIProviderGateway' in scope` (same reason) | `ExtensionAIAdvisor.shared.adviseOnFailure(_:)` — identical signature |
+
+Plus a target-membership bug found by static analysis before it could burn a
+runner: the SwiftUI screens (`ContentView`, `CoreSwitcherView`, `StatusView`)
+bind to `TunnelManager`, but it lived **only** in the extension target, so the
+app target could not see it. `MICAFP/ios/project.yml` now compiles
+`TunnelManager.swift` + its two dependencies (`ExtensionLicenseGate.swift`,
+`ExtensionAIAdvisor.swift`) into **both** targets. All three are UIKit-free —
+mandatory inside an app extension — and no capability is lost: the app still
+drives the tunnel lifecycle, the extension still enforces the license.
+
+`tools/runtime_license_watchdog_gate.mjs` was updated accordingly: it now pins
+the **contract** (`ExtensionLicenseGate.shared.enforce()` → `remainingSeconds`
+→ sleep) in both iOS targets, forbids `LicenseManager` inside the extension,
+and pins the container app manager's `enforce()`.
+
 ## 5. Validation
 
 ```bash
@@ -135,6 +162,14 @@ bash -n scripts/ios-packaging.sh scripts/build-ios-ipa.sh \
          scripts/build-release-artifacts.sh universal-core/apple/build-ipa.sh
 python3 -c "import yaml;[yaml.safe_load(open(f)) for f in ['.github/workflows/vor-native-phase3.yml','.github/workflows/release.yml','.github/workflows/universal-core-ci.yml']]"
 ```
+
+Runner evidence (all on `arena/01a06fec-v2rayez`):
+
+| Run | Result |
+|---|---|
+| Phase 3 (push, `33947427082`) | ✅ native tests, **Repository auto-fix audit**, full gate suite, `signing-plan` (annotations list the exact missing credentials) |
+| Universal Core CI (push, `33947427209`) | ✅ auto-fix audit + 29 gates |
+| Release pipeline | `build-ios` was previously "green" **only** because the fallback fabricated an `.ipa`; it is now honestly red until the Swift sources compile, with the real compiler error published as an annotation |
 
 Repair proof (defect injected into a scratch script, then auto-repaired):
 
