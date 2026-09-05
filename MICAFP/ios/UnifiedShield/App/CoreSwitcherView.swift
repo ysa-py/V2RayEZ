@@ -9,7 +9,7 @@ struct CoreSwitcherView: View {
             id: "xray",
             name: "Xray",
             description: "VLESS/VMess with XTLS. Best for general use.",
-            protocol: "VLESS/VMess",
+            protocolName: "VLESS/VMess",
             obfuscation: true,
             recommended: true
         ),
@@ -17,7 +17,7 @@ struct CoreSwitcherView: View {
             id: "naive",
             name: "NaïveProxy",
             description: "Chrome network stack. Anti-DPI with domain fronting.",
-            protocol: "HTTP/2",
+            protocolName: "HTTP/2",
             obfuscation: true,
             recommended: false
         ),
@@ -25,7 +25,7 @@ struct CoreSwitcherView: View {
             id: "hysteria2",
             name: "Hysteria2",
             description: "QUIC-based. Fast on unstable connections.",
-            protocol: "QUIC",
+            protocolName: "QUIC",
             obfuscation: false,
             recommended: false
         ),
@@ -33,7 +33,7 @@ struct CoreSwitcherView: View {
             id: "tuic",
             name: "TUIC",
             description: "QUIC proxy with multiplexing. Low overhead.",
-            protocol: "QUIC",
+            protocolName: "QUIC",
             obfuscation: false,
             recommended: false
         )
@@ -87,7 +87,7 @@ struct CoreInfo: Identifiable {
     let id: String
     let name: String
     let description: String
-    let protocol: String
+    let protocolName: String
     let obfuscation: Bool
     let recommended: Bool
 }
@@ -132,7 +132,7 @@ struct CoreCard: View {
                         .foregroundColor(.secondary)
 
                     HStack(spacing: 6) {
-                        Text(core.protocol)
+                        Text(core.protocolName)
                             .font(.caption2)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)

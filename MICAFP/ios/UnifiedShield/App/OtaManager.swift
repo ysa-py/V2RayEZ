@@ -22,18 +22,16 @@ class OtaManager: ObservableObject {
     private let defaults = UserDefaults.standard
     private let session: URLSession
 
-    companion object {
-        static let shared = OtaManager()
-        static let checkInterval: TimeInterval = 6 * 3600 // 6 hours
-        static let lastCheckKey = "ota_last_check"
-        static let skippedVersionKey = "ota_skipped_version"
+    static let shared = OtaManager()
+    static let checkInterval: TimeInterval = 6 * 3600 // 6 hours
+    static let lastCheckKey = "ota_last_check"
+    static let skippedVersionKey = "ota_skipped_version"
 
-        // CDN mirrors for Iran (Cloudflare is BLOCKED)
-        static let githubApiUrl = "https://api.github.com/repos/unifiedshield/unifiedshield-ios/releases/latest"
-        static let alibabaMirror = "https://unifiedshield-cn.oss-cn-beijing.aliyuncs.com/releases"
-        static let tencentMirror = "https://unifiedshield-1250000000.cos.ap-shanghai.myqcloud.com/releases"
-        static let ghproxyMirror = "https://mirror.ghproxy.com"
-    }
+    // CDN mirrors for Iran (Cloudflare is BLOCKED)
+    static let githubApiUrl = "https://api.github.com/repos/unifiedshield/unifiedshield-ios/releases/latest"
+    static let alibabaMirror = "https://unifiedshield-cn.oss-cn-beijing.aliyuncs.com/releases"
+    static let tencentMirror = "https://unifiedshield-1250000000.cos.ap-shanghai.myqcloud.com/releases"
+    static let ghproxyMirror = "https://mirror.ghproxy.com"
 
     struct GitHubRelease: Codable {
         let tagName: String
